@@ -42,6 +42,7 @@ func TestEntryTypeStrings(t *testing.T) {
 		EntryTypeRevocation:    "revocation",
 		EntryTypeKeyRotation:   "key_rotation",
 		EntryTypeSensorReading: "sensor_reading",
+		EntryTypeErasure:       "erasure",
 	}
 	for typ, name := range want {
 		if !typ.Valid() {
@@ -51,9 +52,29 @@ func TestEntryTypeStrings(t *testing.T) {
 			t.Errorf("String() = %q, erwartet %q", got, name)
 		}
 	}
-	for _, bad := range []EntryType{0, 6, 255} {
+	for _, bad := range []EntryType{0, 7, 255} {
 		if bad.Valid() {
 			t.Errorf("EntryType(%d) gilt als gültig", uint8(bad))
+		}
+	}
+}
+
+// TestErasureIsNotRevocation hält die Trennung aus OWM-0 §6.1 fest: beide
+// benennen ein Ziel, aber sie sagen Verschiedenes. Fielen sie zusammen, sähe
+// jede DSGVO-Löschung wie ein Eingeständnis aus, die Aussage sei falsch gewesen.
+func TestErasureIsNotRevocation(t *testing.T) {
+	if EntryTypeErasure == EntryTypeRevocation {
+		t.Fatal("erasure und revocation haben denselben Zahlwert")
+	}
+	for _, typ := range []EntryType{EntryTypeRevocation, EntryTypeErasure} {
+		if !typ.RefersToEntry() {
+			t.Errorf("%s benennt kein Ziel", typ)
+		}
+	}
+	for _, typ := range []EntryType{EntryTypeAssertion, EntryTypeAttestation,
+		EntryTypeKeyRotation, EntryTypeSensorReading} {
+		if typ.RefersToEntry() {
+			t.Errorf("%s benennt ein Ziel, sollte aber nicht", typ)
 		}
 	}
 }
@@ -101,29 +122,71 @@ func TestEntryValidate(t *testing.T) {
 	}
 }
 
-func TestRevocationRules(t *testing.T) {
+// TestParentLimit sichert die Obergrenze an beiden Stellen ab: beim Prüfen und
+// beim Dekodieren. Die zweite ist die wichtigere — dort entscheidet sich, ob ein
+// böswillig großes Array Speicher belegt, bevor jemand es ablehnt.
+func TestParentLimit(t *testing.T) {
+	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x13)
+	ref := EntryRef{Entry: hashLabeled("test", []byte("vorgänger"))}
+
+	atLimit := fixtureEntry(k)
+	atLimit.Parents = make([]EntryRef, MaxParents)
+	for i := range atLimit.Parents {
+		atLimit.Parents[i] = ref
+	}
+	if err := atLimit.Validate(); err != nil {
+		t.Fatalf("genau MaxParents abgelehnt: %v", err)
+	}
+	encoded, err := atLimit.Encode()
+	if err != nil {
+		t.Fatalf("Kodierung bei MaxParents: %v", err)
+	}
+	if _, err := ParseEntry(encoded); err != nil {
+		t.Fatalf("Dekodierung bei MaxParents: %v", err)
+	}
+
+	over := *atLimit
+	over.Parents = append(append([]EntryRef(nil), atLimit.Parents...), ref)
+	if err := over.Validate(); !errors.Is(err, ErrTooManyParents) {
+		t.Errorf("Validate liefert %v, erwartet ErrTooManyParents", err)
+	}
+	// Am Prüfschritt vorbei direkt kodieren, um den Dekodierpfad zu treffen.
+	raw, err := encMode.Marshal(over.toWire())
+	if err != nil {
+		t.Fatalf("Rohkodierung: %v", err)
+	}
+	if _, err := ParseEntry(raw); !errors.Is(err, ErrTooManyParents) {
+		t.Errorf("ParseEntry liefert %v, erwartet ErrTooManyParents", err)
+	}
+}
+
+func TestTargetingEntryRules(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x12)
-	ref := EntryRef{Entry: hashLabeled("test", []byte("widerrufener Eintrag"))}
+	ref := EntryRef{Entry: hashLabeled("test", []byte("betroffener Eintrag"))}
 
-	rev := fixtureEntry(k)
-	rev.Type = EntryTypeRevocation
-	rev.Profile = ""
-	rev.Commitment = Commitment{} // ein Widerruf braucht keine Nutzlast
-	rev.Target = &ref
-	if err := rev.Validate(); err != nil {
-		t.Fatalf("gültiger Widerruf abgelehnt: %v", err)
-	}
+	for _, typ := range []EntryType{EntryTypeRevocation, EntryTypeErasure} {
+		t.Run(typ.String(), func(t *testing.T) {
+			e := fixtureEntry(k)
+			e.Type = typ
+			e.Profile = ""
+			e.Commitment = Commitment{} // beide brauchen keine eigene Nutzlast
+			e.Target = &ref
+			if err := e.Validate(); err != nil {
+				t.Fatalf("gültiger Eintrag abgelehnt: %v", err)
+			}
 
-	without := *rev
-	without.Target = nil
-	if err := without.Validate(); !errors.Is(err, ErrMissingField) {
-		t.Errorf("Widerruf ohne tgt liefert %v, erwartet ErrMissingField", err)
-	}
+			without := *e
+			without.Target = nil
+			if err := without.Validate(); !errors.Is(err, ErrMissingField) {
+				t.Errorf("ohne tgt liefert %v, erwartet ErrMissingField", err)
+			}
 
-	empty := *rev
-	empty.Target = &EntryRef{}
-	if err := empty.Validate(); !errors.Is(err, ErrMissingField) {
-		t.Errorf("Widerruf mit leerem tgt liefert %v, erwartet ErrMissingField", err)
+			empty := *e
+			empty.Target = &EntryRef{}
+			if err := empty.Validate(); !errors.Is(err, ErrMissingField) {
+				t.Errorf("mit leerem tgt liefert %v, erwartet ErrMissingField", err)
+			}
+		})
 	}
 }
 

@@ -72,4 +72,9 @@ fuzz-smoke:
   script:
     - go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 60s
     - go test ./core/ -run '^$' -fuzz FuzzParseSignedEntry -fuzztime 60s
+    # Blätter und STHs kommen von fremden Nodes und sind damit dieselbe Art
+    # Eingabe wie ein Eintrag.
+    - go test ./log/ -run '^$' -fuzz FuzzParseLeaf -fuzztime 30s
+    - go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 30s
+    - go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 30s
   allow_failure: false

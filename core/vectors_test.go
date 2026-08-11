@@ -162,7 +162,7 @@ func vectorFixtures() []vectorFixture {
 	payload := []byte(`{"typ":"harvest","lot":"2026-08-10-A"}`)
 	parentA := hashLabeled(labelEntryID, []byte("vorgänger a"))
 	parentB := hashLabeled(labelEntryID, []byte("vorgänger b"))
-	logID := hashLabeled("OWM/1 log-id", []byte("beispiel-log"))
+	logID := LogID(hashLabeled(labelLogID, []byte("beispiel-log")))
 
 	base := func(k *PrivateKey) *Entry {
 		return &Entry{
@@ -202,6 +202,19 @@ func vectorFixtures() []vectorFixture {
 				e.Type = EntryTypeRevocation
 				e.Commitment = Commitment{}
 				e.Target = &EntryRef{Entry: parentA}
+				return e
+			},
+		},
+		{
+			name: "erasure",
+			note: "Löschbezeugung: gleiche Gestalt wie der Widerruf, andere Aussage. " +
+				"Die Nutzlast des Zieleintrags ist samt Salt gelöscht, sein Blatt bleibt im Baum.",
+			alg: SigAlgMLDSA65, seed: 0x01,
+			build: func(k *PrivateKey) *Entry {
+				e := base(k)
+				e.Type = EntryTypeErasure
+				e.Commitment = Commitment{}
+				e.Target = &EntryRef{Entry: parentA, Log: logID}
 				return e
 			},
 		},

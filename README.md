@@ -36,9 +36,9 @@ Noch keine Version ist für den Produktivbetrieb gedacht.
 
 | Baustein | Verzeichnis | Stand |
 |---|---|---|
-| Spezifikation | [`spec/`](spec/) | Übersicht und Angreifermodell vorhanden |
+| Spezifikation | [`spec/`](spec/) | Übersicht, Angreifermodell und Log-Spezifikation vorhanden |
 | Datenmodell, Krypto, Serialisierung | [`core/`](core/) | in Arbeit |
-| Merkle-Log, Beweise, Löschpfad | `log/` | geplant |
+| Merkle-Log, Beweise, Löschpfad | [`log/`](log/) | in Arbeit |
 | Node-Server | `node/` | geplant |
 | Unabhängiger Log-Monitor | `monitor/` | geplant |
 | Web-App und WASM-Verifier | `client/` | geplant |
@@ -58,6 +58,7 @@ go vet ./...
 ## Dokumentation
 
 - [`spec/owm-0-overview.md`](spec/owm-0-overview.md) — Protokollübersicht, Begriffe, Kryptoparameter
+- [`spec/owm-2-log.md`](spec/owm-2-log.md) — Log, Merkle-Baum, Signed Tree Heads, Beweise, Löschpfad
 - [`spec/owm-9-threat-model.md`](spec/owm-9-threat-model.md) — Angreifermodell und Grenzen des Systems
 - [`CLAUDE.md`](CLAUDE.md) — Konzeptdokument mit den Grundsatzentscheidungen und ihrer Begründung
 

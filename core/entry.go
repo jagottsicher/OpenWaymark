@@ -24,8 +24,8 @@ const (
 	// Schlüssel, etwa eine Zertifizierung. Das Subjekt ist dann die
 	// Schlüsselkennung des Bestätigten.
 	EntryTypeAttestation EntryType = 2
-	// EntryTypeRevocation widerruft einen früheren Eintrag und dient zugleich
-	// als Grabstein nach einer Nutzlastlöschung.
+	// EntryTypeRevocation widerruft einen früheren Eintrag: die Aussage war
+	// falsch oder gilt nicht mehr.
 	EntryTypeRevocation EntryType = 3
 	// EntryTypeKeyRotation kündigt einen Nachfolgeschlüssel an. Die Nutzlast
 	// enthält den neuen öffentlichen Schlüssel und wird nicht gelöscht.
@@ -33,6 +33,15 @@ const (
 	// EntryTypeSensorReading ist ein automatisch erfasster Messwert,
 	// ausgestellt von einem Geräteschlüssel.
 	EntryTypeSensorReading EntryType = 5
+	// EntryTypeErasure bezeugt, dass Nutzlast und Salt eines früheren Eintrags
+	// gelöscht wurden — der Grabstein nach einer Löschung.
+	//
+	// Ausdrücklich kein Widerruf: ein Widerruf ist eine Behauptung über die
+	// Welt, eine Löschung eine Tatsache über den Speicher. Die Aussage des
+	// gelöschten Eintrags bleibt gültig, nur ihr Beleg ist fort. Ohne diesen
+	// eigenen Typ ließe sich rechtmäßige Löschung nicht von böswilligem
+	// Zurückhalten unterscheiden (OWM-9 A3).
+	EntryTypeErasure EntryType = 6
 )
 
 func (t EntryType) String() string {
@@ -47,6 +56,8 @@ func (t EntryType) String() string {
 		return "key_rotation"
 	case EntryTypeSensorReading:
 		return "sensor_reading"
+	case EntryTypeErasure:
+		return "erasure"
 	default:
 		return fmt.Sprintf("EntryType(%d)", uint8(t))
 	}
@@ -54,18 +65,35 @@ func (t EntryType) String() string {
 
 // Valid meldet, ob der Typ von dieser Formatversion unterstützt wird.
 func (t EntryType) Valid() bool {
-	return t >= EntryTypeAssertion && t <= EntryTypeSensorReading
+	return t >= EntryTypeAssertion && t <= EntryTypeErasure
+}
+
+// RefersToEntry meldet, ob der Typ einen anderen Eintrag benennt und deshalb
+// tgt führen muss.
+func (t EntryType) RefersToEntry() bool {
+	return t == EntryTypeRevocation || t == EntryTypeErasure
 }
 
 // maxProfileLen begrenzt die Profilkennung. Sie ist ein Bezeichner, kein
 // Freitextfeld.
 const maxProfileLen = 64
 
+// MaxParents begrenzt die Zahl direkter Vorgänger eines Eintrags.
+//
+// Ohne Grenze könnte ein einziger Eintrag beliebig viel Speicher und Rechenzeit
+// binden. Die Höhe ist an der Praxis bemessen: Eine Aggregation von tausend
+// Einzelstücken auf eine Palette ist ein normales Lieferkettenereignis, mehr als
+// tausend direkte Vorgänger in einem Schritt sind es nicht.
+const MaxParents = 1024
+
+// ErrTooManyParents meldet die Überschreitung von MaxParents.
+var ErrTooManyParents = errors.New("owm: zu viele Vorgänger")
+
 var (
 	ErrVersion        = errors.New("owm: unbekannte Formatversion")
 	ErrEntryType      = errors.New("owm: unbekannter Eintragstyp")
 	ErrMissingField   = errors.New("owm: Pflichtfeld fehlt")
-	ErrUnexpectedTgt  = errors.New("owm: tgt nur bei revocation zulässig")
+	ErrUnexpectedTgt  = errors.New("owm: tgt nur bei revocation und erasure zulässig")
 	ErrProfile        = errors.New("owm: ungültige Profilkennung")
 	ErrIssuerMismatch = errors.New("owm: Aussteller passt nicht zum Schlüssel")
 	ErrBadSignature   = errors.New("owm: Signatur ungültig")
@@ -79,7 +107,7 @@ var (
 // null.
 type EntryRef struct {
 	Entry Digest `json:"entry"`
-	Log   Digest `json:"log,omitempty"`
+	Log   LogID  `json:"log,omitempty"`
 }
 
 // Entry ist eine Aussage einer Entität über ein Subjekt.
@@ -96,8 +124,8 @@ type Entry struct {
 	IssuedAt int64     `json:"iat"` // Millisekunden seit Unix-Epoche, UTC
 	Issuer   KeyID     `json:"iss"`
 
-	// Commitment ist das gesalzene Commitment der Nutzlast. Nur bei
-	// revocation darf es fehlen — ein Widerruf braucht keine Nutzlast.
+	// Commitment ist das gesalzene Commitment der Nutzlast. Nur bei revocation
+	// und erasure darf es fehlen — beide brauchen keine eigene Nutzlast.
 	Commitment Commitment `json:"cmt,omitempty"`
 
 	// Parents bildet die Lieferkette als gerichteten azyklischen Graphen ab.
@@ -106,7 +134,8 @@ type Entry struct {
 	// legt das Profil fest.
 	Parents []EntryRef `json:"par,omitempty"`
 
-	// Target benennt bei revocation den widerrufenen Eintrag.
+	// Target benennt den betroffenen Eintrag: bei revocation den widerrufenen,
+	// bei erasure den, dessen Nutzlast gelöscht wurde.
 	Target *EntryRef `json:"tgt,omitempty"`
 }
 
@@ -143,20 +172,23 @@ func (e *Entry) Validate() error {
 		return err
 	}
 
-	// Ein Widerruf ohne Nutzlast ist sinnvoll; jeder andere Typ ohne
-	// Commitment sagt nichts aus.
-	if e.Commitment.IsZero() && e.Type != EntryTypeRevocation {
+	// Widerruf und Löschbezeugung brauchen keine eigene Nutzlast; jeder andere
+	// Typ ohne Commitment sagt nichts aus.
+	if e.Commitment.IsZero() && !e.Type.RefersToEntry() {
 		return fmt.Errorf("%w: cmt bei %s", ErrMissingField, e.Type)
 	}
 
 	switch {
-	case e.Type == EntryTypeRevocation && e.Target == nil:
-		return fmt.Errorf("%w: tgt bei revocation", ErrMissingField)
-	case e.Type != EntryTypeRevocation && e.Target != nil:
+	case e.Type.RefersToEntry() && e.Target == nil:
+		return fmt.Errorf("%w: tgt bei %s", ErrMissingField, e.Type)
+	case !e.Type.RefersToEntry() && e.Target != nil:
 		return fmt.Errorf("%w: %s", ErrUnexpectedTgt, e.Type)
 	}
 	if e.Target != nil && e.Target.Entry.IsZero() {
 		return fmt.Errorf("%w: tgt.entry", ErrMissingField)
+	}
+	if len(e.Parents) > MaxParents {
+		return fmt.Errorf("%w: %d, erlaubt %d", ErrTooManyParents, len(e.Parents), MaxParents)
 	}
 	for i, p := range e.Parents {
 		if p.Entry.IsZero() {

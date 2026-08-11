@@ -123,7 +123,7 @@ func (w *refWire) toRef() (EntryRef, error) {
 		if err != nil {
 			return r, fmt.Errorf("owm: Verweis: log: %w", err)
 		}
-		r.Log = log
+		r.Log = LogID(log)
 	}
 	return r, nil
 }
@@ -153,6 +153,11 @@ func (w *entryWire) toEntry() (*Entry, error) {
 		e.Commitment = Commitment(c)
 	}
 	if len(w.Parents) > 0 {
+		// Vor dem Anlegen prüfen, nicht erst in Validate: sonst reserviert ein
+		// böswillig großes par-Array den Speicher, bevor jemand es ablehnt.
+		if len(w.Parents) > MaxParents {
+			return nil, fmt.Errorf("%w: %d, erlaubt %d", ErrTooManyParents, len(w.Parents), MaxParents)
+		}
 		e.Parents = make([]EntryRef, len(w.Parents))
 		for i := range w.Parents {
 			r, err := w.Parents[i].toRef()
@@ -261,6 +266,29 @@ func (s *SignedEntry) validateShape() error {
 // Schlüssel, explizit kodierte optionale Felder. Ohne sie ließe sich eine
 // gültige Signatur an eine abweichend kodierte Fassung desselben Eintrags
 // heften.
+// MarshalCanonical kodiert einen Wert nach denselben Regeln wie einen Eintrag.
+//
+// Exportiert, damit andere Pakete — vor allem log/ für Blätter und STHs —
+// dieselben Regeln verwenden, statt die Optionen zu kopieren. Zwei Kopien der
+// Kodierregeln laufen früher oder später auseinander, und die Folge wäre ein
+// Wert, der in einem Paket kanonisch ist und im anderen nicht.
+func MarshalCanonical(v any) ([]byte, error) {
+	return encMode.Marshal(v)
+}
+
+// UnmarshalCanonical dekodiert und prüft dabei, dass die Eingabe die kanonische
+// Kodierung des Ergebnisses ist.
+//
+// Die Prüfung ist mechanisch: neu kodieren und Byte für Byte vergleichen. Damit
+// gibt es zu jedem Wert genau eine zulässige Kodierung — sonst trüge eine
+// gültige Signatur am Ende zwei verschiedene Aussagen.
+func UnmarshalCanonical(data []byte, v any) error {
+	if err := decMode.Unmarshal(data, v); err != nil {
+		return err
+	}
+	return checkCanonical(data, v)
+}
+
 func checkCanonical(orig []byte, wire any) error {
 	re, err := encMode.Marshal(wire)
 	if err != nil {

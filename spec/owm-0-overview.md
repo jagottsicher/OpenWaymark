@@ -80,7 +80,8 @@ ML-DSA-65 kostet 3309 Byte pro Signatur. Eine Million Einträge sind rund 3,3 GB
 Signaturen — auf Hardware der Raspberry-Pi-Klasse, die laut Konzept ausdrücklich unterstützt
 werden soll, ist das keine Nebensächlichkeit. ML-DSA-44 (2420 B) ist für Sensormesswerte und
 Masseneinträge vorgesehen, deren Einzelwert gering und deren Anzahl hoch ist. Die zweite
-Gegenmaßnahme, Batch-Signierung über einen Zwischen-Merkle-Baum, wird in OWM-2 behandelt.
+Gegenmaßnahme, Bündelung über einen Zwischen-Merkle-Baum beim Aussteller, wird in
+[OWM-2 §8](owm-2-log.md#8-batch-signierung) behandelt.
 
 ### 3.3 Domänentrennung
 
@@ -178,7 +179,7 @@ Ein Eintrag ist eine CBOR-Map mit Ganzzahlschlüsseln, kodiert nach RFC 8949 §4
 | 6 | `iss` | bstr(32) | ja | Schlüsselkennung des Ausstellers |
 | 7 | `cmt` | bstr(32) | nein | Nutzlast-Commitment |
 | 8 | `par` | array | nein | Vorgängereinträge, siehe 6.2 |
-| 9 | `tgt` | array | nein | Zieleintrag, nur bei `revocation` |
+| 9 | `tgt` | array | nein | Zieleintrag, nur bei `revocation` und `erasure` |
 
 Optionale Felder werden bei Abwesenheit **weggelassen**. Sie DÜRFEN NICHT als `null` oder als
 leerer Wert kodiert werden — sonst gäbe es zwei Kodierungen desselben Eintrags und damit zwei
@@ -190,9 +191,25 @@ Inhaltsadressen.
 |---|---|---|
 | 1 | `assertion` | Selbstauskunft über ein Subjekt: Erzeugung, Transport, Verarbeitung, Übergabe. |
 | 2 | `attestation` | Aussage über eine andere Entität oder einen Schlüssel, etwa eine Zertifizierung. Das Subjekt ist hier die Schlüsselkennung des Bestätigten. |
-| 3 | `revocation` | Widerruf eines früheren Eintrags. `tgt` benennt ihn. Dient zugleich als Grabstein nach einer Nutzlastlöschung. |
+| 3 | `revocation` | Widerruf eines früheren Eintrags. `tgt` benennt ihn. |
 | 4 | `key_rotation` | Ankündigung eines Nachfolgeschlüssels, siehe OWM-3. Die Nutzlast enthält den neuen öffentlichen Schlüssel und ist nicht löschbar. |
 | 5 | `sensor_reading` | Automatisch erfasster Messwert, ausgestellt von einem Geräteschlüssel. |
+| 6 | `erasure` | Bezeugung, dass Nutzlast und Salt eines früheren Eintrags gelöscht wurden. `tgt` benennt ihn. Siehe OWM-2 §7. |
+
+`revocation` und `erasure` sind ausdrücklich verschiedene Dinge und DÜRFEN NICHT vermischt
+werden. Ein Widerruf ist eine **Behauptung über die Welt** — die Aussage war falsch oder gilt
+nicht mehr. Eine Löschbezeugung ist eine **Tatsache über den Speicher** — die Aussage steht
+weiterhin, aber ihr Beleg ist fort und lässt sich nicht mehr prüfen.
+
+Die Trennung ist nicht kosmetisch. Fielen beide zusammen, würde jede Löschung nach Artikel 17
+DSGVO wie ein Eingeständnis aussehen, die Aussage sei falsch gewesen — ein Betroffener, der
+sein Recht wahrnimmt, würde damit unfreiwillig den Ruf seines Lieferkettenpartners beschädigen.
+Umgekehrt könnte eine Node einen Beleg zurückhalten und das als Löschung ausgeben. Ein Beobachter
+muss beides unterscheiden können (OWM-9 A3).
+
+Beide Typen tragen **kein** `cmt`: sie haben keine eigene Nutzlast. Wer einen Grund angeben will,
+verweist über `par` auf einen `assertion`-Eintrag, der ihn trägt — Löschgründe sind selbst
+oft personenbezogen und gehören deshalb nicht ins Log, sondern hinter ein Commitment.
 
 ### 6.2 Eintragsverweis
 
@@ -269,7 +286,7 @@ Migrationspfad ändern.
 |---|---|---|
 | OWM-0 | Diese Übersicht | Entwurf |
 | OWM-1 | Kern-Datenmodell im Detail | in OWM-0 enthalten |
-| OWM-2 | Log, Merkle-Baum, STH, Beweise, Löschpfad | geplant |
+| OWM-2 | [Log, Merkle-Baum, STH, Beweise, Löschpfad](owm-2-log.md) | Entwurf |
 | OWM-3 | Schlüsselverwaltung und Rotation | geplant |
 | OWM-4 | Profilmechanismus und Lebensmittelprofil | geplant |
 | OWM-5 | Föderation, Discovery, Gossip | geplant |

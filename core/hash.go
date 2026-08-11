@@ -27,20 +27,22 @@ const (
 	labelEntryID   = "OWM/1 entry-id"
 	labelSubjectID = "OWM/1 subject-id"
 	labelCommit    = "OWM/1 commit"
+	labelLogID     = "OWM/1 log-id"
 )
 
 // Digest ist ein SHA-256-Hashwert.
 type Digest [DigestSize]byte
 
 // KeyID kennzeichnet einen öffentlichen Schlüssel, SubjectID ein Subjekt,
-// Commitment eine off-chain gehaltene Nutzlast. Alle drei sind eigene Typen und
-// keine Aliase, damit der Compiler eine Verwechslung im Eintrag aufdeckt — der
-// Unterschied zwischen Aussteller und Subjekt ist sicherheitsrelevant und würde
-// sich sonst still auswirken.
+// Commitment eine off-chain gehaltene Nutzlast, LogID ein Log. Alle vier sind
+// eigene Typen und keine Aliase, damit der Compiler eine Verwechslung im
+// Eintrag aufdeckt — der Unterschied zwischen Aussteller und Subjekt ist
+// sicherheitsrelevant und würde sich sonst still auswirken.
 type (
 	KeyID      Digest
 	SubjectID  Digest
 	Commitment Digest
+	LogID      Digest
 )
 
 func (d Digest) String() string { return hex.EncodeToString(d[:]) }
@@ -96,6 +98,11 @@ func (c Commitment) String() string                { return Digest(c).String() }
 func (c Commitment) IsZero() bool                  { return Digest(c).IsZero() }
 func (c Commitment) MarshalText() ([]byte, error)  { return Digest(c).MarshalText() }
 func (c *Commitment) UnmarshalText(t []byte) error { return (*Digest)(c).UnmarshalText(t) }
+
+func (l LogID) String() string                { return Digest(l).String() }
+func (l LogID) IsZero() bool                  { return Digest(l).IsZero() }
+func (l LogID) MarshalText() ([]byte, error)  { return Digest(l).MarshalText() }
+func (l *LogID) UnmarshalText(t []byte) error { return (*Digest)(l).UnmarshalText(t) }
 
 // hashLabeled berechnet
 //

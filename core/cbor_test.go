@@ -108,7 +108,7 @@ func TestEncodeIsDeterministic(t *testing.T) {
 	e := fixtureEntry(k)
 	e.Parents = []EntryRef{
 		{Entry: hashLabeled("t", []byte("a"))},
-		{Entry: hashLabeled("t", []byte("b")), Log: hashLabeled("t", []byte("log"))},
+		{Entry: hashLabeled("t", []byte("b")), Log: LogID(hashLabeled("t", []byte("log")))},
 	}
 
 	first, err := e.Encode()
@@ -135,7 +135,7 @@ func TestEntryRoundTrip(t *testing.T) {
 		"mit Profil":    func(*Entry) {},
 		"ein Vorgänger": func(e *Entry) { e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p"))}} },
 		"Vorgänger mit Log": func(e *Entry) {
-			e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p")), Log: hashLabeled("t", []byte("l"))}}
+			e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p")), Log: LogID(hashLabeled("t", []byte("l")))}}
 		},
 		"drei Vorgänger": func(e *Entry) {
 			e.Parents = []EntryRef{

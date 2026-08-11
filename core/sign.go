@@ -197,6 +197,25 @@ func computeKeyID(alg SigAlg, raw []byte) KeyID {
 	return KeyID(hashLabeled(labelKeyID, a[:], raw))
 }
 
+// DeriveLogID leitet die Kennung eines Logs aus seinem Gründungsschlüssel ab.
+//
+// Nicht aus dem jeweils aktuellen Schlüssel: Der wechselt bei einer Rotation,
+// und eine mitwechselnde Log-Kennung würde jeden je ausgestellten Verweis auf
+// dieses Log ungültig machen. Der Gründungsschlüssel wechselt nie, und die
+// Ableitung macht die Kennung selbstzertifizierend — wer den Schlüssel hat,
+// kann sie nachrechnen, ohne ein Verzeichnis zu befragen.
+//
+// Welche Nachfolgeschlüssel für dieses Log signieren dürfen, beantwortet die
+// Rotationskette im Log selbst (OWM-3), nicht die Kennung.
+func DeriveLogID(genesis *PublicKey) (LogID, error) {
+	if genesis == nil {
+		return LogID{}, fmt.Errorf("%w: Gründungsschlüssel", ErrMissingField)
+	}
+	var a [2]byte
+	binary.BigEndian.PutUint16(a[:], uint16(genesis.alg))
+	return LogID(hashLabeled(labelLogID, a[:], genesis.raw)), nil
+}
+
 // Alg liefert das Signaturverfahren des Schlüssels.
 func (p *PublicKey) Alg() SigAlg { return p.alg }
 
