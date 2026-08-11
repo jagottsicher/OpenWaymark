@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 OpenWaymark contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# CIRCL verlangt Go 1.25 oder neuer, siehe go.mod.
+image: golang:1.25
+
+stages:
+  - check
+  - test
+
+variables:
+  GOPATH: $CI_PROJECT_DIR/.gocache/go
+  GOMODCACHE: $CI_PROJECT_DIR/.gocache/mod
+  GOFLAGS: -mod=readonly
+
+cache:
+  key:
+    files:
+      - go.sum
+  paths:
+    - .gocache/
+
+.go-base:
+  before_script:
+    - go version
+    - go mod download
+
+build:
+  extends: .go-base
+  stage: check
+  script:
+    - go build ./...
+
+format:
+  extends: .go-base
+  stage: check
+  script:
+    # gofmt meldet Abweichungen auf stdout und nicht über den Rückgabewert.
+    - test -z "$(gofmt -l .)" || { gofmt -d .; echo 'gofmt-Abweichungen, siehe oben'; exit 1; }
+
+vet:
+  extends: .go-base
+  stage: check
+  script:
+    - go vet ./...
+
+staticcheck:
+  extends: .go-base
+  stage: check
+  script:
+    - go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+
+test:
+  extends: .go-base
+  stage: test
+  script:
+    - go test -race -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    paths:
+      - coverage.out
+    expire_in: 1 week
+
+# Kurzer Fuzz-Lauf pro Pipeline. Die Deserialisierung ist die einzige Stelle,
+# an der fremde Bytes ins System kommen — dort lohnt sich das Suchen nach
+# Eingaben, die niemand von Hand erfindet.
+fuzz-smoke:
+  extends: .go-base
+  stage: test
+  script:
+    - go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 60s
+    - go test ./core/ -run '^$' -fuzz FuzzParseSignedEntry -fuzztime 60s
+  allow_failure: false
