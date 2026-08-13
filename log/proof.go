@@ -19,10 +19,10 @@ import (
 // gültiger Beweis. Siehe OWM-2 §5.3.
 
 var (
-	ErrProofSize    = errors.New("owm/log: Beweis passt nicht zur Baumgröße")
-	ErrProofInvalid = errors.New("owm/log: Beweis geht nicht auf")
-	ErrSplitView    = errors.New("owm/log: Split-View: zwei Wurzeln zur selben Baumgröße")
-	ErrShrunk       = errors.New("owm/log: Baum ist geschrumpft")
+	ErrProofSize    = errors.New("owm/log: proof does not match the tree size")
+	ErrProofInvalid = errors.New("owm/log: proof does not check out")
+	ErrSplitView    = errors.New("owm/log: split view: two roots for the same tree size")
+	ErrShrunk       = errors.New("owm/log: tree has shrunk")
 )
 
 // InclusionProof belegt, dass ein Blatt an Position LeafIndex in einem Baum der
@@ -41,7 +41,7 @@ type InclusionProof struct {
 // Angreifer mitgeliefert haben. Im Zweifel Verify verwenden.
 func (p *InclusionProof) VerifyAgainstRoot(leafHash, root core.Digest) error {
 	if p.LeafIndex >= p.TreeSize {
-		return fmt.Errorf("%w: Index %d in Baum der Größe %d", ErrProofSize, p.LeafIndex, p.TreeSize)
+		return fmt.Errorf("%w: index %d in a tree of size %d", ErrProofSize, p.LeafIndex, p.TreeSize)
 	}
 	err := proof.VerifyInclusion(hasher, p.LeafIndex, p.TreeSize,
 		leafHash[:], digestsToBytes(p.Path), root[:])
@@ -60,7 +60,7 @@ func (p *InclusionProof) Verify(leafHash core.Digest, sth *STH) error {
 		return fmt.Errorf("%w: sth", ErrMissingField)
 	}
 	if p.TreeSize != sth.Size {
-		return fmt.Errorf("%w: Beweis für %d, STH über %d", ErrProofSize, p.TreeSize, sth.Size)
+		return fmt.Errorf("%w: proof for %d, STH over %d", ErrProofSize, p.TreeSize, sth.Size)
 	}
 	return p.VerifyAgainstRoot(leafHash, sth.Root)
 }
@@ -98,10 +98,10 @@ func (p *ConsistencyProof) Verify(old, new *STH) error {
 		return fmt.Errorf("%w: sth", ErrMissingField)
 	}
 	if old.Log != new.Log {
-		return fmt.Errorf("%w: %s und %s", ErrLogMismatch, old.Log, new.Log)
+		return fmt.Errorf("%w: %s and %s", ErrLogMismatch, old.Log, new.Log)
 	}
 	if p.OldSize != old.Size || p.NewSize != new.Size {
-		return fmt.Errorf("%w: Beweis %d→%d, STHs %d→%d",
+		return fmt.Errorf("%w: proof %d->%d, STHs %d->%d",
 			ErrProofSize, p.OldSize, p.NewSize, old.Size, new.Size)
 	}
 	return p.VerifyAgainstRoots(old.Root, new.Root)
@@ -123,10 +123,10 @@ func CheckSTHPair(a, b *STH) error {
 		return fmt.Errorf("%w: sth", ErrMissingField)
 	}
 	if a.Log != b.Log {
-		return fmt.Errorf("%w: %s und %s", ErrLogMismatch, a.Log, b.Log)
+		return fmt.Errorf("%w: %s and %s", ErrLogMismatch, a.Log, b.Log)
 	}
 	if a.Size == b.Size && a.Root != b.Root {
-		return fmt.Errorf("%w: Größe %d, Wurzeln %s und %s", ErrSplitView, a.Size, a.Root, b.Root)
+		return fmt.Errorf("%w: size %d, roots %s and %s", ErrSplitView, a.Size, a.Root, b.Root)
 	}
 	// Ein Baum darf nur wachsen. Der spätere STH mit der kleineren Größe ist
 	// ein Beweis, dass Blätter verschwunden sind.
@@ -135,7 +135,7 @@ func CheckSTHPair(a, b *STH) error {
 		early, late = b, a
 	}
 	if late.Size < early.Size {
-		return fmt.Errorf("%w: von %d auf %d", ErrShrunk, early.Size, late.Size)
+		return fmt.Errorf("%w: from %d to %d", ErrShrunk, early.Size, late.Size)
 	}
 	return nil
 }
@@ -153,7 +153,7 @@ func bytesToDigests(bs [][]byte) ([]core.Digest, error) {
 	for i := range bs {
 		d, err := core.DigestFromBytes(bs[i])
 		if err != nil {
-			return nil, fmt.Errorf("owm/log: Beweisknoten %d: %w", i, err)
+			return nil, fmt.Errorf("owm/log: proof node %d: %w", i, err)
 		}
 		out[i] = d
 	}

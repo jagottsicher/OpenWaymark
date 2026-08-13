@@ -23,10 +23,10 @@ const FormatVersion = 1
 const MaxLeafSize = 128 * 1024
 
 var (
-	ErrLeafVersion  = errors.New("owm/log: unbekannte Blattversion")
-	ErrLeafSize     = errors.New("owm/log: Blatt zu groß")
-	ErrMissingField = errors.New("owm/log: Pflichtfeld fehlt")
-	ErrLogMismatch  = errors.New("owm/log: gehört zu einem anderen Log")
+	ErrLeafVersion  = errors.New("owm/log: unknown leaf version")
+	ErrLeafSize     = errors.New("owm/log: leaf too large")
+	ErrMissingField = errors.New("owm/log: missing required field")
+	ErrLogMismatch  = errors.New("owm/log: belongs to a different log")
 )
 
 // hasher ist die RFC-6962-Baumhashfunktion: SHA-256 mit 0x00 vor Blättern und
@@ -108,10 +108,10 @@ func (l *Leaf) Encode() ([]byte, error) {
 		Entry:    l.Entry,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Blatt kodieren: %w", err)
+		return nil, fmt.Errorf("owm/log: encode leaf: %w", err)
 	}
 	if len(b) > MaxLeafSize {
-		return nil, fmt.Errorf("%w: %d Byte, erlaubt %d", ErrLeafSize, len(b), MaxLeafSize)
+		return nil, fmt.Errorf("%w: %d bytes, allowed %d", ErrLeafSize, len(b), MaxLeafSize)
 	}
 	return b, nil
 }
@@ -120,15 +120,15 @@ func (l *Leaf) Encode() ([]byte, error) {
 // Kodierung ist.
 func ParseLeaf(b []byte) (*Leaf, error) {
 	if len(b) > MaxLeafSize {
-		return nil, fmt.Errorf("%w: %d Byte, erlaubt %d", ErrLeafSize, len(b), MaxLeafSize)
+		return nil, fmt.Errorf("%w: %d bytes, allowed %d", ErrLeafSize, len(b), MaxLeafSize)
 	}
 	var w leafWire
 	if err := core.UnmarshalCanonical(b, &w); err != nil {
-		return nil, fmt.Errorf("owm/log: Blatt lesen: %w", err)
+		return nil, fmt.Errorf("owm/log: read leaf: %w", err)
 	}
 	id, err := core.DigestFromBytes(w.Log)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Blatt: log: %w", err)
+		return nil, fmt.Errorf("owm/log: leaf: log: %w", err)
 	}
 	l := &Leaf{
 		Version:  w.Version,
@@ -192,7 +192,7 @@ func (l *Leaf) Verify(logID core.LogID, pub *core.PublicKey) error {
 		return err
 	}
 	if l.Log != logID {
-		return fmt.Errorf("%w: Blatt nennt %s, erwartet %s", ErrLogMismatch, l.Log, logID)
+		return fmt.Errorf("%w: leaf names %s, expected %s", ErrLogMismatch, l.Log, logID)
 	}
 	se, err := l.SignedEntry()
 	if err != nil {

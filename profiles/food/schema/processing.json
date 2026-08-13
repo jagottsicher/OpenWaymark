@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Verarbeitung",
+  "description": "Aus Eingangsgütern werden andere Güter: Milch dreier Höfe wird ein Käselaib. Entspricht dem EPCIS-TransformationEvent. Anders als bei der Aggregation gehen die Eingänge dabei unter — sie lassen sich nicht wieder auseinandernehmen. Die Herkunftskette bleibt trotzdem verfolgbar, weil die Eingänge im Feld par des Eintrags stehen.",
+  "type": "object",
+  "required": ["process", "inputs", "outputs"],
+  "properties": {
+    "process": {
+      "description": "Was getan wurde, etwa \"pasteurisieren\" oder \"mahlen\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

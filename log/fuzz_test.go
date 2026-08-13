@@ -20,7 +20,7 @@ func fuzzSeedKey(t *testing.F, alg core.SigAlg, fill byte) *core.PrivateKey {
 	t.Helper()
 	k, err := core.NewKeyFromSeed(alg, bytes.Repeat([]byte{fill}, alg.SeedSize()))
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	return k
 }
@@ -29,11 +29,11 @@ func FuzzParseLeaf(f *testing.F) {
 	key := fuzzSeedKey(f, core.SigAlgMLDSA65, 0x31)
 	logID, err := core.DeriveLogID(key.Public())
 	if err != nil {
-		f.Fatalf("Log-Kennung: %v", err)
+		f.Fatalf("log ID: %v", err)
 	}
 	salt, err := core.NewSalt()
 	if err != nil {
-		f.Fatalf("Salt: %v", err)
+		f.Fatalf("salt: %v", err)
 	}
 	se, err := core.SignEntry(key, &core.Entry{
 		Version:    core.FormatVersion,
@@ -44,11 +44,11 @@ func FuzzParseLeaf(f *testing.F) {
 		Commitment: core.Commit(salt, []byte("x")),
 	})
 	if err != nil {
-		f.Fatalf("signieren: %v", err)
+		f.Fatalf("sign: %v", err)
 	}
 	entryBytes, err := se.Encode()
 	if err != nil {
-		f.Fatalf("kodieren: %v", err)
+		f.Fatalf("encode: %v", err)
 	}
 	leaf := &Leaf{
 		Version:  FormatVersion,
@@ -70,10 +70,10 @@ func FuzzParseLeaf(f *testing.F) {
 		}
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("angenommenes Blatt lässt sich nicht kodieren: %v", err)
+			t.Fatalf("accepted leaf cannot be encoded: %v", err)
 		}
 		if !bytes.Equal(data, again) {
-			t.Fatalf("angenommene Kodierung ist nicht kanonisch")
+			t.Fatalf("accepted encoding is not canonical")
 		}
 		// Keine dieser Funktionen darf bei beliebiger Eingabe in Panik geraten.
 		_ = got.EntryID()
@@ -86,7 +86,7 @@ func FuzzParseSTH(f *testing.F) {
 	key := fuzzSeedKey(f, core.SigAlgMLDSA65, 0x32)
 	logID, err := core.DeriveLogID(key.Public())
 	if err != nil {
-		f.Fatalf("Log-Kennung: %v", err)
+		f.Fatalf("log ID: %v", err)
 	}
 	sth := &STH{
 		Version:  FormatVersion,
@@ -108,10 +108,10 @@ func FuzzParseSTH(f *testing.F) {
 		}
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("angenommener STH lässt sich nicht kodieren: %v", err)
+			t.Fatalf("accepted STH cannot be encoded: %v", err)
 		}
 		if !bytes.Equal(data, again) {
-			t.Fatalf("angenommene Kodierung ist nicht kanonisch")
+			t.Fatalf("accepted encoding is not canonical")
 		}
 		_ = CheckSTHPair(got, sth)
 	})
@@ -121,7 +121,7 @@ func FuzzParseSignedSTH(f *testing.F) {
 	key := fuzzSeedKey(f, core.SigAlgMLDSA44, 0x33)
 	logID, err := core.DeriveLogID(key.Public())
 	if err != nil {
-		f.Fatalf("Log-Kennung: %v", err)
+		f.Fatalf("log ID: %v", err)
 	}
 	signed, err := SignSTH(key, &STH{
 		Version:  FormatVersion,
@@ -132,7 +132,7 @@ func FuzzParseSignedSTH(f *testing.F) {
 		Key:      key.Public().ID(),
 	})
 	if err != nil {
-		f.Fatalf("signieren: %v", err)
+		f.Fatalf("sign: %v", err)
 	}
 	if b, err := signed.Encode(); err == nil {
 		f.Add(b)
@@ -146,10 +146,10 @@ func FuzzParseSignedSTH(f *testing.F) {
 		}
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("angenommener Umschlag lässt sich nicht kodieren: %v", err)
+			t.Fatalf("accepted envelope cannot be encoded: %v", err)
 		}
 		if !bytes.Equal(data, again) {
-			t.Fatalf("angenommene Kodierung ist nicht kanonisch")
+			t.Fatalf("accepted encoding is not canonical")
 		}
 		_ = got.Verify(key.Public())
 	})

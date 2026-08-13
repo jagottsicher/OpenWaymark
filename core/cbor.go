@@ -13,7 +13,7 @@ import (
 
 // ErrNotCanonical meldet eine Kodierung, die nicht der kanonischen Form
 // entspricht.
-var ErrNotCanonical = errors.New("owm: Kodierung ist nicht kanonisch")
+var ErrNotCanonical = errors.New("owm: encoding is not canonical")
 
 // encMode ist Core Deterministic Encoding nach RFC 8949 §4.2.1: kürzestmögliche
 // Argumente, keine Kodierungen unbestimmter Länge, Map-Schlüssel bytweise
@@ -33,7 +33,7 @@ func init() {
 	var err error
 	encMode, err = cbor.CoreDetEncOptions().EncMode()
 	if err != nil {
-		panic("owm: CBOR-Encoder: " + err.Error())
+		panic("owm: CBOR encoder: " + err.Error())
 	}
 	decMode, err = cbor.DecOptions{
 		DupMapKey:         cbor.DupMapKeyEnforcedAPF,
@@ -44,7 +44,7 @@ func init() {
 		MaxNestedLevels:   8,
 	}.DecMode()
 	if err != nil {
-		panic("owm: CBOR-Decoder: " + err.Error())
+		panic("owm: CBOR decoder: " + err.Error())
 	}
 }
 
@@ -115,13 +115,13 @@ func (w *refWire) toRef() (EntryRef, error) {
 	var r EntryRef
 	entry, err := DigestFromBytes(w.Entry)
 	if err != nil {
-		return r, fmt.Errorf("owm: Verweis: entry: %w", err)
+		return r, fmt.Errorf("owm: reference: entry: %w", err)
 	}
 	r.Entry = entry
 	if len(w.Log) > 0 {
 		log, err := DigestFromBytes(w.Log)
 		if err != nil {
-			return r, fmt.Errorf("owm: Verweis: log: %w", err)
+			return r, fmt.Errorf("owm: reference: log: %w", err)
 		}
 		r.Log = LogID(log)
 	}
@@ -156,7 +156,7 @@ func (w *entryWire) toEntry() (*Entry, error) {
 		// Vor dem Anlegen prüfen, nicht erst in Validate: sonst reserviert ein
 		// böswillig großes par-Array den Speicher, bevor jemand es ablehnt.
 		if len(w.Parents) > MaxParents {
-			return nil, fmt.Errorf("%w: %d, erlaubt %d", ErrTooManyParents, len(w.Parents), MaxParents)
+			return nil, fmt.Errorf("%w: %d, allowed %d", ErrTooManyParents, len(w.Parents), MaxParents)
 		}
 		e.Parents = make([]EntryRef, len(w.Parents))
 		for i := range w.Parents {
@@ -186,7 +186,7 @@ func (e *Entry) Encode() ([]byte, error) {
 	}
 	b, err := encMode.Marshal(e.toWire())
 	if err != nil {
-		return nil, fmt.Errorf("owm: Eintrag kodieren: %w", err)
+		return nil, fmt.Errorf("owm: encode entry: %w", err)
 	}
 	return b, nil
 }
@@ -196,7 +196,7 @@ func (e *Entry) Encode() ([]byte, error) {
 func ParseEntry(b []byte) (*Entry, error) {
 	var w entryWire
 	if err := decMode.Unmarshal(b, &w); err != nil {
-		return nil, fmt.Errorf("owm: Eintrag dekodieren: %w", err)
+		return nil, fmt.Errorf("owm: decode entry: %w", err)
 	}
 	if err := checkCanonical(b, &w); err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (s *SignedEntry) Encode() ([]byte, error) {
 		Sig:   s.Signature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("owm: signierten Eintrag kodieren: %w", err)
+		return nil, fmt.Errorf("owm: encode signed entry: %w", err)
 	}
 	return b, nil
 }
@@ -233,7 +233,7 @@ func (s *SignedEntry) Encode() ([]byte, error) {
 func ParseSignedEntry(b []byte) (*SignedEntry, error) {
 	var w signedEntryWire
 	if err := decMode.Unmarshal(b, &w); err != nil {
-		return nil, fmt.Errorf("owm: signierten Eintrag dekodieren: %w", err)
+		return nil, fmt.Errorf("owm: decode signed entry: %w", err)
 	}
 	if err := checkCanonical(b, &w); err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (s *SignedEntry) validateShape() error {
 		return fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(s.Alg))
 	}
 	if len(s.Signature) != s.Alg.SignatureSize() {
-		return fmt.Errorf("%w: %s erwartet %d Byte, erhalten %d",
+		return fmt.Errorf("%w: %s expected %d bytes, got %d",
 			ErrSigSize, s.Alg, s.Alg.SignatureSize(), len(s.Signature))
 	}
 	return nil
@@ -292,7 +292,7 @@ func UnmarshalCanonical(data []byte, v any) error {
 func checkCanonical(orig []byte, wire any) error {
 	re, err := encMode.Marshal(wire)
 	if err != nil {
-		return fmt.Errorf("owm: Kanonizitätsprüfung: %w", err)
+		return fmt.Errorf("owm: canonicality check: %w", err)
 	}
 	if !bytes.Equal(orig, re) {
 		return ErrNotCanonical

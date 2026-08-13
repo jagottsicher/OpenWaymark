@@ -173,7 +173,7 @@ Ein Eintrag ist eine CBOR-Map mit Ganzzahlschlüsseln, kodiert nach RFC 8949 §4
 |---|---|---|---|---|
 | 1 | `v` | uint | ja | Formatversion, derzeit `1` |
 | 2 | `typ` | uint | ja | Eintragstyp, siehe 6.1 |
-| 3 | `prof` | tstr | nein | Profilkennung, z. B. `owm.food/1` |
+| 3 | `prof` | tstr | nein | Profilkennung, z. B. `food.v1` (OWM-4 §2) |
 | 4 | `subj` | bstr(32) | ja | Subjekt-ID |
 | 5 | `iat` | int | ja | Ausstellungszeit, Millisekunden seit Unix-Epoche, UTC |
 | 6 | `iss` | bstr(32) | ja | Schlüsselkennung des Ausstellers |
@@ -287,8 +287,9 @@ Migrationspfad ändern.
 | OWM-0 | Diese Übersicht | Entwurf |
 | OWM-1 | Kern-Datenmodell im Detail | in OWM-0 enthalten |
 | OWM-2 | [Log, Merkle-Baum, STH, Beweise, Löschpfad](owm-2-log.md) | Entwurf |
-| OWM-3 | Schlüsselverwaltung und Rotation | geplant |
-| OWM-4 | Profilmechanismus und Lebensmittelprofil | geplant |
+| OWM-3 | [Schlüssel, Node-Identität, Verzeichnis und Rotation](owm-3-keys.md) | Entwurf |
+| OWM-4 | [Profilmechanismus und Lebensmittelprofil](owm-4-profiles.md) | Entwurf |
 | OWM-5 | Föderation, Discovery, Gossip | geplant |
 | OWM-6 | Trust-Level und Attestierung | geplant |
+| OWM-7 | [Node-API](owm-7-node-api.md) | Entwurf |
 | OWM-9 | [Angreifermodell](owm-9-threat-model.md) | Entwurf |

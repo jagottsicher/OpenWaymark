@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	ErrSTHVersion     = errors.New("owm/log: unbekannte STH-Version")
-	ErrSignerMismatch = errors.New("owm/log: Unterzeichner passt nicht zum Schlüssel")
-	ErrBadSignature   = errors.New("owm/log: Signatur ungültig")
-	ErrAlgMismatch    = errors.New("owm/log: Signaturalgorithmus passt nicht zum Schlüssel")
+	ErrSTHVersion     = errors.New("owm/log: unknown STH version")
+	ErrSignerMismatch = errors.New("owm/log: signer does not match the key")
+	ErrBadSignature   = errors.New("owm/log: invalid signature")
+	ErrAlgMismatch    = errors.New("owm/log: signature algorithm does not match the key")
 )
 
 // STH ist ein Signed Tree Head: die Bezeugung einer Node, dass ihr Baum zu
@@ -102,7 +102,7 @@ func (s *STH) Encode() ([]byte, error) {
 		Key:      append([]byte(nil), s.Key[:]...),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: STH kodieren: %w", err)
+		return nil, fmt.Errorf("owm/log: encode STH: %w", err)
 	}
 	return b, nil
 }
@@ -112,7 +112,7 @@ func (s *STH) Encode() ([]byte, error) {
 func ParseSTH(b []byte) (*STH, error) {
 	var w sthWire
 	if err := core.UnmarshalCanonical(b, &w); err != nil {
-		return nil, fmt.Errorf("owm/log: STH lesen: %w", err)
+		return nil, fmt.Errorf("owm/log: read STH: %w", err)
 	}
 	logID, err := core.DigestFromBytes(w.Log)
 	if err != nil {
@@ -154,10 +154,10 @@ type SignedSTH struct {
 // SignSTH kodiert den STH kanonisch und signiert ihn.
 func SignSTH(k *core.PrivateKey, s *STH) (*SignedSTH, error) {
 	if k == nil {
-		return nil, fmt.Errorf("%w: privater Schlüssel", ErrMissingField)
+		return nil, fmt.Errorf("%w: private key", ErrMissingField)
 	}
 	if s.Key != k.Public().ID() {
-		return nil, fmt.Errorf("%w: key=%s, Schlüssel=%s", ErrSignerMismatch, s.Key, k.Public().ID())
+		return nil, fmt.Errorf("%w: key=%s, public key=%s", ErrSignerMismatch, s.Key, k.Public().ID())
 	}
 	b, err := s.Encode()
 	if err != nil {
@@ -181,17 +181,17 @@ func (s *SignedSTH) STH() (*STH, error) { return ParseSTH(s.STHBytes) }
 // dass der STH genau diesen Schlüssel als Unterzeichner nennt.
 func (s *SignedSTH) Verify(pub *core.PublicKey) error {
 	if pub == nil {
-		return fmt.Errorf("%w: öffentlicher Schlüssel", ErrMissingField)
+		return fmt.Errorf("%w: public key", ErrMissingField)
 	}
 	if s.Alg != pub.Alg() {
-		return fmt.Errorf("%w: STH %s, Schlüssel %s", ErrAlgMismatch, s.Alg, pub.Alg())
+		return fmt.Errorf("%w: STH %s, key %s", ErrAlgMismatch, s.Alg, pub.Alg())
 	}
 	sth, err := s.STH()
 	if err != nil {
 		return err
 	}
 	if sth.Key != pub.ID() {
-		return fmt.Errorf("%w: key=%s, Schlüssel=%s", ErrSignerMismatch, sth.Key, pub.ID())
+		return fmt.Errorf("%w: key=%s, public key=%s", ErrSignerMismatch, sth.Key, pub.ID())
 	}
 	if !pub.Verify(core.SigContextSTH, s.STHBytes, s.Signature) {
 		return ErrBadSignature
@@ -213,14 +213,14 @@ func (s *SignedSTH) Encode() ([]byte, error) {
 func ParseSignedSTH(b []byte) (*SignedSTH, error) {
 	var w signedSTHWire
 	if err := core.UnmarshalCanonical(b, &w); err != nil {
-		return nil, fmt.Errorf("owm/log: signierter STH: %w", err)
+		return nil, fmt.Errorf("owm/log: signed STH: %w", err)
 	}
 	s := &SignedSTH{STHBytes: w.STH, Alg: core.SigAlg(w.Alg), Signature: w.Sig}
 	if !s.Alg.Valid() {
-		return nil, fmt.Errorf("owm/log: signierter STH: %w: %d", core.ErrUnknownAlg, w.Alg)
+		return nil, fmt.Errorf("owm/log: signed STH: %w: %d", core.ErrUnknownAlg, w.Alg)
 	}
 	if len(s.Signature) != s.Alg.SignatureSize() {
-		return nil, fmt.Errorf("owm/log: signierter STH: %w", core.ErrSigSize)
+		return nil, fmt.Errorf("owm/log: signed STH: %w", core.ErrSigSize)
 	}
 	if _, err := s.STH(); err != nil {
 		return nil, err

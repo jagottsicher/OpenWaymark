@@ -31,7 +31,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel erzeugen: %v", err)
+		t.Fatalf("generate key: %v", err)
 	}
 	return newTestEnvWithKey(t, key)
 }
@@ -53,7 +53,7 @@ func newTestEnvWithKey(t *testing.T, key *core.PrivateKey) *testEnv {
 		Now:     env.now,
 	})
 	if err != nil {
-		t.Fatalf("Log anlegen: %v", err)
+		t.Fatalf("create log: %v", err)
 	}
 	env.log = lg
 	return env
@@ -69,7 +69,7 @@ func (e *testEnv) entry(subject core.SubjectID, payload []byte) (*core.SignedEnt
 	e.t.Helper()
 	salt, err := core.NewSalt()
 	if err != nil {
-		e.t.Fatalf("Salt: %v", err)
+		e.t.Fatalf("salt: %v", err)
 	}
 	ent := &core.Entry{
 		Version:    core.FormatVersion,
@@ -82,7 +82,7 @@ func (e *testEnv) entry(subject core.SubjectID, payload []byte) (*core.SignedEnt
 	}
 	se, err := core.SignEntry(e.key, ent)
 	if err != nil {
-		e.t.Fatalf("Eintrag signieren: %v", err)
+		e.t.Fatalf("sign entry: %v", err)
 	}
 	return se, salt
 }
@@ -94,12 +94,12 @@ func (e *testEnv) appendN(ctx context.Context, n int) []*Leaf {
 	for i := 0; i < n; i++ {
 		subject, err := core.NewSubjectID()
 		if err != nil {
-			e.t.Fatalf("Subjekt: %v", err)
+			e.t.Fatalf("subject: %v", err)
 		}
 		se, salt := e.entry(subject, []byte(fmt.Sprintf("nutzlast-%d", i)))
 		leaf, err := e.log.AppendWithPayload(ctx, se, salt, []byte(fmt.Sprintf("nutzlast-%d", i)))
 		if err != nil {
-			e.t.Fatalf("anhängen %d: %v", i, err)
+			e.t.Fatalf("append %d: %v", i, err)
 		}
 		out = append(out, leaf)
 	}
@@ -111,7 +111,7 @@ type mapKeys map[core.KeyID]*core.PublicKey
 func (m mapKeys) PublicKey(_ context.Context, id core.KeyID) (*core.PublicKey, error) {
 	pub, ok := m[id]
 	if !ok {
-		return nil, fmt.Errorf("%w: Schlüssel %s", ErrNotFound, id)
+		return nil, fmt.Errorf("%w: key %s", ErrNotFound, id)
 	}
 	return pub, nil
 }
@@ -120,12 +120,12 @@ func TestEmptyTreeRoot(t *testing.T) {
 	env := newTestEnv(t)
 	root, err := env.log.Root(context.Background())
 	if err != nil {
-		t.Fatalf("Wurzel: %v", err)
+		t.Fatalf("root: %v", err)
 	}
 	// RFC 6962: die Wurzel des leeren Baums ist SHA-256 über die leere Eingabe.
 	want := sha256.Sum256(nil)
 	if root != core.Digest(want) {
-		t.Errorf("leere Wurzel = %s, erwartet %s", root, core.Digest(want))
+		t.Errorf("empty root = %s, expected %s", root, core.Digest(want))
 	}
 }
 
@@ -139,33 +139,33 @@ func TestAppendAndInclusion(t *testing.T) {
 		t.Fatalf("STH: %v", err)
 	}
 	if err := signed.Verify(env.key.Public()); err != nil {
-		t.Fatalf("STH-Signatur: %v", err)
+		t.Fatalf("STH signature: %v", err)
 	}
 	sth, err := signed.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	if sth.Size != uint64(len(leaves)) {
-		t.Fatalf("Baumgröße = %d, erwartet %d", sth.Size, len(leaves))
+		t.Fatalf("tree size = %d, expected %d", sth.Size, len(leaves))
 	}
 	if sth.Log != env.log.ID() {
-		t.Errorf("STH nennt Log %s, erwartet %s", sth.Log, env.log.ID())
+		t.Errorf("STH names log %s, expected %s", sth.Log, env.log.ID())
 	}
 
 	for i, leaf := range leaves {
 		if err := leaf.Verify(env.log.ID(), env.key.Public()); err != nil {
-			t.Fatalf("Blatt %d prüfen: %v", i, err)
+			t.Fatalf("verify leaf %d: %v", i, err)
 		}
 		hash, err := leaf.Hash()
 		if err != nil {
-			t.Fatalf("Blatthash %d: %v", i, err)
+			t.Fatalf("leaf hash %d: %v", i, err)
 		}
 		p, err := env.log.InclusionProof(ctx, uint64(i), sth.Size)
 		if err != nil {
-			t.Fatalf("Inklusionsbeweis %d: %v", i, err)
+			t.Fatalf("inclusion proof %d: %v", i, err)
 		}
 		if err := p.Verify(hash, sth); err != nil {
-			t.Errorf("Inklusionsbeweis %d geht nicht auf: %v", i, err)
+			t.Errorf("inclusion proof %d does not check out: %v", i, err)
 		}
 	}
 }
@@ -180,18 +180,18 @@ func TestInclusionProofRejectsWrongLeaf(t *testing.T) {
 	}
 	sth, err := signed.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	p, err := env.log.InclusionProof(ctx, 3, sth.Size)
 	if err != nil {
-		t.Fatalf("Beweis: %v", err)
+		t.Fatalf("proof: %v", err)
 	}
 	other, err := leaves[4].Hash()
 	if err != nil {
-		t.Fatalf("Blatthash: %v", err)
+		t.Fatalf("leaf hash: %v", err)
 	}
 	if err := p.Verify(other, sth); !errors.Is(err, ErrProofInvalid) {
-		t.Errorf("fremdes Blatt akzeptiert: %v", err)
+		t.Errorf("foreign leaf accepted: %v", err)
 	}
 }
 
@@ -211,11 +211,11 @@ func TestAllSTHsPairwiseConsistent(t *testing.T) {
 			t.Fatalf("STH: %v", err)
 		}
 		if err := signed.Verify(env.key.Public()); err != nil {
-			t.Fatalf("STH-Signatur: %v", err)
+			t.Fatalf("STH signature: %v", err)
 		}
 		sth, err := signed.STH()
 		if err != nil {
-			t.Fatalf("STH lesen: %v", err)
+			t.Fatalf("read STH: %v", err)
 		}
 		sths = append(sths, sth)
 	}
@@ -231,10 +231,10 @@ func TestAllSTHsPairwiseConsistent(t *testing.T) {
 			old, cur := sths[i], sths[j]
 			p, err := env.log.ConsistencyProof(ctx, old.Size, cur.Size)
 			if err != nil {
-				t.Fatalf("Konsistenzbeweis %d→%d: %v", old.Size, cur.Size, err)
+				t.Fatalf("consistency proof %d->%d: %v", old.Size, cur.Size, err)
 			}
 			if err := p.Verify(old, cur); err != nil {
-				t.Errorf("STHs %d und %d inkonsistent (%d→%d): %v",
+				t.Errorf("STHs %d and %d inconsistent (%d->%d): %v",
 					i, j, old.Size, cur.Size, err)
 			}
 			if err := CheckSTHPair(old, cur); err != nil {
@@ -259,22 +259,22 @@ func TestConsistencyProofRejectsForeignRoot(t *testing.T) {
 	}
 	oldSTH, err := first.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	newSTH, err := second.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	p, err := env.log.ConsistencyProof(ctx, oldSTH.Size, newSTH.Size)
 	if err != nil {
-		t.Fatalf("Konsistenzbeweis: %v", err)
+		t.Fatalf("consistency proof: %v", err)
 	}
 	// Ein einziges gekipptes Bit in der alten Wurzel: der Beweis darf nicht
 	// mehr aufgehen.
 	tampered := *oldSTH
 	tampered.Root[0] ^= 0x01
 	if err := p.Verify(&tampered, newSTH); !errors.Is(err, ErrProofInvalid) {
-		t.Errorf("manipulierte Wurzel akzeptiert: %v", err)
+		t.Errorf("tampered root accepted: %v", err)
 	}
 }
 
@@ -285,13 +285,13 @@ func TestSplitViewDetected(t *testing.T) {
 	ctx := context.Background()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	// Zwei Logs derselben Node — die zwei Sichten, die der Angreifer führt.
 	viewA := newTestEnvWithKey(t, key)
 	viewB := newTestEnvWithKey(t, key)
 	if viewA.log.ID() != viewB.log.ID() {
-		t.Fatalf("Sichten gehören zu verschiedenen Logs")
+		t.Fatalf("views belong to different logs")
 	}
 
 	viewA.appendN(ctx, 4)
@@ -307,24 +307,24 @@ func TestSplitViewDetected(t *testing.T) {
 	}
 	// Beide Signaturen sind echt. Genau das macht den Befund unabstreitbar.
 	if err := signedA.Verify(key.Public()); err != nil {
-		t.Fatalf("STH A ungültig: %v", err)
+		t.Fatalf("STH A invalid: %v", err)
 	}
 	if err := signedB.Verify(key.Public()); err != nil {
-		t.Fatalf("STH B ungültig: %v", err)
+		t.Fatalf("STH B invalid: %v", err)
 	}
 	sthA, err := signedA.STH()
 	if err != nil {
-		t.Fatalf("STH A lesen: %v", err)
+		t.Fatalf("read STH A: %v", err)
 	}
 	sthB, err := signedB.STH()
 	if err != nil {
-		t.Fatalf("STH B lesen: %v", err)
+		t.Fatalf("read STH B: %v", err)
 	}
 	if sthA.Size != sthB.Size {
-		t.Fatalf("Testaufbau: Größen %d und %d", sthA.Size, sthB.Size)
+		t.Fatalf("test setup: sizes %d and %d", sthA.Size, sthB.Size)
 	}
 	if err := CheckSTHPair(sthA, sthB); !errors.Is(err, ErrSplitView) {
-		t.Fatalf("Split-View nicht erkannt: %v", err)
+		t.Fatalf("split view not detected: %v", err)
 	}
 
 	// Und der zweite Weg zum selben Befund: Der Konsistenzbeweis der einen
@@ -336,14 +336,14 @@ func TestSplitViewDetected(t *testing.T) {
 	}
 	sthLater, err := later.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	p, err := viewA.log.ConsistencyProof(ctx, sthB.Size, sthLater.Size)
 	if err != nil {
-		t.Fatalf("Konsistenzbeweis: %v", err)
+		t.Fatalf("consistency proof: %v", err)
 	}
 	if err := p.Verify(sthB, sthLater); !errors.Is(err, ErrProofInvalid) {
-		t.Errorf("fremde Sicht als konsistent akzeptiert: %v", err)
+		t.Errorf("foreign view accepted as consistent: %v", err)
 	}
 }
 
@@ -352,11 +352,11 @@ func TestCheckSTHPairShrunk(t *testing.T) {
 	early := &STH{Version: FormatVersion, Log: logID, Size: 9, IssuedAt: 1000, Root: core.Digest{9}}
 	late := &STH{Version: FormatVersion, Log: logID, Size: 4, IssuedAt: 2000, Root: core.Digest{4}}
 	if err := CheckSTHPair(early, late); !errors.Is(err, ErrShrunk) {
-		t.Errorf("Schrumpfen nicht erkannt: %v", err)
+		t.Errorf("shrinking not detected: %v", err)
 	}
 	// Reihenfolge der Argumente darf keine Rolle spielen.
 	if err := CheckSTHPair(late, early); !errors.Is(err, ErrShrunk) {
-		t.Errorf("Schrumpfen nicht erkannt (vertauscht): %v", err)
+		t.Errorf("shrinking not detected (swapped): %v", err)
 	}
 }
 
@@ -364,7 +364,7 @@ func TestCheckSTHPairForeignLog(t *testing.T) {
 	a := &STH{Version: FormatVersion, Log: core.LogID{1}, Size: 1, IssuedAt: 1, Root: core.Digest{1}}
 	b := &STH{Version: FormatVersion, Log: core.LogID{2}, Size: 1, IssuedAt: 2, Root: core.Digest{2}}
 	if err := CheckSTHPair(a, b); !errors.Is(err, ErrLogMismatch) {
-		t.Errorf("fremdes Log nicht erkannt: %v", err)
+		t.Errorf("foreign log not detected: %v", err)
 	}
 }
 
@@ -387,13 +387,13 @@ func TestErasure(t *testing.T) {
 
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	se, salt := env.entry(subject, secret)
 	entryID := se.EntryID()
 	leaf, err := env.log.AppendWithPayload(ctx, se, salt, secret)
 	if err != nil {
-		t.Fatalf("anhängen: %v", err)
+		t.Fatalf("append: %v", err)
 	}
 	env.appendN(ctx, 3)
 
@@ -403,53 +403,53 @@ func TestErasure(t *testing.T) {
 	}
 	before, err := beforeSigned.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	leafHash, err := leaf.Hash()
 	if err != nil {
-		t.Fatalf("Blatthash: %v", err)
+		t.Fatalf("leaf hash: %v", err)
 	}
 	beforeProof, err := env.log.InclusionProof(ctx, leaf.Seq, before.Size)
 	if err != nil {
-		t.Fatalf("Inklusionsbeweis: %v", err)
+		t.Fatalf("inclusion proof: %v", err)
 	}
 	if err := beforeProof.Verify(leafHash, before); err != nil {
-		t.Fatalf("Inklusionsbeweis vor der Löschung: %v", err)
+		t.Fatalf("inclusion proof before the erasure: %v", err)
 	}
 	if got, err := env.log.Payload(ctx, entryID); err != nil || string(got) != string(secret) {
-		t.Fatalf("Nutzlast vor der Löschung: %q, %v", got, err)
+		t.Fatalf("payload before the erasure: %q, %v", got, err)
 	}
 
 	// Löschen.
 	tomb, err := env.log.Erase(ctx, entryID)
 	if err != nil {
-		t.Fatalf("löschen: %v", err)
+		t.Fatalf("erase: %v", err)
 	}
 	tombEntry := entryOf(t, tomb)
 	if tombEntry.Type != core.EntryTypeErasure {
-		t.Errorf("Grabstein hat Typ %s", tombEntry.Type)
+		t.Errorf("tombstone has type %s", tombEntry.Type)
 	}
 	if tombEntry.Target == nil || tombEntry.Target.Entry != entryID {
-		t.Errorf("Grabstein verweist nicht auf den gelöschten Eintrag")
+		t.Errorf("tombstone does not point at the erased entry")
 	}
 	if tombEntry.Target.Log != env.log.ID() {
-		t.Errorf("Grabstein nennt Log %s, erwartet %s", tombEntry.Target.Log, env.log.ID())
+		t.Errorf("tombstone names log %s, expected %s", tombEntry.Target.Log, env.log.ID())
 	}
 
 	// Die Nutzlast ist fort und der Zustand bleibt nachweisbar.
 	if _, err := env.log.Payload(ctx, entryID); !errors.Is(err, ErrErased) {
-		t.Errorf("Nutzlast nach der Löschung noch abrufbar: %v", err)
+		t.Errorf("payload still retrievable after the erasure: %v", err)
 	}
 	status, err := env.log.BlobStatus(ctx, entryID)
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
 	if status != BlobErased {
-		t.Errorf("Status = %s, erwartet erased", status)
+		t.Errorf("status = %s, expected erased", status)
 	}
 	// Und sie lässt sich auch nicht wieder hineinschmuggeln.
 	if err := env.blobs.Put(ctx, entryID, salt, secret); !errors.Is(err, ErrErased) {
-		t.Errorf("gelöschte Nutzlast wieder annehmbar: %v", err)
+		t.Errorf("erased payload accepted again: %v", err)
 	}
 
 	// Der Wörterbuchangriff über den vollständigen Wertebereich. Ohne den Salt
@@ -457,7 +457,7 @@ func TestErasure(t *testing.T) {
 	entry := entryOf(t, leaf)
 	for _, cand := range domain {
 		if core.VerifyCommitment(entry.Commitment, core.Salt{}, cand) {
-			t.Fatalf("Nutzlast %q aus dem Commitment zurückgerechnet", cand)
+			t.Fatalf("payload %q recovered from the commitment", cand)
 		}
 	}
 	// Gegenprobe: Mit dem Salt geht genau ein Kandidat auf. Der Angriff
@@ -469,27 +469,27 @@ func TestErasure(t *testing.T) {
 		}
 	}
 	if hits != 1 {
-		t.Errorf("Gegenprobe: %d Treffer mit Salt, erwartet 1", hits)
+		t.Errorf("control run: %d hits with the salt, expected 1", hits)
 	}
 
 	// Der Kern der Sache: Der Baum wurde nicht angefasst.
 	rootNow, err := env.log.RootAt(ctx, before.Size)
 	if err != nil {
-		t.Fatalf("Wurzel: %v", err)
+		t.Fatalf("root: %v", err)
 	}
 	if rootNow != before.Root {
-		t.Errorf("Wurzel über %d Blätter hat sich geändert", before.Size)
+		t.Errorf("root over %d leaves has changed", before.Size)
 	}
 	if err := beforeSigned.Verify(env.key.Public()); err != nil {
-		t.Errorf("alter STH nach der Löschung ungültig: %v", err)
+		t.Errorf("old STH invalid after the erasure: %v", err)
 	}
 	if err := beforeProof.Verify(leafHash, before); err != nil {
-		t.Errorf("alter Inklusionsbeweis nach der Löschung ungültig: %v", err)
+		t.Errorf("old inclusion proof invalid after the erasure: %v", err)
 	}
 	// Auch das Blatt selbst und seine Signatur bleiben prüfbar — gelöscht wurde
 	// die Nutzlast, nicht die Bezeugung.
 	if err := leaf.Verify(env.log.ID(), env.key.Public()); err != nil {
-		t.Errorf("Blatt nach der Löschung nicht mehr prüfbar: %v", err)
+		t.Errorf("leaf no longer verifiable after the erasure: %v", err)
 	}
 
 	// Und der Baum ist seither gewachsen, nicht geschrumpft.
@@ -499,14 +499,14 @@ func TestErasure(t *testing.T) {
 	}
 	after, err := afterSigned.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	p, err := env.log.ConsistencyProof(ctx, before.Size, after.Size)
 	if err != nil {
-		t.Fatalf("Konsistenzbeweis: %v", err)
+		t.Fatalf("consistency proof: %v", err)
 	}
 	if err := p.Verify(before, after); err != nil {
-		t.Errorf("Löschung hat die Historie gebrochen: %v", err)
+		t.Errorf("erasure broke the history: %v", err)
 	}
 }
 
@@ -515,17 +515,17 @@ func TestEraseIsIdempotent(t *testing.T) {
 	env := newTestEnv(t)
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	se, salt := env.entry(subject, []byte("geheim"))
 	if _, err := env.log.AppendWithPayload(ctx, se, salt, []byte("geheim")); err != nil {
-		t.Fatalf("anhängen: %v", err)
+		t.Fatalf("append: %v", err)
 	}
 	if _, err := env.log.Erase(ctx, se.EntryID()); err != nil {
-		t.Fatalf("erste Löschung: %v", err)
+		t.Fatalf("first erasure: %v", err)
 	}
 	if _, err := env.log.Erase(ctx, se.EntryID()); err != nil {
-		t.Fatalf("zweite Löschung: %v", err)
+		t.Fatalf("second erasure: %v", err)
 	}
 }
 
@@ -534,11 +534,11 @@ func TestEraseRefusesKeyRotation(t *testing.T) {
 	env := newTestEnv(t)
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	salt, err := core.NewSalt()
 	if err != nil {
-		t.Fatalf("Salt: %v", err)
+		t.Fatalf("salt: %v", err)
 	}
 	rot := &core.Entry{
 		Version:    core.FormatVersion,
@@ -546,22 +546,22 @@ func TestEraseRefusesKeyRotation(t *testing.T) {
 		Subject:    subject,
 		IssuedAt:   env.now().UnixMilli(),
 		Issuer:     env.key.Public().ID(),
-		Commitment: core.Commit(salt, []byte("neuer Schlüssel")),
+		Commitment: core.Commit(salt, []byte("new key")),
 	}
 	se, err := core.SignEntry(env.key, rot)
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
-	if _, err := env.log.AppendWithPayload(ctx, se, salt, []byte("neuer Schlüssel")); err != nil {
-		t.Fatalf("anhängen: %v", err)
+	if _, err := env.log.AppendWithPayload(ctx, se, salt, []byte("new key")); err != nil {
+		t.Fatalf("append: %v", err)
 	}
 	if _, err := env.log.Erase(ctx, se.EntryID()); !errors.Is(err, ErrNotErasable) {
-		t.Errorf("Rotationseintrag löschbar: %v", err)
+		t.Errorf("rotation entry erasable: %v", err)
 	}
 	// Und die Nutzlast liegt noch da — eine abgelehnte Löschung darf nichts
 	// halb erledigt haben.
 	if status, err := env.log.BlobStatus(ctx, se.EntryID()); err != nil || status != BlobPresent {
-		t.Errorf("Status = %s, %v; erwartet present", status, err)
+		t.Errorf("status = %s, %v; expected present", status, err)
 	}
 }
 
@@ -570,18 +570,18 @@ func TestAppendWithPayloadRejectsMismatch(t *testing.T) {
 	env := newTestEnv(t)
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	se, salt := env.entry(subject, []byte("echt"))
 	_, err = env.log.AppendWithPayload(ctx, se, salt, []byte("untergeschoben"))
 	if !errors.Is(err, ErrCommitment) {
-		t.Fatalf("falsche Nutzlast angenommen: %v", err)
+		t.Fatalf("wrong payload accepted: %v", err)
 	}
 	if size, err := env.log.Size(ctx); err != nil || size != 0 {
-		t.Errorf("Baum ist trotz Ablehnung gewachsen: %d, %v", size, err)
+		t.Errorf("tree grew despite the rejection: %d, %v", size, err)
 	}
 	if status, err := env.blobs.Status(ctx, se.EntryID()); err != nil || status != BlobAbsent {
-		t.Errorf("Nutzlast trotz Ablehnung gespeichert: %s, %v", status, err)
+		t.Errorf("payload stored despite the rejection: %s, %v", status, err)
 	}
 }
 
@@ -590,15 +590,15 @@ func TestAppendRejectsUnknownIssuer(t *testing.T) {
 	env := newTestEnv(t)
 	stranger, err := core.GenerateKey(core.SigAlgMLDSA44)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	salt, err := core.NewSalt()
 	if err != nil {
-		t.Fatalf("Salt: %v", err)
+		t.Fatalf("salt: %v", err)
 	}
 	ent := &core.Entry{
 		Version:    core.FormatVersion,
@@ -610,10 +610,10 @@ func TestAppendRejectsUnknownIssuer(t *testing.T) {
 	}
 	se, err := core.SignEntry(stranger, ent)
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
 	if _, err := env.log.Append(ctx, se); !errors.Is(err, ErrNotFound) {
-		t.Errorf("unbekannter Aussteller angenommen: %v", err)
+		t.Errorf("unknown issuer accepted: %v", err)
 	}
 }
 
@@ -622,27 +622,27 @@ func TestHistoryBySubject(t *testing.T) {
 	env := newTestEnv(t)
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	env.appendN(ctx, 2)
 	for i := 0; i < 3; i++ {
 		payload := []byte(fmt.Sprintf("station-%d", i))
 		se, salt := env.entry(subject, payload)
 		if _, err := env.log.AppendWithPayload(ctx, se, salt, payload); err != nil {
-			t.Fatalf("anhängen: %v", err)
+			t.Fatalf("append: %v", err)
 		}
 		env.appendN(ctx, 1)
 	}
 	leaves, err := env.log.History(ctx, subject)
 	if err != nil {
-		t.Fatalf("Historie: %v", err)
+		t.Fatalf("history: %v", err)
 	}
 	if len(leaves) != 3 {
-		t.Fatalf("Historie hat %d Einträge, erwartet 3", len(leaves))
+		t.Fatalf("history has %d entries, expected 3", len(leaves))
 	}
 	for i := 1; i < len(leaves); i++ {
 		if leaves[i-1].Seq >= leaves[i].Seq {
-			t.Errorf("Historie nicht aufsteigend: %d vor %d", leaves[i-1].Seq, leaves[i].Seq)
+			t.Errorf("history not ascending: %d before %d", leaves[i-1].Seq, leaves[i].Seq)
 		}
 	}
 }
@@ -651,7 +651,7 @@ func TestLogIDFollowsGenesisKey(t *testing.T) {
 	env := newTestEnv(t)
 	rotated, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	// Nach einer Rotation unterschreibt ein neuer Schlüssel, aber die
 	// Log-Kennung bleibt am Gründungsschlüssel hängen — sonst zeigten alle
@@ -663,10 +663,10 @@ func TestLogIDFollowsGenesisKey(t *testing.T) {
 		Now:     env.now,
 	})
 	if err != nil {
-		t.Fatalf("Log anlegen: %v", err)
+		t.Fatalf("create log: %v", err)
 	}
 	if after.ID() != env.log.ID() {
-		t.Errorf("Log-Kennung nach Rotation = %s, erwartet %s", after.ID(), env.log.ID())
+		t.Errorf("log ID after the rotation = %s, expected %s", after.ID(), env.log.ID())
 	}
 
 	ctx := context.Background()
@@ -675,10 +675,10 @@ func TestLogIDFollowsGenesisKey(t *testing.T) {
 		t.Fatalf("STH: %v", err)
 	}
 	if err := signed.Verify(rotated.Public()); err != nil {
-		t.Errorf("STH des neuen Schlüssels: %v", err)
+		t.Errorf("STH of the new key: %v", err)
 	}
 	if err := signed.Verify(env.key.Public()); err == nil {
-		t.Error("STH mit dem alten Schlüssel prüfbar")
+		t.Error("STH verifiable with the old key")
 	}
 }
 
@@ -688,16 +688,16 @@ func TestProofsOutOfRange(t *testing.T) {
 	env.appendN(ctx, 4)
 
 	if _, err := env.log.InclusionProof(ctx, 4, 4); !errors.Is(err, ErrProofSize) {
-		t.Errorf("Blatt außerhalb des Baums: %v", err)
+		t.Errorf("leaf outside the tree: %v", err)
 	}
 	if _, err := env.log.InclusionProof(ctx, 0, 9); !errors.Is(err, ErrProofSize) {
-		t.Errorf("Baumgröße aus der Zukunft: %v", err)
+		t.Errorf("tree size from the future: %v", err)
 	}
 	if _, err := env.log.ConsistencyProof(ctx, 3, 2); !errors.Is(err, ErrProofSize) {
-		t.Errorf("rückwärtiger Konsistenzbeweis: %v", err)
+		t.Errorf("backwards consistency proof: %v", err)
 	}
 	if _, err := env.log.RootAt(ctx, 5); !errors.Is(err, ErrProofSize) {
-		t.Errorf("Wurzel aus der Zukunft: %v", err)
+		t.Errorf("root from the future: %v", err)
 	}
 }
 
@@ -706,26 +706,26 @@ func TestNoBlobStore(t *testing.T) {
 	env := newTestEnv(t)
 	bare, err := New(Options{Storage: NewMemStorage(), Signer: env.key, Now: env.now})
 	if err != nil {
-		t.Fatalf("Log anlegen: %v", err)
+		t.Fatalf("create log: %v", err)
 	}
 	if _, err := bare.Payload(ctx, core.Digest{1}); !errors.Is(err, ErrNoBlobStore) {
-		t.Errorf("Payload ohne Blobspeicher: %v", err)
+		t.Errorf("payload without a blob store: %v", err)
 	}
 	if _, err := bare.Erase(ctx, core.Digest{1}); !errors.Is(err, ErrNoBlobStore) {
-		t.Errorf("Erase ohne Blobspeicher: %v", err)
+		t.Errorf("erase without a blob store: %v", err)
 	}
 }
 
 func TestNewRequiresStorageAndSigner(t *testing.T) {
 	key, err := core.GenerateKey(core.SigAlgMLDSA44)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	if _, err := New(Options{Signer: key}); !errors.Is(err, ErrMissingField) {
-		t.Errorf("Log ohne Speicher: %v", err)
+		t.Errorf("log without storage: %v", err)
 	}
 	if _, err := New(Options{Storage: NewMemStorage()}); !errors.Is(err, ErrMissingField) {
-		t.Errorf("Log ohne Signaturschlüssel: %v", err)
+		t.Errorf("log without a signing key: %v", err)
 	}
 }
 
@@ -733,11 +733,11 @@ func entryOf(t *testing.T, leaf *Leaf) *core.Entry {
 	t.Helper()
 	se, err := leaf.SignedEntry()
 	if err != nil {
-		t.Fatalf("signierter Eintrag: %v", err)
+		t.Fatalf("signed entry: %v", err)
 	}
 	e, err := se.Entry()
 	if err != nil {
-		t.Fatalf("Eintrag: %v", err)
+		t.Fatalf("entry: %v", err)
 	}
 	return e
 }

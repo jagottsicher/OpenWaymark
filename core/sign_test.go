@@ -33,10 +33,10 @@ func TestSigAlgSizes(t *testing.T) {
 	}
 	for _, c := range cases {
 		if got := c.alg.PublicKeySize(); got != c.pub {
-			t.Errorf("%s: PublicKeySize = %d, Spezifikation sagt %d", c.alg, got, c.pub)
+			t.Errorf("%s: PublicKeySize = %d, the specification says %d", c.alg, got, c.pub)
 		}
 		if got := c.alg.SignatureSize(); got != c.sig {
-			t.Errorf("%s: SignatureSize = %d, Spezifikation sagt %d", c.alg, got, c.sig)
+			t.Errorf("%s: SignatureSize = %d, the specification says %d", c.alg, got, c.sig)
 		}
 	}
 }
@@ -44,21 +44,21 @@ func TestSigAlgSizes(t *testing.T) {
 func TestSigAlgUnknown(t *testing.T) {
 	var bad SigAlg = 99
 	if bad.Valid() {
-		t.Error("unbekannter Algorithmus gilt als gültig")
+		t.Error("unknown algorithm is treated as valid")
 	}
 	if bad.PublicKeySize() != 0 || bad.SignatureSize() != 0 || bad.SeedSize() != 0 {
-		t.Error("unbekannter Algorithmus liefert Größen ungleich null")
+		t.Error("unknown algorithm returns non-zero sizes")
 	}
 	if _, err := GenerateKey(bad); !errors.Is(err, ErrUnknownAlg) {
-		t.Errorf("GenerateKey liefert %v, erwartet ErrUnknownAlg", err)
+		t.Errorf("GenerateKey returns %v, expected ErrUnknownAlg", err)
 	}
 	if _, err := ParsePublicKey(bad, nil); !errors.Is(err, ErrUnknownAlg) {
-		t.Errorf("ParsePublicKey liefert %v, erwartet ErrUnknownAlg", err)
+		t.Errorf("ParsePublicKey returns %v, expected ErrUnknownAlg", err)
 	}
 }
 
 func TestSignVerifyRoundTrip(t *testing.T) {
-	msg := []byte("eine Aussage über eine Charge Eier")
+	msg := []byte("a statement about a batch of eggs")
 	for _, alg := range testAlgs {
 		k, err := GenerateKey(alg)
 		if err != nil {
@@ -69,10 +69,10 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 			t.Fatalf("Sign(%s): %v", alg, err)
 		}
 		if len(sig) != alg.SignatureSize() {
-			t.Errorf("%s: Signaturlänge %d, erwartet %d", alg, len(sig), alg.SignatureSize())
+			t.Errorf("%s: signature length %d, expected %d", alg, len(sig), alg.SignatureSize())
 		}
 		if !k.Public().Verify(SigContextEntry, msg, sig) {
-			t.Errorf("%s: eigene Signatur wird abgelehnt", alg)
+			t.Errorf("%s: own signature is rejected", alg)
 		}
 	}
 }
@@ -81,22 +81,22 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 // Eine Eintragssignatur darf niemals als STH-Signatur durchgehen.
 func TestSignatureContextSeparation(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x01)
-	msg := []byte("dieselbe Nachricht")
+	msg := []byte("the same message")
 	sig, err := k.Sign(SigContextEntry, msg)
 	if err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 	if k.Public().Verify(SigContextSTH, msg, sig) {
-		t.Error("Eintragssignatur gilt auch im STH-Kontext")
+		t.Error("entry signature also verifies in the STH context")
 	}
 	if k.Public().Verify("", msg, sig) {
-		t.Error("Eintragssignatur gilt auch ohne Kontext")
+		t.Error("entry signature also verifies without a context")
 	}
 }
 
 func TestVerifyRejectsTampering(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x02)
-	msg := []byte("unveränderte Nachricht")
+	msg := []byte("unmodified message")
 	sig, err := k.Sign(SigContextEntry, msg)
 	if err != nil {
 		t.Fatalf("Sign: %v", err)
@@ -105,22 +105,22 @@ func TestVerifyRejectsTampering(t *testing.T) {
 	tampered := append([]byte(nil), msg...)
 	tampered[0] ^= 0x01
 	if k.Public().Verify(SigContextEntry, tampered, sig) {
-		t.Error("geänderte Nachricht wird akzeptiert")
+		t.Error("modified message is accepted")
 	}
 
 	badSig := append([]byte(nil), sig...)
 	badSig[0] ^= 0x01
 	if k.Public().Verify(SigContextEntry, msg, badSig) {
-		t.Error("geänderte Signatur wird akzeptiert")
+		t.Error("modified signature is accepted")
 	}
 
 	if k.Public().Verify(SigContextEntry, msg, sig[:len(sig)-1]) {
-		t.Error("verkürzte Signatur wird akzeptiert")
+		t.Error("truncated signature is accepted")
 	}
 
 	other := keyFromSeedByte(t, SigAlgMLDSA65, 0x03)
 	if other.Public().Verify(SigContextEntry, msg, sig) {
-		t.Error("fremder Schlüssel bestätigt die Signatur")
+		t.Error("a foreign key confirms the signature")
 	}
 }
 
@@ -128,10 +128,10 @@ func TestSignRejectsOverlongContext(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA44, 0x04)
 	long := string(bytes.Repeat([]byte("x"), maxSigContext+1))
 	if _, err := k.Sign(long, []byte("x")); !errors.Is(err, ErrContextTooLong) {
-		t.Errorf("Sign liefert %v, erwartet ErrContextTooLong", err)
+		t.Errorf("Sign returns %v, expected ErrContextTooLong", err)
 	}
 	if k.Public().Verify(long, []byte("x"), make([]byte, SigAlgMLDSA44.SignatureSize())) {
-		t.Error("Verify akzeptiert übergroßen Kontext")
+		t.Error("Verify accepts an oversized context")
 	}
 }
 
@@ -140,14 +140,14 @@ func TestKeyFromSeedIsDeterministic(t *testing.T) {
 		a := keyFromSeedByte(t, alg, 0x05)
 		b := keyFromSeedByte(t, alg, 0x05)
 		if !bytes.Equal(a.Public().Bytes(), b.Public().Bytes()) {
-			t.Errorf("%s: gleicher Saatwert ergibt verschiedene Schlüssel", alg)
+			t.Errorf("%s: the same seed produces different keys", alg)
 		}
 		if a.Public().ID() != b.Public().ID() {
-			t.Errorf("%s: gleicher Schlüssel ergibt verschiedene Kennungen", alg)
+			t.Errorf("%s: the same key produces different identifiers", alg)
 		}
 		c := keyFromSeedByte(t, alg, 0x06)
 		if a.Public().ID() == c.Public().ID() {
-			t.Errorf("%s: verschiedene Saatwerte ergeben dieselbe Kennung", alg)
+			t.Errorf("%s: different seeds produce the same identifier", alg)
 		}
 	}
 }
@@ -156,7 +156,7 @@ func TestNewKeyFromSeedRejectsWrongLength(t *testing.T) {
 	for _, alg := range testAlgs {
 		for _, n := range []int{0, alg.SeedSize() - 1, alg.SeedSize() + 1} {
 			if _, err := NewKeyFromSeed(alg, make([]byte, n)); !errors.Is(err, ErrKeySize) {
-				t.Errorf("%s: Saatwertlänge %d liefert %v, erwartet ErrKeySize", alg, n, err)
+				t.Errorf("%s: seed length %d returns %v, expected ErrKeySize", alg, n, err)
 			}
 		}
 	}
@@ -168,7 +168,7 @@ func TestNewKeyFromSeedRejectsWrongLength(t *testing.T) {
 func TestKeyIDBindsAlgorithm(t *testing.T) {
 	raw := bytes.Repeat([]byte{0xAB}, 64)
 	if computeKeyID(SigAlgMLDSA44, raw) == computeKeyID(SigAlgMLDSA65, raw) {
-		t.Error("Algorithmus geht nicht in die Schlüsselkennung ein")
+		t.Error("the algorithm does not enter the key identifier")
 	}
 }
 
@@ -182,16 +182,16 @@ func TestParsePublicKeyRoundTrip(t *testing.T) {
 			t.Fatalf("%s: ParsePublicKey: %v", alg, err)
 		}
 		if pub.ID() != k.Public().ID() {
-			t.Errorf("%s: Kennung nach Rückweg abweichend", alg)
+			t.Errorf("%s: identifier differs after the round trip", alg)
 		}
 
-		msg := []byte("geprüft mit dem geparsten Schlüssel")
+		msg := []byte("verified with the parsed key")
 		sig, err := k.Sign(SigContextEntry, msg)
 		if err != nil {
 			t.Fatalf("%s: Sign: %v", alg, err)
 		}
 		if !pub.Verify(SigContextEntry, msg, sig) {
-			t.Errorf("%s: geparster Schlüssel prüft nicht", alg)
+			t.Errorf("%s: parsed key does not verify", alg)
 		}
 	}
 }
@@ -200,7 +200,7 @@ func TestParsePublicKeyRejectsWrongLength(t *testing.T) {
 	for _, alg := range testAlgs {
 		for _, n := range []int{0, alg.PublicKeySize() - 1, alg.PublicKeySize() + 1} {
 			if _, err := ParsePublicKey(alg, make([]byte, n)); !errors.Is(err, ErrKeySize) {
-				t.Errorf("%s: Länge %d liefert %v, erwartet ErrKeySize", alg, n, err)
+				t.Errorf("%s: length %d returns %v, expected ErrKeySize", alg, n, err)
 			}
 		}
 	}
@@ -213,7 +213,7 @@ func TestPublicKeyBytesIsCopy(t *testing.T) {
 	raw := k.Public().Bytes()
 	raw[0] ^= 0xFF
 	if bytes.Equal(raw, k.Public().Bytes()) {
-		t.Error("Bytes() gibt den internen Puffer heraus")
+		t.Error("Bytes() hands out the internal buffer")
 	}
 
 	buf := k.Public().Bytes()
@@ -224,12 +224,12 @@ func TestPublicKeyBytesIsCopy(t *testing.T) {
 	before := pub.ID()
 	buf[0] ^= 0xFF
 	if pub.ID() != before {
-		t.Error("ParsePublicKey behält den Puffer des Aufrufers")
+		t.Error("ParsePublicKey keeps the caller's buffer")
 	}
 }
 
 func TestSignDeterministicIsStable(t *testing.T) {
-	msg := []byte("Testvektoren brauchen reproduzierbare Signaturen")
+	msg := []byte("test vectors require reproducible signatures")
 	for _, alg := range testAlgs {
 		k := keyFromSeedByte(t, alg, 0x09)
 		a, err := k.SignDeterministic(SigContextEntry, msg)
@@ -241,10 +241,10 @@ func TestSignDeterministicIsStable(t *testing.T) {
 			t.Fatalf("%s: SignDeterministic: %v", alg, err)
 		}
 		if !bytes.Equal(a, b) {
-			t.Errorf("%s: deterministische Signatur ist nicht stabil", alg)
+			t.Errorf("%s: deterministic signature is not stable", alg)
 		}
 		if !k.Public().Verify(SigContextEntry, msg, a) {
-			t.Errorf("%s: deterministische Signatur prüft nicht", alg)
+			t.Errorf("%s: deterministic signature does not verify", alg)
 		}
 
 		// Der Normalfall ist randomisiert; identische Signaturen wären hier
@@ -258,7 +258,7 @@ func TestSignDeterministicIsStable(t *testing.T) {
 			t.Fatalf("%s: Sign: %v", alg, err)
 		}
 		if bytes.Equal(r1, r2) {
-			t.Errorf("%s: Sign liefert zweimal dieselbe Signatur", alg)
+			t.Errorf("%s: Sign returns the same signature twice", alg)
 		}
 	}
 }
@@ -266,6 +266,6 @@ func TestSignDeterministicIsStable(t *testing.T) {
 func TestVerifyNilKey(t *testing.T) {
 	var pub *PublicKey
 	if pub.Verify(SigContextEntry, []byte("x"), []byte("y")) {
-		t.Error("nil-Schlüssel bestätigt eine Signatur")
+		t.Error("a nil key confirms a signature")
 	}
 }

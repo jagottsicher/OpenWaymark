@@ -46,15 +46,15 @@ func TestEntryTypeStrings(t *testing.T) {
 	}
 	for typ, name := range want {
 		if !typ.Valid() {
-			t.Errorf("%s gilt als ungültig", name)
+			t.Errorf("%s is treated as invalid", name)
 		}
 		if got := typ.String(); got != name {
-			t.Errorf("String() = %q, erwartet %q", got, name)
+			t.Errorf("String() = %q, expected %q", got, name)
 		}
 	}
 	for _, bad := range []EntryType{0, 7, 255} {
 		if bad.Valid() {
-			t.Errorf("EntryType(%d) gilt als gültig", uint8(bad))
+			t.Errorf("EntryType(%d) is treated as valid", uint8(bad))
 		}
 	}
 }
@@ -64,17 +64,17 @@ func TestEntryTypeStrings(t *testing.T) {
 // jede DSGVO-Löschung wie ein Eingeständnis aus, die Aussage sei falsch gewesen.
 func TestErasureIsNotRevocation(t *testing.T) {
 	if EntryTypeErasure == EntryTypeRevocation {
-		t.Fatal("erasure und revocation haben denselben Zahlwert")
+		t.Fatal("erasure and revocation have the same numeric value")
 	}
 	for _, typ := range []EntryType{EntryTypeRevocation, EntryTypeErasure} {
 		if !typ.RefersToEntry() {
-			t.Errorf("%s benennt kein Ziel", typ)
+			t.Errorf("%s names no target", typ)
 		}
 	}
 	for _, typ := range []EntryType{EntryTypeAssertion, EntryTypeAttestation,
 		EntryTypeKeyRotation, EntryTypeSensorReading} {
 		if typ.RefersToEntry() {
-			t.Errorf("%s benennt ein Ziel, sollte aber nicht", typ)
+			t.Errorf("%s names a target but should not", typ)
 		}
 	}
 }
@@ -82,29 +82,29 @@ func TestErasureIsNotRevocation(t *testing.T) {
 func TestEntryValidate(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x11)
 	base := fixtureEntry(k)
-	ref := EntryRef{Entry: hashLabeled("test", []byte("vorgänger"))}
+	ref := EntryRef{Entry: hashLabeled("test", []byte("parent"))}
 
 	cases := []struct {
 		name    string
 		mutate  func(*Entry)
 		wantErr error
 	}{
-		{"gültig", func(*Entry) {}, nil},
-		{"falsche Version", func(e *Entry) { e.Version = 2 }, ErrVersion},
-		{"unbekannter Typ", func(e *Entry) { e.Type = 99 }, ErrEntryType},
-		{"Subjekt fehlt", func(e *Entry) { e.Subject = SubjectID{} }, ErrMissingField},
-		{"Aussteller fehlt", func(e *Entry) { e.Issuer = KeyID{} }, ErrMissingField},
-		{"Zeitpunkt fehlt", func(e *Entry) { e.IssuedAt = 0 }, ErrMissingField},
-		{"Zeitpunkt negativ", func(e *Entry) { e.IssuedAt = -1 }, ErrMissingField},
-		{"Commitment fehlt", func(e *Entry) { e.Commitment = Commitment{} }, ErrMissingField},
-		{"tgt bei assertion", func(e *Entry) { e.Target = &ref }, ErrUnexpectedTgt},
-		{"Profil zu lang", func(e *Entry) { e.Profile = strings.Repeat("a", maxProfileLen+1) }, ErrProfile},
-		{"Profil mit Großbuchstaben", func(e *Entry) { e.Profile = "OWM.food/1" }, ErrProfile},
-		{"Profil mit Leerzeichen", func(e *Entry) { e.Profile = "owm food" }, ErrProfile},
-		{"Profil mit Steuerzeichen", func(e *Entry) { e.Profile = "owm\x00food" }, ErrProfile},
-		{"leeres Profil", func(e *Entry) { e.Profile = "" }, nil},
-		{"Vorgänger ohne Kennung", func(e *Entry) { e.Parents = []EntryRef{{}} }, ErrMissingField},
-		{"Vorgänger gültig", func(e *Entry) { e.Parents = []EntryRef{ref} }, nil},
+		{"valid", func(*Entry) {}, nil},
+		{"wrong version", func(e *Entry) { e.Version = 2 }, ErrVersion},
+		{"unknown type", func(e *Entry) { e.Type = 99 }, ErrEntryType},
+		{"subject missing", func(e *Entry) { e.Subject = SubjectID{} }, ErrMissingField},
+		{"issuer missing", func(e *Entry) { e.Issuer = KeyID{} }, ErrMissingField},
+		{"timestamp missing", func(e *Entry) { e.IssuedAt = 0 }, ErrMissingField},
+		{"negative timestamp", func(e *Entry) { e.IssuedAt = -1 }, ErrMissingField},
+		{"commitment missing", func(e *Entry) { e.Commitment = Commitment{} }, ErrMissingField},
+		{"tgt on assertion", func(e *Entry) { e.Target = &ref }, ErrUnexpectedTgt},
+		{"profile too long", func(e *Entry) { e.Profile = strings.Repeat("a", maxProfileLen+1) }, ErrProfile},
+		{"profile with upper-case letters", func(e *Entry) { e.Profile = "OWM.food/1" }, ErrProfile},
+		{"profile with a space", func(e *Entry) { e.Profile = "owm food" }, ErrProfile},
+		{"profile with a control character", func(e *Entry) { e.Profile = "owm\x00food" }, ErrProfile},
+		{"empty profile", func(e *Entry) { e.Profile = "" }, nil},
+		{"parent without an identifier", func(e *Entry) { e.Parents = []EntryRef{{}} }, ErrMissingField},
+		{"parent valid", func(e *Entry) { e.Parents = []EntryRef{ref} }, nil},
 	}
 
 	for _, c := range cases {
@@ -114,9 +114,9 @@ func TestEntryValidate(t *testing.T) {
 			err := e.Validate()
 			switch {
 			case c.wantErr == nil && err != nil:
-				t.Fatalf("unerwarteter Fehler: %v", err)
+				t.Fatalf("unexpected error: %v", err)
 			case c.wantErr != nil && !errors.Is(err, c.wantErr):
-				t.Fatalf("Fehler = %v, erwartet %v", err, c.wantErr)
+				t.Fatalf("error = %v, expected %v", err, c.wantErr)
 			}
 		})
 	}
@@ -127,7 +127,7 @@ func TestEntryValidate(t *testing.T) {
 // böswillig großes Array Speicher belegt, bevor jemand es ablehnt.
 func TestParentLimit(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x13)
-	ref := EntryRef{Entry: hashLabeled("test", []byte("vorgänger"))}
+	ref := EntryRef{Entry: hashLabeled("test", []byte("parent"))}
 
 	atLimit := fixtureEntry(k)
 	atLimit.Parents = make([]EntryRef, MaxParents)
@@ -135,34 +135,34 @@ func TestParentLimit(t *testing.T) {
 		atLimit.Parents[i] = ref
 	}
 	if err := atLimit.Validate(); err != nil {
-		t.Fatalf("genau MaxParents abgelehnt: %v", err)
+		t.Fatalf("exactly MaxParents rejected: %v", err)
 	}
 	encoded, err := atLimit.Encode()
 	if err != nil {
-		t.Fatalf("Kodierung bei MaxParents: %v", err)
+		t.Fatalf("encoding at MaxParents: %v", err)
 	}
 	if _, err := ParseEntry(encoded); err != nil {
-		t.Fatalf("Dekodierung bei MaxParents: %v", err)
+		t.Fatalf("decoding at MaxParents: %v", err)
 	}
 
 	over := *atLimit
 	over.Parents = append(append([]EntryRef(nil), atLimit.Parents...), ref)
 	if err := over.Validate(); !errors.Is(err, ErrTooManyParents) {
-		t.Errorf("Validate liefert %v, erwartet ErrTooManyParents", err)
+		t.Errorf("Validate returns %v, expected ErrTooManyParents", err)
 	}
 	// Am Prüfschritt vorbei direkt kodieren, um den Dekodierpfad zu treffen.
 	raw, err := encMode.Marshal(over.toWire())
 	if err != nil {
-		t.Fatalf("Rohkodierung: %v", err)
+		t.Fatalf("raw encoding: %v", err)
 	}
 	if _, err := ParseEntry(raw); !errors.Is(err, ErrTooManyParents) {
-		t.Errorf("ParseEntry liefert %v, erwartet ErrTooManyParents", err)
+		t.Errorf("ParseEntry returns %v, expected ErrTooManyParents", err)
 	}
 }
 
 func TestTargetingEntryRules(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x12)
-	ref := EntryRef{Entry: hashLabeled("test", []byte("betroffener Eintrag"))}
+	ref := EntryRef{Entry: hashLabeled("test", []byte("affected entry"))}
 
 	for _, typ := range []EntryType{EntryTypeRevocation, EntryTypeErasure} {
 		t.Run(typ.String(), func(t *testing.T) {
@@ -172,19 +172,19 @@ func TestTargetingEntryRules(t *testing.T) {
 			e.Commitment = Commitment{} // beide brauchen keine eigene Nutzlast
 			e.Target = &ref
 			if err := e.Validate(); err != nil {
-				t.Fatalf("gültiger Eintrag abgelehnt: %v", err)
+				t.Fatalf("valid entry rejected: %v", err)
 			}
 
 			without := *e
 			without.Target = nil
 			if err := without.Validate(); !errors.Is(err, ErrMissingField) {
-				t.Errorf("ohne tgt liefert %v, erwartet ErrMissingField", err)
+				t.Errorf("without tgt returns %v, expected ErrMissingField", err)
 			}
 
 			empty := *e
 			empty.Target = &EntryRef{}
 			if err := empty.Validate(); !errors.Is(err, ErrMissingField) {
-				t.Errorf("mit leerem tgt liefert %v, erwartet ErrMissingField", err)
+				t.Errorf("with an empty tgt returns %v, expected ErrMissingField", err)
 			}
 		})
 	}
@@ -197,7 +197,7 @@ func TestIssuedAtRoundTrip(t *testing.T) {
 	want := time.Date(2026, 8, 10, 12, 34, 56, 789_000_000, time.UTC)
 	e.SetIssuedAt(want.Add(321 * time.Microsecond))
 	if got := e.IssuedAtTime(); !got.Equal(want) {
-		t.Errorf("IssuedAtTime = %s, erwartet %s", got, want)
+		t.Errorf("IssuedAtTime = %s, expected %s", got, want)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestSignAndVerifyEntry(t *testing.T) {
 			t.Fatalf("%s: Entry: %v", alg, err)
 		}
 		if got.Subject != e.Subject || got.Issuer != e.Issuer || got.IssuedAt != e.IssuedAt {
-			t.Errorf("%s: Eintrag nach Rückweg abweichend", alg)
+			t.Errorf("%s: entry differs after the round trip", alg)
 		}
 
 		id, err := e.ID()
@@ -230,7 +230,7 @@ func TestSignAndVerifyEntry(t *testing.T) {
 			t.Fatalf("%s: ID: %v", alg, err)
 		}
 		if se.EntryID() != id {
-			t.Errorf("%s: EntryID weicht von Entry.ID ab", alg)
+			t.Errorf("%s: EntryID differs from Entry.ID", alg)
 		}
 	}
 }
@@ -251,10 +251,10 @@ func TestEntryIDIgnoresSignature(t *testing.T) {
 		t.Fatalf("SignEntry: %v", err)
 	}
 	if string(a.Signature) == string(b.Signature) {
-		t.Fatal("zwei Signaturen desselben Eintrags sind identisch — Voraussetzung des Tests verletzt")
+		t.Fatal("two signatures of the same entry are identical - test precondition violated")
 	}
 	if a.EntryID() != b.EntryID() {
-		t.Error("Inhaltsadresse hängt von der Signatur ab")
+		t.Error("content address depends on the signature")
 	}
 }
 
@@ -264,10 +264,10 @@ func TestSignEntryRejectsForeignIssuer(t *testing.T) {
 
 	e := fixtureEntry(other) // iss zeigt auf einen fremden Schlüssel
 	if _, err := SignEntry(k, e); !errors.Is(err, ErrIssuerMismatch) {
-		t.Errorf("SignEntry liefert %v, erwartet ErrIssuerMismatch", err)
+		t.Errorf("SignEntry returns %v, expected ErrIssuerMismatch", err)
 	}
 	if _, err := SignEntry(nil, e); !errors.Is(err, ErrMissingField) {
-		t.Errorf("SignEntry(nil) liefert %v, erwartet ErrMissingField", err)
+		t.Errorf("SignEntry(nil) returns %v, expected ErrMissingField", err)
 	}
 }
 
@@ -282,10 +282,10 @@ func TestVerifyRejectsForeignKey(t *testing.T) {
 		t.Fatalf("SignEntry: %v", err)
 	}
 	if err := se.Verify(other.Public()); !errors.Is(err, ErrIssuerMismatch) {
-		t.Errorf("Verify mit fremdem Schlüssel liefert %v, erwartet ErrIssuerMismatch", err)
+		t.Errorf("Verify with a foreign key returns %v, expected ErrIssuerMismatch", err)
 	}
 	if err := se.Verify(nil); !errors.Is(err, ErrMissingField) {
-		t.Errorf("Verify(nil) liefert %v, erwartet ErrMissingField", err)
+		t.Errorf("Verify(nil) returns %v, expected ErrMissingField", err)
 	}
 }
 
@@ -298,7 +298,7 @@ func TestVerifyRejectsAlgMismatch(t *testing.T) {
 		t.Fatalf("SignEntry: %v", err)
 	}
 	if err := se.Verify(k44.Public()); !errors.Is(err, ErrAlgMismatch) {
-		t.Errorf("Verify liefert %v, erwartet ErrAlgMismatch", err)
+		t.Errorf("Verify returns %v, expected ErrAlgMismatch", err)
 	}
 }
 
@@ -309,16 +309,16 @@ func TestVerifyRejectsTamperedSignedEntry(t *testing.T) {
 		t.Fatalf("SignEntry: %v", err)
 	}
 
-	t.Run("Signatur verändert", func(t *testing.T) {
+	t.Run("signature modified", func(t *testing.T) {
 		bad := *se
 		bad.Signature = append([]byte(nil), se.Signature...)
 		bad.Signature[7] ^= 0x01
 		if err := bad.Verify(k.Public()); !errors.Is(err, ErrBadSignature) {
-			t.Errorf("liefert %v, erwartet ErrBadSignature", err)
+			t.Errorf("returns %v, expected ErrBadSignature", err)
 		}
 	})
 
-	t.Run("Eintrag verändert", func(t *testing.T) {
+	t.Run("entry modified", func(t *testing.T) {
 		// Der Zeitstempel wird um eine Millisekunde verschoben. Der Eintrag
 		// bleibt strukturell gültig und kanonisch — nur die Signatur passt
 		// nicht mehr.
@@ -330,7 +330,7 @@ func TestVerifyRejectsTamperedSignedEntry(t *testing.T) {
 		}
 		bad := SignedEntry{EntryBytes: other, Alg: se.Alg, Signature: se.Signature}
 		if err := bad.Verify(k.Public()); !errors.Is(err, ErrBadSignature) {
-			t.Errorf("liefert %v, erwartet ErrBadSignature", err)
+			t.Errorf("returns %v, expected ErrBadSignature", err)
 		}
 	})
 }

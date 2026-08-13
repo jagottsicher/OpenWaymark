@@ -15,19 +15,19 @@ func testLeaf(t *testing.T) (*Leaf, *core.PrivateKey) {
 	t.Helper()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	logID, err := core.DeriveLogID(key.Public())
 	if err != nil {
-		t.Fatalf("Log-Kennung: %v", err)
+		t.Fatalf("log ID: %v", err)
 	}
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	salt, err := core.NewSalt()
 	if err != nil {
-		t.Fatalf("Salt: %v", err)
+		t.Fatalf("salt: %v", err)
 	}
 	se, err := core.SignEntry(key, &core.Entry{
 		Version:    core.FormatVersion,
@@ -39,11 +39,11 @@ func testLeaf(t *testing.T) (*Leaf, *core.PrivateKey) {
 		Commitment: core.Commit(salt, []byte("nutzlast")),
 	})
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
 	entryBytes, err := se.Encode()
 	if err != nil {
-		t.Fatalf("kodieren: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	return &Leaf{
 		Version:  FormatVersion,
@@ -58,29 +58,29 @@ func TestLeafRoundTrip(t *testing.T) {
 	leaf, key := testLeaf(t)
 	b, err := leaf.Encode()
 	if err != nil {
-		t.Fatalf("kodieren: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	got, err := ParseLeaf(b)
 	if err != nil {
-		t.Fatalf("lesen: %v", err)
+		t.Fatalf("read: %v", err)
 	}
 	if got.Version != leaf.Version || got.Log != leaf.Log ||
 		got.Seq != leaf.Seq || got.LoggedAt != leaf.LoggedAt ||
 		!bytes.Equal(got.Entry, leaf.Entry) {
-		t.Fatalf("Blatt hat sich beim Umlauf verändert")
+		t.Fatalf("leaf changed across the round trip")
 	}
 	again, err := got.Encode()
 	if err != nil {
-		t.Fatalf("erneut kodieren: %v", err)
+		t.Fatalf("re-encode: %v", err)
 	}
 	if !bytes.Equal(b, again) {
-		t.Error("Kodierung ist nicht stabil")
+		t.Error("encoding is not stable")
 	}
 	if got.EntryID() != core.EntryIDFromBytes(mustEntryBytes(t, leaf.Entry)) {
-		t.Error("Eintragskennung stimmt nicht")
+		t.Error("entry ID does not match")
 	}
 	if err := got.Verify(leaf.Log, key.Public()); err != nil {
-		t.Errorf("prüfen: %v", err)
+		t.Errorf("verify: %v", err)
 	}
 }
 
@@ -89,7 +89,7 @@ func TestLeafVerifyRejectsForeignLog(t *testing.T) {
 	other := leaf.Log
 	other[0] ^= 0xff
 	if err := leaf.Verify(other, key.Public()); !errors.Is(err, ErrLogMismatch) {
-		t.Errorf("fremdes Log akzeptiert: %v", err)
+		t.Errorf("foreign log accepted: %v", err)
 	}
 }
 
@@ -101,7 +101,7 @@ func TestLeafVerifyRejectsTamperedEntry(t *testing.T) {
 	tampered[len(tampered)-1] ^= 0x01
 	leaf.Entry = tampered
 	if err := leaf.Verify(leaf.Log, key.Public()); err == nil {
-		t.Error("manipulierte Signatur akzeptiert")
+		t.Error("tampered signature accepted")
 	}
 }
 
@@ -109,11 +109,11 @@ func TestLeafRejectsNonCanonical(t *testing.T) {
 	leaf, _ := testLeaf(t)
 	b, err := leaf.Encode()
 	if err != nil {
-		t.Fatalf("kodieren: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	// a5 = Map mit 5 Paaren, dann Schlüssel 1 und Wert 1 in minimaler Form.
 	if len(b) < 3 || b[0] != 0xa5 || b[1] != 0x01 || b[2] != 0x01 {
-		t.Fatalf("unerwartete Kodierung: %x", b[:3])
+		t.Fatalf("unexpected encoding: %x", b[:3])
 	}
 	// Dieselbe Zahl in nicht-minimaler Form (0x18 0x01). CBOR liest das als 1,
 	// aber es ist eine zweite Kodierung desselben Blattes — und damit ein
@@ -124,7 +124,7 @@ func TestLeafRejectsNonCanonical(t *testing.T) {
 	noncanon = append(noncanon, b[3:]...)
 
 	if _, err := ParseLeaf(noncanon); !errors.Is(err, core.ErrNotCanonical) {
-		t.Errorf("nicht-kanonische Kodierung akzeptiert: %v", err)
+		t.Errorf("non-canonical encoding accepted: %v", err)
 	}
 }
 
@@ -132,10 +132,10 @@ func TestLeafRejectsTrailingData(t *testing.T) {
 	leaf, _ := testLeaf(t)
 	b, err := leaf.Encode()
 	if err != nil {
-		t.Fatalf("kodieren: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	if _, err := ParseLeaf(append(b, 0x00)); err == nil {
-		t.Error("angehängte Bytes akzeptiert")
+		t.Error("trailing bytes accepted")
 	}
 }
 
@@ -146,17 +146,17 @@ func TestLeafValidate(t *testing.T) {
 		mutate func(*Leaf)
 		want   error
 	}{
-		{"falsche Version", func(l *Leaf) { l.Version = 2 }, ErrLeafVersion},
-		{"ohne Log", func(l *Leaf) { l.Log = core.LogID{} }, ErrMissingField},
-		{"ohne Zeitstempel", func(l *Leaf) { l.LoggedAt = 0 }, ErrMissingField},
-		{"ohne Eintrag", func(l *Leaf) { l.Entry = nil }, ErrMissingField},
+		{"wrong version", func(l *Leaf) { l.Version = 2 }, ErrLeafVersion},
+		{"without log", func(l *Leaf) { l.Log = core.LogID{} }, ErrMissingField},
+		{"without timestamp", func(l *Leaf) { l.LoggedAt = 0 }, ErrMissingField},
+		{"without entry", func(l *Leaf) { l.Entry = nil }, ErrMissingField},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			l := *base
 			tc.mutate(&l)
 			if err := l.Validate(); !errors.Is(err, tc.want) {
-				t.Errorf("Validate = %v, erwartet %v", err, tc.want)
+				t.Errorf("Validate = %v, expected %v", err, tc.want)
 			}
 		})
 	}
@@ -164,7 +164,7 @@ func TestLeafValidate(t *testing.T) {
 	l := *base
 	l.Seq = 0
 	if err := l.Validate(); err != nil {
-		t.Errorf("Position 0 abgelehnt: %v", err)
+		t.Errorf("position 0 rejected: %v", err)
 	}
 }
 
@@ -175,10 +175,10 @@ func TestLeafSizeLimit(t *testing.T) {
 		leaf.Entry[i] = 0x41
 	}
 	if _, err := leaf.Encode(); !errors.Is(err, ErrLeafSize) {
-		t.Errorf("übergroßes Blatt kodiert: %v", err)
+		t.Errorf("oversized leaf encoded: %v", err)
 	}
 	if _, err := ParseLeaf(make([]byte, MaxLeafSize+1)); !errors.Is(err, ErrLeafSize) {
-		t.Errorf("übergroße Eingabe gelesen: %v", err)
+		t.Errorf("oversized input read: %v", err)
 	}
 }
 
@@ -186,7 +186,7 @@ func testSTH(t *testing.T, key *core.PrivateKey) *STH {
 	t.Helper()
 	logID, err := core.DeriveLogID(key.Public())
 	if err != nil {
-		t.Fatalf("Log-Kennung: %v", err)
+		t.Fatalf("log ID: %v", err)
 	}
 	return &STH{
 		Version:  FormatVersion,
@@ -201,51 +201,51 @@ func testSTH(t *testing.T, key *core.PrivateKey) *STH {
 func TestSTHRoundTrip(t *testing.T) {
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	sth := testSTH(t, key)
 	signed, err := SignSTH(key, sth)
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
 	if err := signed.Verify(key.Public()); err != nil {
-		t.Fatalf("prüfen: %v", err)
+		t.Fatalf("verify: %v", err)
 	}
 
 	b, err := signed.Encode()
 	if err != nil {
-		t.Fatalf("kodieren: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	got, err := ParseSignedSTH(b)
 	if err != nil {
-		t.Fatalf("lesen: %v", err)
+		t.Fatalf("read: %v", err)
 	}
 	if err := got.Verify(key.Public()); err != nil {
-		t.Fatalf("prüfen nach Umlauf: %v", err)
+		t.Fatalf("verify after the round trip: %v", err)
 	}
 	inner, err := got.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	if *inner != *sth {
-		t.Errorf("STH hat sich beim Umlauf verändert")
+		t.Errorf("STH changed across the round trip")
 	}
 	if _, err := ParseSignedSTH(append(b, 0x00)); err == nil {
-		t.Error("angehängte Bytes akzeptiert")
+		t.Error("trailing bytes accepted")
 	}
 }
 
 func TestSTHVerifyRejectsTampering(t *testing.T) {
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	signed, err := SignSTH(key, testSTH(t, key))
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
 
-	t.Run("Wurzel", func(t *testing.T) {
+	t.Run("root", func(t *testing.T) {
 		bad := &SignedSTH{
 			STHBytes:  append([]byte(nil), signed.STHBytes...),
 			Alg:       signed.Alg,
@@ -253,11 +253,11 @@ func TestSTHVerifyRejectsTampering(t *testing.T) {
 		}
 		bad.STHBytes[len(bad.STHBytes)-1] ^= 0x01
 		if err := bad.Verify(key.Public()); err == nil {
-			t.Error("manipulierter STH akzeptiert")
+			t.Error("tampered STH accepted")
 		}
 	})
 
-	t.Run("Signatur", func(t *testing.T) {
+	t.Run("signature", func(t *testing.T) {
 		bad := &SignedSTH{
 			STHBytes:  signed.STHBytes,
 			Alg:       signed.Alg,
@@ -265,27 +265,27 @@ func TestSTHVerifyRejectsTampering(t *testing.T) {
 		}
 		bad.Signature[0] ^= 0x01
 		if !errors.Is(bad.Verify(key.Public()), ErrBadSignature) {
-			t.Error("manipulierte Signatur akzeptiert")
+			t.Error("tampered signature accepted")
 		}
 	})
 
-	t.Run("fremder Schlüssel", func(t *testing.T) {
+	t.Run("foreign key", func(t *testing.T) {
 		other, err := core.GenerateKey(core.SigAlgMLDSA65)
 		if err != nil {
-			t.Fatalf("Schlüssel: %v", err)
+			t.Fatalf("key: %v", err)
 		}
 		if !errors.Is(signed.Verify(other.Public()), ErrSignerMismatch) {
-			t.Error("fremder Schlüssel akzeptiert")
+			t.Error("foreign key accepted")
 		}
 	})
 
-	t.Run("falscher Algorithmus", func(t *testing.T) {
+	t.Run("wrong algorithm", func(t *testing.T) {
 		small, err := core.GenerateKey(core.SigAlgMLDSA44)
 		if err != nil {
-			t.Fatalf("Schlüssel: %v", err)
+			t.Fatalf("key: %v", err)
 		}
 		if !errors.Is(signed.Verify(small.Public()), ErrAlgMismatch) {
-			t.Error("falscher Algorithmus akzeptiert")
+			t.Error("wrong algorithm accepted")
 		}
 	})
 }
@@ -293,22 +293,22 @@ func TestSTHVerifyRejectsTampering(t *testing.T) {
 func TestSignSTHRejectsForeignSigner(t *testing.T) {
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	other, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	// Der STH nennt key als Unterzeichner, unterschreiben soll other.
 	if _, err := SignSTH(other, testSTH(t, key)); !errors.Is(err, ErrSignerMismatch) {
-		t.Errorf("fremder Unterzeichner akzeptiert: %v", err)
+		t.Errorf("foreign signer accepted: %v", err)
 	}
 }
 
 func TestSTHValidate(t *testing.T) {
 	key, err := core.GenerateKey(core.SigAlgMLDSA44)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	base := testSTH(t, key)
 	tests := []struct {
@@ -316,18 +316,18 @@ func TestSTHValidate(t *testing.T) {
 		mutate func(*STH)
 		want   error
 	}{
-		{"falsche Version", func(s *STH) { s.Version = 2 }, ErrSTHVersion},
-		{"ohne Log", func(s *STH) { s.Log = core.LogID{} }, ErrMissingField},
-		{"ohne Zeitstempel", func(s *STH) { s.IssuedAt = 0 }, ErrMissingField},
-		{"ohne Wurzel", func(s *STH) { s.Root = core.Digest{} }, ErrMissingField},
-		{"ohne Schlüssel", func(s *STH) { s.Key = core.KeyID{} }, ErrMissingField},
+		{"wrong version", func(s *STH) { s.Version = 2 }, ErrSTHVersion},
+		{"without log", func(s *STH) { s.Log = core.LogID{} }, ErrMissingField},
+		{"without timestamp", func(s *STH) { s.IssuedAt = 0 }, ErrMissingField},
+		{"without root", func(s *STH) { s.Root = core.Digest{} }, ErrMissingField},
+		{"without key", func(s *STH) { s.Key = core.KeyID{} }, ErrMissingField},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := *base
 			tc.mutate(&s)
 			if err := s.Validate(); !errors.Is(err, tc.want) {
-				t.Errorf("Validate = %v, erwartet %v", err, tc.want)
+				t.Errorf("Validate = %v, expected %v", err, tc.want)
 			}
 		})
 	}
@@ -335,7 +335,7 @@ func TestSTHValidate(t *testing.T) {
 	s := *base
 	s.Size = 0
 	if err := s.Validate(); err != nil {
-		t.Errorf("STH über den leeren Baum abgelehnt: %v", err)
+		t.Errorf("STH over the empty tree rejected: %v", err)
 	}
 }
 
@@ -343,7 +343,7 @@ func mustEntryBytes(t *testing.T, signed []byte) []byte {
 	t.Helper()
 	se, err := core.ParseSignedEntry(signed)
 	if err != nil {
-		t.Fatalf("signierten Eintrag lesen: %v", err)
+		t.Fatalf("read signed entry: %v", err)
 	}
 	return se.EntryBytes
 }

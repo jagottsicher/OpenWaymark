@@ -20,7 +20,7 @@ import (
 // Protokoll und muss im Diff sichtbar werden.
 //
 //	go test ./core/ -update
-var updateVectors = flag.Bool("update", false, "Testvektoren in testdata/vectors neu erzeugen")
+var updateVectors = flag.Bool("update", false, "regenerate the test vectors in testdata/vectors")
 
 const vectorPath = "../testdata/vectors/core-v1.json"
 
@@ -160,8 +160,8 @@ type vectorFixture struct {
 func vectorFixtures() []vectorFixture {
 	subject := DeriveSubjectID("owm:batch", []byte("2026-08-10-A"))
 	payload := []byte(`{"typ":"harvest","lot":"2026-08-10-A"}`)
-	parentA := hashLabeled(labelEntryID, []byte("vorgänger a"))
-	parentB := hashLabeled(labelEntryID, []byte("vorgänger b"))
+	parentA := hashLabeled(labelEntryID, []byte("parent a"))
+	parentB := hashLabeled(labelEntryID, []byte("parent b"))
 	logID := LogID(hashLabeled(labelLogID, []byte("beispiel-log")))
 
 	base := func(k *PrivateKey) *Entry {
@@ -178,13 +178,13 @@ func vectorFixtures() []vectorFixture {
 	return []vectorFixture{
 		{
 			name: "assertion-minimal",
-			note: "Alle optionalen Felder fehlen. Die Map hat genau sechs Paare.",
+			note: "All optional fields are absent. The map has exactly six pairs.",
 			alg:  SigAlgMLDSA65, seed: 0x01,
 			build: base,
 		},
 		{
 			name: "assertion-with-parents",
-			note: "Zusammenführung zweier Vorgänger, einer davon mit Log-Hinweis.",
+			note: "Merge of two parents, one of them with a log hint.",
 			alg:  SigAlgMLDSA65, seed: 0x01,
 			build: func(k *PrivateKey) *Entry {
 				e := base(k)
@@ -195,7 +195,7 @@ func vectorFixtures() []vectorFixture {
 		},
 		{
 			name: "revocation",
-			note: "Widerruf ohne Nutzlast: cmt fehlt, tgt ist gesetzt.",
+			note: "Revocation without a payload: cmt is absent, tgt is set.",
 			alg:  SigAlgMLDSA65, seed: 0x01,
 			build: func(k *PrivateKey) *Entry {
 				e := base(k)
@@ -207,8 +207,8 @@ func vectorFixtures() []vectorFixture {
 		},
 		{
 			name: "erasure",
-			note: "Löschbezeugung: gleiche Gestalt wie der Widerruf, andere Aussage. " +
-				"Die Nutzlast des Zieleintrags ist samt Salt gelöscht, sein Blatt bleibt im Baum.",
+			note: "Erasure attestation: same shape as the revocation, different statement. " +
+				"The payload of the target entry has been erased together with its salt, its leaf stays in the tree.",
 			alg: SigAlgMLDSA65, seed: 0x01,
 			build: func(k *PrivateKey) *Entry {
 				e := base(k)
@@ -220,19 +220,19 @@ func vectorFixtures() []vectorFixture {
 		},
 		{
 			name: "key-rotation",
-			note: "Die Nutzlast enthält den Nachfolgeschlüssel und wird nicht gelöscht.",
+			note: "The payload carries the successor key and is not erased.",
 			alg:  SigAlgMLDSA65, seed: 0x01,
 			build: func(k *PrivateKey) *Entry {
 				e := base(k)
 				e.Type = EntryTypeKeyRotation
 				e.Subject = SubjectID(k.Public().ID())
-				e.Commitment = Commit(fixtureSalt, []byte("nachfolgeschlüssel"))
+				e.Commitment = Commit(fixtureSalt, []byte("successor key"))
 				return e
 			},
 		},
 		{
 			name: "sensor-reading-mldsa44",
-			note: "Geräteschlüssel mit ML-DSA-44: 2420 statt 3309 Byte Signatur.",
+			note: "Device key with ML-DSA-44: 2420 instead of 3309 signature bytes.",
 			alg:  SigAlgMLDSA44, seed: 0x02,
 			build: func(k *PrivateKey) *Entry {
 				e := base(k)
@@ -249,9 +249,9 @@ func buildVectors(t *testing.T) *vectorFile {
 	t.Helper()
 
 	out := &vectorFile{
-		Note: "Testvektoren für openwaymark.org/owm/core. Teil der Spezifikation: " +
-			"eine konforme Implementierung reproduziert sie Byte für Byte. " +
-			"Erzeugen mit: go test ./core/ -update",
+		Note: "Test vectors for openwaymark.org/owm/core. Part of the specification: " +
+			"a conforming implementation reproduces them byte for byte. " +
+			"Generate with: go test ./core/ -update",
 		Spec:          "spec/owm-0-overview.md",
 		FormatVersion: FormatVersion,
 	}
@@ -364,46 +364,46 @@ func TestVectors(t *testing.T) {
 		if err := os.WriteFile(vectorPath, b, 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
-		t.Logf("Testvektoren geschrieben: %s", vectorPath)
+		t.Logf("test vectors written: %s", vectorPath)
 		return
 	}
 
 	raw, err := os.ReadFile(vectorPath)
 	if err != nil {
-		t.Fatalf("Testvektoren nicht lesbar (erzeugen mit: go test ./core/ -update): %v", err)
+		t.Fatalf("test vectors unreadable (generate with: go test ./core/ -update): %v", err)
 	}
 	var want vectorFile
 	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatalf("Testvektoren nicht lesbar: %v", err)
+		t.Fatalf("test vectors unreadable: %v", err)
 	}
 
 	if want.FormatVersion != got.FormatVersion {
-		t.Fatalf("Formatversion %d in der Datei, %d im Code", want.FormatVersion, got.FormatVersion)
+		t.Fatalf("format version %d in the file, %d in the code", want.FormatVersion, got.FormatVersion)
 	}
 
 	compare := func(name string, a, b []byte) {
 		t.Helper()
 		if !bytes.Equal(a, b) {
-			t.Errorf("%s weicht ab\n  Datei: %x\n  Code:  %x", name, a, b)
+			t.Errorf("%s differs\n  file: %x\n  code: %x", name, a, b)
 		}
 	}
 
 	if len(want.HashLabels) != len(got.HashLabels) {
-		t.Fatalf("hash_labels: %d in der Datei, %d im Code", len(want.HashLabels), len(got.HashLabels))
+		t.Fatalf("hash_labels: %d in the file, %d in the code", len(want.HashLabels), len(got.HashLabels))
 	}
 	for i := range got.HashLabels {
 		compare("hash_labels["+got.HashLabels[i].Label+"]", want.HashLabels[i].Digest, got.HashLabels[i].Digest)
 	}
 
 	if len(want.SubjectIDs) != len(got.SubjectIDs) {
-		t.Fatalf("subject_ids: %d in der Datei, %d im Code", len(want.SubjectIDs), len(got.SubjectIDs))
+		t.Fatalf("subject_ids: %d in the file, %d in the code", len(want.SubjectIDs), len(got.SubjectIDs))
 	}
 	for i := range got.SubjectIDs {
 		compare("subject_ids["+got.SubjectIDs[i].Namespace+"]", want.SubjectIDs[i].SubjectID, got.SubjectIDs[i].SubjectID)
 	}
 
 	if len(want.Keys) != len(got.Keys) {
-		t.Fatalf("keys: %d in der Datei, %d im Code", len(want.Keys), len(got.Keys))
+		t.Fatalf("keys: %d in the file, %d in the code", len(want.Keys), len(got.Keys))
 	}
 	for i := range got.Keys {
 		n := got.Keys[i].AlgName
@@ -412,14 +412,14 @@ func TestVectors(t *testing.T) {
 	}
 
 	if len(want.Commitments) != len(got.Commitments) {
-		t.Fatalf("commitments: %d in der Datei, %d im Code", len(want.Commitments), len(got.Commitments))
+		t.Fatalf("commitments: %d in the file, %d in the code", len(want.Commitments), len(got.Commitments))
 	}
 	for i := range got.Commitments {
 		compare("commitments["+got.Commitments[i].Payload+"]", want.Commitments[i].Commitment, got.Commitments[i].Commitment)
 	}
 
 	if len(want.Entries) != len(got.Entries) {
-		t.Fatalf("entries: %d in der Datei, %d im Code", len(want.Entries), len(got.Entries))
+		t.Fatalf("entries: %d in the file, %d in the code", len(want.Entries), len(got.Entries))
 	}
 	for i := range got.Entries {
 		n := got.Entries[i].Name
@@ -436,11 +436,11 @@ func TestVectors(t *testing.T) {
 func TestVectorsAreSelfConsistent(t *testing.T) {
 	raw, err := os.ReadFile(vectorPath)
 	if err != nil {
-		t.Skipf("Testvektoren fehlen (erzeugen mit: go test ./core/ -update): %v", err)
+		t.Skipf("test vectors missing (generate with: go test ./core/ -update): %v", err)
 	}
 	var vf vectorFile
 	if err := json.Unmarshal(raw, &vf); err != nil {
-		t.Fatalf("Testvektoren nicht lesbar: %v", err)
+		t.Fatalf("test vectors unreadable: %v", err)
 	}
 
 	keyByAlg := map[SigAlg]*keyVector{}
@@ -453,14 +453,14 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		}
 		id := pub.ID()
 		if !bytes.Equal(id[:], k.KeyID) {
-			t.Errorf("keys[%s]: Kennung passt nicht zum öffentlichen Schlüssel", k.AlgName)
+			t.Errorf("keys[%s]: identifier does not match the public key", k.AlgName)
 		}
 		derived, err := NewKeyFromSeed(alg, k.Seed)
 		if err != nil {
 			t.Fatalf("keys[%s]: NewKeyFromSeed: %v", k.AlgName, err)
 		}
 		if !bytes.Equal(derived.Public().Bytes(), k.PublicKey) {
-			t.Errorf("keys[%s]: Saatwert ergibt einen anderen öffentlichen Schlüssel", k.AlgName)
+			t.Errorf("keys[%s]: seed produces a different public key", k.AlgName)
 		}
 		keyByAlg[alg] = k
 	}
@@ -469,7 +469,7 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		c := &vf.Commitments[i]
 		var salt Salt
 		if len(c.Salt) != SaltSize {
-			t.Fatalf("commitments[%d]: Salt hat %d Byte", i, len(c.Salt))
+			t.Fatalf("commitments[%d]: salt has %d bytes", i, len(c.Salt))
 		}
 		copy(salt[:], c.Salt)
 		want, err := DigestFromBytes(c.Commitment)
@@ -477,7 +477,7 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 			t.Fatalf("commitments[%d]: %v", i, err)
 		}
 		if !VerifyCommitment(Commitment(want), salt, []byte(c.Payload)) {
-			t.Errorf("commitments[%d]: Commitment passt nicht zu Salt und Nutzlast", i)
+			t.Errorf("commitments[%d]: commitment does not match salt and payload", i)
 		}
 	}
 
@@ -495,23 +495,23 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 				t.Fatalf("Encode: %v", err)
 			}
 			if !bytes.Equal(again, ev.EntryCBOR) {
-				t.Error("entry_cbor ist nicht kanonisch")
+				t.Error("entry_cbor is not canonical")
 			}
 			id := EntryIDFromBytes(ev.EntryCBOR)
 			if !bytes.Equal(id[:], ev.EntryID) {
-				t.Errorf("entry_id passt nicht zu entry_cbor")
+				t.Errorf("entry_id does not match entry_cbor")
 			}
 
 			kv := keyByAlg[alg]
 			if kv == nil {
-				t.Fatalf("kein Schlüsselvektor für %s", alg)
+				t.Fatalf("no key vector for %s", alg)
 			}
 			pub, err := ParsePublicKey(alg, kv.PublicKey)
 			if err != nil {
 				t.Fatalf("ParsePublicKey: %v", err)
 			}
 			if e.Issuer != pub.ID() {
-				t.Error("Aussteller im Eintrag passt nicht zum Schlüsselvektor")
+				t.Error("the issuer in the entry does not match the key vector")
 			}
 
 			se, err := ParseSignedEntry(ev.SignedEntryCBOR)
@@ -519,10 +519,10 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 				t.Fatalf("ParseSignedEntry: %v", err)
 			}
 			if !bytes.Equal(se.EntryBytes, ev.EntryCBOR) {
-				t.Error("eingebetteter Eintrag weicht von entry_cbor ab")
+				t.Error("the embedded entry differs from entry_cbor")
 			}
 			if !bytes.Equal(se.Signature, ev.SignatureDeterministic) {
-				t.Error("Signatur im Umschlag weicht von signature_deterministic ab")
+				t.Error("the signature in the envelope differs from signature_deterministic")
 			}
 			if err := se.Verify(pub); err != nil {
 				t.Errorf("Verify: %v", err)

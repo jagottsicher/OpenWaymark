@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transport",
+  "description": "Abgang oder Ankunft einer Sendung. Entspricht dem EPCIS-ObjectEvent mit action OBSERVE und bizStep shipping bzw. receiving. Abgang und Ankunft sind zwei Einträge, üblicherweise von zwei verschiedenen Stellen ausgestellt — die Übereinstimmung beider Aussagen ist ein Teil des Nachweises.",
+  "type": "object",
+  "required": ["step"],
+  "properties": {
+    "step": {
+      "enum": ["departure", "arrival"]
+    },
+    "carrier": { "$ref": "defs.json#/$defs/party" },
+    "from": { "$ref": "defs.json#/$defs/location" },
+    "to": { "$ref": "defs.json#/$defs/location" },
+    "consignment": {
+      "description": "Kennung der Sendung, etwa Container- oder Frachtbriefnummer.",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "conditions": {
+      "description": "Zugesagte Beförderungsbedingungen. Ob sie eingehalten wurden, sagen die measurement-Einträge — nicht dieses Feld.",
+      "type": "object",
+      "properties": {
+        "temperature_c": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  }
+}

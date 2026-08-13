@@ -31,7 +31,7 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
-		t.Fatalf("Schlüssel: %v", err)
+		t.Fatalf("key: %v", err)
 	}
 	e := &env{
 		t:     t,
@@ -47,7 +47,7 @@ func (e *env) open() {
 	e.t.Helper()
 	store, err := Open(context.Background(), e.path)
 	if err != nil {
-		e.t.Fatalf("öffnen: %v", err)
+		e.t.Fatalf("open: %v", err)
 	}
 	e.t.Cleanup(func() { store.Close() })
 	lg, err := owmlog.New(owmlog.Options{
@@ -58,7 +58,7 @@ func (e *env) open() {
 		Now:     e.now,
 	})
 	if err != nil {
-		e.t.Fatalf("Log anlegen: %v", err)
+		e.t.Fatalf("create log: %v", err)
 	}
 	e.store = store
 	e.log = lg
@@ -68,7 +68,7 @@ func (e *env) open() {
 func (e *env) reopen() {
 	e.t.Helper()
 	if err := e.store.Close(); err != nil {
-		e.t.Fatalf("schließen: %v", err)
+		e.t.Fatalf("close: %v", err)
 	}
 	e.open()
 }
@@ -82,7 +82,7 @@ func (e *env) append(ctx context.Context, payload []byte) (*owmlog.Leaf, core.Di
 	e.t.Helper()
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		e.t.Fatalf("Subjekt: %v", err)
+		e.t.Fatalf("subject: %v", err)
 	}
 	return e.appendTo(ctx, subject, payload)
 }
@@ -91,7 +91,7 @@ func (e *env) appendTo(ctx context.Context, subject core.SubjectID, payload []by
 	e.t.Helper()
 	salt, err := core.NewSalt()
 	if err != nil {
-		e.t.Fatalf("Salt: %v", err)
+		e.t.Fatalf("salt: %v", err)
 	}
 	se, err := core.SignEntry(e.key, &core.Entry{
 		Version:    core.FormatVersion,
@@ -103,11 +103,11 @@ func (e *env) appendTo(ctx context.Context, subject core.SubjectID, payload []by
 		Commitment: core.Commit(salt, payload),
 	})
 	if err != nil {
-		e.t.Fatalf("signieren: %v", err)
+		e.t.Fatalf("sign: %v", err)
 	}
 	leaf, err := e.log.AppendWithPayload(ctx, se, salt, payload)
 	if err != nil {
-		e.t.Fatalf("anhängen: %v", err)
+		e.t.Fatalf("append: %v", err)
 	}
 	return leaf, se.EntryID()
 }
@@ -138,64 +138,64 @@ func TestSurvivesRestart(t *testing.T) {
 	}
 	sth, err := signed.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 
 	e.reopen()
 
 	size, err := e.log.Size(ctx)
 	if err != nil {
-		t.Fatalf("Größe: %v", err)
+		t.Fatalf("size: %v", err)
 	}
 	if size != n {
-		t.Fatalf("nach Neustart %d Blätter, erwartet %d", size, n)
+		t.Fatalf("%d leaves after the restart, expected %d", size, n)
 	}
 	root, err := e.log.RootAt(ctx, sth.Size)
 	if err != nil {
-		t.Fatalf("Wurzel: %v", err)
+		t.Fatalf("root: %v", err)
 	}
 	if root != sth.Root {
-		t.Errorf("Wurzel nach Neustart abweichend")
+		t.Errorf("root differs after the restart")
 	}
 	latest, err := e.log.LatestSTH(ctx)
 	if err != nil {
 		t.Fatalf("STH: %v", err)
 	}
 	if err := latest.Verify(e.key.Public()); err != nil {
-		t.Errorf("STH nach Neustart: %v", err)
+		t.Errorf("STH after the restart: %v", err)
 	}
 
 	// Beweise gegen den vor dem Neustart ausgestellten STH.
 	for i, leaf := range leaves {
 		hash, err := leaf.Hash()
 		if err != nil {
-			t.Fatalf("Blatthash: %v", err)
+			t.Fatalf("leaf hash: %v", err)
 		}
 		p, err := e.log.InclusionProof(ctx, uint64(i), sth.Size)
 		if err != nil {
-			t.Fatalf("Inklusionsbeweis %d: %v", i, err)
+			t.Fatalf("inclusion proof %d: %v", i, err)
 		}
 		if err := p.Verify(hash, sth); err != nil {
-			t.Errorf("Inklusionsbeweis %d nach Neustart: %v", i, err)
+			t.Errorf("inclusion proof %d after the restart: %v", i, err)
 		}
 	}
 
 	// Und der Baum wächst weiter, konsistent zur alten Bezeugung.
-	e.append(ctx, []byte("nach dem Neustart"))
+	e.append(ctx, []byte("after the restart"))
 	nextSigned, err := e.log.IssueSTH(ctx)
 	if err != nil {
 		t.Fatalf("STH: %v", err)
 	}
 	next, err := nextSigned.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	cp, err := e.log.ConsistencyProof(ctx, sth.Size, next.Size)
 	if err != nil {
-		t.Fatalf("Konsistenzbeweis: %v", err)
+		t.Fatalf("consistency proof: %v", err)
 	}
 	if err := cp.Verify(sth, next); err != nil {
-		t.Errorf("Historie über den Neustart hinweg gebrochen: %v", err)
+		t.Errorf("history broken across the restart: %v", err)
 	}
 }
 
@@ -212,37 +212,37 @@ func TestErasurePersists(t *testing.T) {
 	}
 	before, err := signed.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	hash, err := leaf.Hash()
 	if err != nil {
-		t.Fatalf("Blatthash: %v", err)
+		t.Fatalf("leaf hash: %v", err)
 	}
 	p, err := e.log.InclusionProof(ctx, leaf.Seq, before.Size)
 	if err != nil {
-		t.Fatalf("Inklusionsbeweis: %v", err)
+		t.Fatalf("inclusion proof: %v", err)
 	}
 
 	if _, err := e.log.Erase(ctx, entryID); err != nil {
-		t.Fatalf("löschen: %v", err)
+		t.Fatalf("erase: %v", err)
 	}
 	e.reopen()
 
 	if status, err := e.store.Status(ctx, entryID); err != nil || status != owmlog.BlobErased {
-		t.Errorf("Status nach Neustart = %s, %v; erwartet erased", status, err)
+		t.Errorf("status after the restart = %s, %v; expected erased", status, err)
 	}
 	if _, err := e.log.Payload(ctx, entryID); !errors.Is(err, owmlog.ErrErased) {
-		t.Errorf("Nutzlast nach Neustart abrufbar: %v", err)
+		t.Errorf("payload retrievable after the restart: %v", err)
 	}
-	if err := e.store.Put(ctx, entryID, core.Salt{}, []byte("wieder rein")); !errors.Is(err, owmlog.ErrErased) {
-		t.Errorf("gelöschte Nutzlast wieder annehmbar: %v", err)
+	if err := e.store.Put(ctx, entryID, core.Salt{}, []byte("clean again")); !errors.Is(err, owmlog.ErrErased) {
+		t.Errorf("erased payload accepted again: %v", err)
 	}
 	// Die Bezeugung bleibt: gelöscht wurde die Nutzlast, nicht der Beweis.
 	if err := p.Verify(hash, before); err != nil {
-		t.Errorf("Inklusionsbeweis nach Löschung und Neustart: %v", err)
+		t.Errorf("inclusion proof after erasure and restart: %v", err)
 	}
 	if err := signed.Verify(e.key.Public()); err != nil {
-		t.Errorf("alter STH nach Löschung: %v", err)
+		t.Errorf("old STH after the erasure: %v", err)
 	}
 }
 
@@ -260,14 +260,14 @@ func TestAppendConflict(t *testing.T) {
 		Data:     []byte{0x01},
 	}
 	if err := e.store.Append(ctx, 0, rec, nil); !errors.Is(err, owmlog.ErrConflict) {
-		t.Errorf("veraltete Ausgangsgröße akzeptiert: %v", err)
+		t.Errorf("stale base size accepted: %v", err)
 	}
 	rec.Seq = 5
 	if err := e.store.Append(ctx, 1, rec, nil); !errors.Is(err, owmlog.ErrLeafConflict) {
-		t.Errorf("Blatt mit falscher Position akzeptiert: %v", err)
+		t.Errorf("leaf with the wrong position accepted: %v", err)
 	}
 	if size, err := e.store.Size(ctx); err != nil || size != 1 {
-		t.Errorf("Größe = %d, %v; erwartet 1", size, err)
+		t.Errorf("size = %d, %v; expected 1", size, err)
 	}
 }
 
@@ -277,7 +277,7 @@ func TestLookupsAndNotFound(t *testing.T) {
 
 	subject, err := core.NewSubjectID()
 	if err != nil {
-		t.Fatalf("Subjekt: %v", err)
+		t.Fatalf("subject: %v", err)
 	}
 	e.append(ctx, []byte("fremd"))
 	var ids []core.Digest
@@ -289,40 +289,40 @@ func TestLookupsAndNotFound(t *testing.T) {
 
 	history, err := e.store.LeavesBySubject(ctx, subject)
 	if err != nil {
-		t.Fatalf("Subjektsuche: %v", err)
+		t.Fatalf("subject lookup: %v", err)
 	}
 	if len(history) != 3 {
-		t.Fatalf("Historie hat %d Einträge, erwartet 3", len(history))
+		t.Fatalf("history has %d entries, expected 3", len(history))
 	}
 	for i := 1; i < len(history); i++ {
 		if history[i-1].Seq >= history[i].Seq {
-			t.Errorf("Historie nicht aufsteigend")
+			t.Errorf("history not ascending")
 		}
 	}
 	for _, id := range ids {
 		rec, err := e.store.LeafByEntryID(ctx, id)
 		if err != nil {
-			t.Fatalf("Eintragssuche: %v", err)
+			t.Fatalf("entry lookup: %v", err)
 		}
 		if rec.EntryID != id {
-			t.Errorf("falscher Eintrag geliefert")
+			t.Errorf("wrong entry returned")
 		}
 	}
 
 	if _, err := e.store.LeafBySeq(ctx, 999); !errors.Is(err, owmlog.ErrNotFound) {
-		t.Errorf("unbekannte Position: %v", err)
+		t.Errorf("unknown position: %v", err)
 	}
 	if _, err := e.store.LeafByEntryID(ctx, core.Digest{0xff}); !errors.Is(err, owmlog.ErrNotFound) {
-		t.Errorf("unbekannter Eintrag: %v", err)
+		t.Errorf("unknown entry: %v", err)
 	}
 	if _, err := e.store.STHBySize(ctx, 77); !errors.Is(err, owmlog.ErrNotFound) {
-		t.Errorf("unbekannte STH-Größe: %v", err)
+		t.Errorf("unknown STH size: %v", err)
 	}
 	if _, _, err := e.store.Get(ctx, core.Digest{0xff}); !errors.Is(err, owmlog.ErrNotFound) {
-		t.Errorf("unbekannte Nutzlast: %v", err)
+		t.Errorf("unknown payload: %v", err)
 	}
 	if status, err := e.store.Status(ctx, core.Digest{0xff}); err != nil || status != owmlog.BlobAbsent {
-		t.Errorf("Status = %s, %v; erwartet absent", status, err)
+		t.Errorf("status = %s, %v; expected absent", status, err)
 	}
 }
 
@@ -339,7 +339,7 @@ func TestSTHsAreKept(t *testing.T) {
 		}
 		sth, err := signed.STH()
 		if err != nil {
-			t.Fatalf("STH lesen: %v", err)
+			t.Fatalf("read STH: %v", err)
 		}
 		sths = append(sths, sth)
 	}
@@ -347,10 +347,10 @@ func TestSTHsAreKept(t *testing.T) {
 
 	sizes, err := e.store.STHSizes(ctx)
 	if err != nil {
-		t.Fatalf("STH-Größen: %v", err)
+		t.Fatalf("STH sizes: %v", err)
 	}
 	if len(sizes) != len(sths) {
-		t.Fatalf("%d STHs aufbewahrt, erwartet %d", len(sizes), len(sths))
+		t.Fatalf("%d STHs retained, expected %d", len(sizes), len(sths))
 	}
 	// Alle aufbewahrten STHs müssen paarweise konsistent sein — die
 	// Eigenschaft, die ein Beobachter überhaupt erst prüfen kann, wenn die Node
@@ -359,10 +359,10 @@ func TestSTHsAreKept(t *testing.T) {
 		for j := i; j < len(sths); j++ {
 			p, err := e.log.ConsistencyProof(ctx, sths[i].Size, sths[j].Size)
 			if err != nil {
-				t.Fatalf("Konsistenzbeweis: %v", err)
+				t.Fatalf("consistency proof: %v", err)
 			}
 			if err := p.Verify(sths[i], sths[j]); err != nil {
-				t.Errorf("STHs %d und %d inkonsistent: %v", i, j, err)
+				t.Errorf("STHs %d and %d inconsistent: %v", i, j, err)
 			}
 			if err := owmlog.CheckSTHPair(sths[i], sths[j]); err != nil {
 				t.Errorf("CheckSTHPair(%d, %d): %v", i, j, err)
@@ -377,21 +377,21 @@ func TestSTHsAreKept(t *testing.T) {
 	forged.IssuedAt = e.now().UnixMilli()
 	signedForged, err := owmlog.SignSTH(e.key, &forged)
 	if err != nil {
-		t.Fatalf("signieren: %v", err)
+		t.Fatalf("sign: %v", err)
 	}
 	if err := e.store.PutSTH(ctx, forged.Size, signedForged); err != nil {
 		t.Fatalf("PutSTH: %v", err)
 	}
 	kept, err := e.store.STHBySize(ctx, last.Size)
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	keptSTH, err := kept.STH()
 	if err != nil {
-		t.Fatalf("STH lesen: %v", err)
+		t.Fatalf("read STH: %v", err)
 	}
 	if keptSTH.Root != last.Root {
-		t.Error("vorhandener STH wurde überschrieben")
+		t.Error("existing STH was overwritten")
 	}
 }
 
@@ -399,16 +399,16 @@ func TestMemoryDSN(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, ":memory:")
 	if err != nil {
-		t.Fatalf("öffnen: %v", err)
+		t.Fatalf("open: %v", err)
 	}
 	defer store.Close()
 	if size, err := store.Size(ctx); err != nil || size != 0 {
-		t.Errorf("Größe = %d, %v; erwartet 0", size, err)
+		t.Errorf("size = %d, %v; expected 0", size, err)
 	}
 	if _, err := store.LatestSTH(ctx); !errors.Is(err, owmlog.ErrNotFound) {
-		t.Errorf("STH im leeren Log: %v", err)
+		t.Errorf("STH in the empty log: %v", err)
 	}
 	if _, err := store.Nodes(ctx, nil); err != nil {
-		t.Errorf("leere Knotenabfrage: %v", err)
+		t.Errorf("empty node query: %v", err)
 	}
 }

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aggregation",
+  "description": "Zusammenfassen oder Auflösen einer Einheit — Eier in Zehnerpackungen, Kartons auf eine Palette. Entspricht dem EPCIS-AggregationEvent (action ADD bzw. DELETE). Das Subjekt des Eintrags ist die übergeordnete Einheit; die Bestandteile stehen in children.",
+  "type": "object",
+  "required": ["action", "children"],
+  "properties": {
+    "action": {
+      "enum": ["add", "delete"]
+    },
+    "container": {
+      "description": "Das Gebinde selbst, etwa der Karton oder die Palette.",
+      "$ref": "defs.json#/$defs/product"
+    },
+    "children": {
+      "description": "Die enthaltenen Einheiten. Die Obergrenze entspricht core.MaxParents: mehr als tausend Bestandteile in einem Schritt sind kein reales Ereignis mehr.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

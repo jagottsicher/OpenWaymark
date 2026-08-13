@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenWaymark-Lebensmittelprofil food.v1",
+  "description": "Wurzelschema. Das Feld event wählt den Ereignistyp; die zugehörigen Felder stehen im jeweiligen Teilschema. unevaluatedProperties verbietet alles, was weder hier noch dort vorgesehen ist.",
+  "type": "object",
+  "required": ["event", "time"],
+  "properties": {
+    "event": {
+      "enum": [
+        "production",
+        "aggregation",
+        "transport",
+        "processing",
+        "handover",
+        "measurement"
+      ]
+    },
+    "time": {
+      "description": "Zeitpunkt des Ereignisses in der Wirklichkeit. Nicht zu verwechseln mit iat im Eintrag (Ausstellungszeit) oder mit dem Eingangszeitpunkt im Blatt.",
+      "$ref": "defs.json#/$defs/timestamp"
+    },
+    "party": {
+      "description": "Wer gehandelt hat.",
+      "$ref": "defs.json#/$defs/party"
+    },
+    "location": {
+      "description": "Wo es geschehen ist.",
+      "$ref": "defs.json#/$defs/location"
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 1000
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "event": { "const": "production" } }, "required": ["event"] },
+      "then": { "$ref": "production.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "aggregation" } }, "required": ["event"] },
+      "then": { "$ref": "aggregation.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "transport" } }, "required": ["event"] },
+      "then": { "$ref": "transport.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "processing" } }, "required": ["event"] },
+      "then": { "$ref": "processing.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "handover" } }, "required": ["event"] },
+      "then": { "$ref": "handover.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "measurement" } }, "required": ["event"] },
+      "then": { "$ref": "measurement.json" }
+    }
+  ],
+  "unevaluatedProperties": false
+}

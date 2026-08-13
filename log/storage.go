@@ -13,13 +13,13 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("owm/log: nicht gefunden")
-	ErrConflict     = errors.New("owm/log: Baumgröße hat sich zwischenzeitlich geändert")
-	ErrErased       = errors.New("owm/log: Nutzlast wurde gelöscht")
-	ErrNotErasable  = errors.New("owm/log: dieser Eintragstyp ist nicht löschbar")
-	ErrNoBlobStore  = errors.New("owm/log: kein Nutzlastspeicher konfiguriert")
-	ErrCommitment   = errors.New("owm/log: Nutzlast passt nicht zum Commitment")
-	ErrLeafConflict = errors.New("owm/log: Blatt mit dieser Position existiert bereits")
+	ErrNotFound     = errors.New("owm/log: not found")
+	ErrConflict     = errors.New("owm/log: tree size changed in the meantime")
+	ErrErased       = errors.New("owm/log: payload has been erased")
+	ErrNotErasable  = errors.New("owm/log: this entry type cannot be erased")
+	ErrNoBlobStore  = errors.New("owm/log: no payload store configured")
+	ErrCommitment   = errors.New("owm/log: payload does not match the commitment")
+	ErrLeafConflict = errors.New("owm/log: a leaf with this position already exists")
 )
 
 // Node ist ein Knoten des Merkle-Baums.

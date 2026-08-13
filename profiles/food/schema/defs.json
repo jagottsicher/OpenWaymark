@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gemeinsame Bausteine des Lebensmittelprofils food.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subjektkennung, 32 Byte hexadezimal — dasselbe Format wie das Feld subj im Eintrag.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Schlüsselkennung, 32 Byte hexadezimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Zeitpunkt in der Wirklichkeit, RFC 3339 mit Zeitzone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Beteiligte Stelle. Namen natürlicher Personen gehören hier nicht hinein; das Profil kennt nur Betriebe.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Ländercode nach ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "geo": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+            "lon": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "required": ["lat", "lon"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "quantity": {
+      "description": "Menge mit Einheit nach UN/CEFACT Recommendation 20, etwa KGM, GRM, LTR, H87 (Stück).",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "type": "object",
+      "properties": {
+        "gtin": { "type": "string", "pattern": "^[0-9]{8,14}$" },
+        "name": { "$ref": "#/$defs/text" },
+        "lot": { "$ref": "#/$defs/text" },
+        "best_before": { "$ref": "#/$defs/date" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "certification": {
+      "type": "object",
+      "properties": {
+        "scheme": { "$ref": "#/$defs/text" },
+        "id": { "$ref": "#/$defs/text" },
+        "body": { "$ref": "#/$defs/text" },
+        "valid_until": { "$ref": "#/$defs/date" }
+      },
+      "required": ["scheme"],
+      "additionalProperties": false
+    },
+    "item": {
+      "description": "Verweis auf ein anderes Subjekt, wahlweise mit Menge und Warenangabe.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

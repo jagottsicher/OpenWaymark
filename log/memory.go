@@ -48,10 +48,10 @@ func (m *MemStorage) Append(_ context.Context, oldSize uint64, leaf LeafRecord, 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.size != oldSize {
-		return fmt.Errorf("%w: erwartet %d, gespeichert %d", ErrConflict, oldSize, m.size)
+		return fmt.Errorf("%w: expected %d, stored %d", ErrConflict, oldSize, m.size)
 	}
 	if leaf.Seq != oldSize {
-		return fmt.Errorf("%w: seq=%d, erwartet %d", ErrLeafConflict, leaf.Seq, oldSize)
+		return fmt.Errorf("%w: seq=%d, expected %d", ErrLeafConflict, leaf.Seq, oldSize)
 	}
 	rec := leaf
 	rec.Data = append([]byte(nil), leaf.Data...)
@@ -67,7 +67,7 @@ func (m *MemStorage) LeafBySeq(_ context.Context, seq uint64) (*LeafRecord, erro
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if seq >= m.size {
-		return nil, fmt.Errorf("%w: Blatt %d", ErrNotFound, seq)
+		return nil, fmt.Errorf("%w: leaf %d", ErrNotFound, seq)
 	}
 	return copyRecord(&m.leaves[seq]), nil
 }
@@ -80,7 +80,7 @@ func (m *MemStorage) LeafByEntryID(_ context.Context, id core.Digest) (*LeafReco
 			return copyRecord(&m.leaves[i]), nil
 		}
 	}
-	return nil, fmt.Errorf("%w: Eintrag %s", ErrNotFound, id)
+	return nil, fmt.Errorf("%w: entry %s", ErrNotFound, id)
 }
 
 func (m *MemStorage) LeavesBySubject(_ context.Context, subject core.SubjectID) ([]LeafRecord, error) {
@@ -102,7 +102,7 @@ func (m *MemStorage) Nodes(_ context.Context, ids []compact.NodeID) ([]core.Dige
 	for i, id := range ids {
 		h, ok := m.nodes[id]
 		if !ok {
-			return nil, fmt.Errorf("%w: Knoten (%d,%d)", ErrNotFound, id.Level, id.Index)
+			return nil, fmt.Errorf("%w: node (%d,%d)", ErrNotFound, id.Level, id.Index)
 		}
 		out[i] = h
 	}
@@ -124,7 +124,7 @@ func (m *MemStorage) LatestSTH(context.Context) (*SignedSTH, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if !m.hasSTH {
-		return nil, fmt.Errorf("%w: noch kein STH ausgestellt", ErrNotFound)
+		return nil, fmt.Errorf("%w: no STH issued yet", ErrNotFound)
 	}
 	return m.sths[m.latest], nil
 }
@@ -134,7 +134,7 @@ func (m *MemStorage) STHBySize(_ context.Context, size uint64) (*SignedSTH, erro
 	defer m.mu.RUnlock()
 	s, ok := m.sths[size]
 	if !ok {
-		return nil, fmt.Errorf("%w: STH über %d Blätter", ErrNotFound, size)
+		return nil, fmt.Errorf("%w: STH over %d leaves", ErrNotFound, size)
 	}
 	return s, nil
 }
@@ -196,7 +196,7 @@ func (m *MemBlobStore) Get(_ context.Context, entryID core.Digest) (core.Salt, [
 	b, ok := m.blobs[entryID]
 	switch {
 	case !ok:
-		return core.Salt{}, nil, fmt.Errorf("%w: Nutzlast zu %s", ErrNotFound, entryID)
+		return core.Salt{}, nil, fmt.Errorf("%w: payload for %s", ErrNotFound, entryID)
 	case b.erased:
 		return core.Salt{}, nil, fmt.Errorf("%w: %s", ErrErased, entryID)
 	}

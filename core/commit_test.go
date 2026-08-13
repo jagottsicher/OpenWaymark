@@ -17,13 +17,13 @@ func TestCommitVerify(t *testing.T) {
 
 	c := Commit(salt, payload)
 	if c.IsZero() {
-		t.Fatal("Commitment ist der Nullwert")
+		t.Fatal("commitment is the zero value")
 	}
 	if !VerifyCommitment(c, salt, payload) {
-		t.Error("korrektes Paar wird abgelehnt")
+		t.Error("correct pair is rejected")
 	}
 	if VerifyCommitment(c, salt, append(payload, '!')) {
-		t.Error("geänderte Nutzlast wird akzeptiert")
+		t.Error("modified payload is accepted")
 	}
 
 	other, err := NewSalt()
@@ -31,7 +31,7 @@ func TestCommitVerify(t *testing.T) {
 		t.Fatalf("NewSalt: %v", err)
 	}
 	if VerifyCommitment(c, other, payload) {
-		t.Error("falscher Salt wird akzeptiert")
+		t.Error("wrong salt is accepted")
 	}
 }
 
@@ -44,7 +44,7 @@ func TestCommitIsDeterministic(t *testing.T) {
 	first := Commit(salt, payload)
 	for range 8 {
 		if Commit(salt, payload) != first {
-			t.Fatal("Commit ist nicht deterministisch")
+			t.Fatal("Commit is not deterministic")
 		}
 	}
 }
@@ -66,14 +66,14 @@ func TestCommitHidesSmallDomain(t *testing.T) {
 	for i := range 20000 {
 		guess := fmt.Appendf(nil, "%05d", i)
 		if VerifyCommitment(c, Salt{}, guess) {
-			t.Fatalf("Nutzlast %q ohne Salt rekonstruiert", guess)
+			t.Fatalf("payload %q reconstructed without the salt", guess)
 		}
 	}
 
 	// Mit dem Salt geht es sofort — das ist der Unterschied zwischen
 	// „gelöscht" und „noch da".
 	if !VerifyCommitment(c, salt, secret) {
-		t.Error("mit Salt schlägt die Prüfung fehl")
+		t.Error("check fails with the correct salt")
 	}
 }
 
@@ -85,7 +85,7 @@ func TestNewSaltIsRandom(t *testing.T) {
 			t.Fatalf("NewSalt: %v", err)
 		}
 		if seen[s] {
-			t.Fatal("Salt wiederholt sich")
+			t.Fatal("salt repeats")
 		}
 		seen[s] = true
 	}
@@ -100,14 +100,14 @@ func TestSaltReuseLeaksEquality(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSalt: %v", err)
 	}
-	payload := []byte("dieselbe Angabe")
+	payload := []byte("the same statement")
 
 	// Zwei Einträge, ein wiederverwendeter Salt: Die Commitments sind gleich,
 	// und damit ist von außen sichtbar, dass beide dieselbe Nutzlast tragen.
 	inFirstEntry := Commit(salt, payload)
 	inSecondEntry := Commit(salt, payload)
 	if inFirstEntry != inSecondEntry {
-		t.Fatal("Voraussetzung des Tests verletzt: Commit ist nicht deterministisch")
+		t.Fatal("test precondition violated: Commit is not deterministic")
 	}
 
 	fresh, err := NewSalt()
@@ -115,7 +115,7 @@ func TestSaltReuseLeaksEquality(t *testing.T) {
 		t.Fatalf("NewSalt: %v", err)
 	}
 	if Commit(fresh, payload) == inFirstEntry {
-		t.Error("frischer Salt ändert das Commitment nicht")
+		t.Error("a fresh salt does not change the commitment")
 	}
 }
 
@@ -126,7 +126,7 @@ func TestSaltWipe(t *testing.T) {
 	}
 	s.Wipe()
 	if s != (Salt{}) {
-		t.Error("Wipe hinterlässt Reste")
+		t.Error("Wipe leaves remnants")
 	}
 }
 
@@ -137,9 +137,9 @@ func TestCommitEmptyPayload(t *testing.T) {
 	}
 	c := Commit(salt, nil)
 	if !VerifyCommitment(c, salt, []byte{}) {
-		t.Error("nil und leerer Slice ergeben verschiedene Commitments")
+		t.Error("nil and an empty slice produce different commitments")
 	}
 	if VerifyCommitment(c, salt, []byte{0}) {
-		t.Error("leere Nutzlast kollidiert mit einem Nullbyte")
+		t.Error("empty payload collides with a single zero byte")
 	}
 }

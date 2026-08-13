@@ -37,10 +37,10 @@ const (
 )
 
 var (
-	ErrUnknownAlg     = errors.New("owm: unbekannter Signaturalgorithmus")
-	ErrKeySize        = errors.New("owm: falsche Schlüssellänge")
-	ErrSigSize        = errors.New("owm: falsche Signaturlänge")
-	ErrContextTooLong = errors.New("owm: Signaturkontext länger als 255 Byte")
+	ErrUnknownAlg     = errors.New("owm: unknown signature algorithm")
+	ErrKeySize        = errors.New("owm: wrong key length")
+	ErrSigSize        = errors.New("owm: wrong signature length")
+	ErrContextTooLong = errors.New("owm: signature context longer than 255 bytes")
 )
 
 func (a SigAlg) String() string {
@@ -115,7 +115,7 @@ func GenerateKey(alg SigAlg) (*PrivateKey, error) {
 	}
 	seed := make([]byte, alg.SeedSize())
 	if _, err := rand.Read(seed); err != nil {
-		return nil, fmt.Errorf("owm: Schlüsselerzeugung: %w", err)
+		return nil, fmt.Errorf("owm: key generation: %w", err)
 	}
 	return NewKeyFromSeed(alg, seed)
 }
@@ -128,7 +128,7 @@ func NewKeyFromSeed(alg SigAlg, seed []byte) (*PrivateKey, error) {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(alg))
 	}
 	if len(seed) != alg.SeedSize() {
-		return nil, fmt.Errorf("%w: Saatwert erwartet %d Byte, erhalten %d", ErrKeySize, alg.SeedSize(), len(seed))
+		return nil, fmt.Errorf("%w: seed expected %d bytes, got %d", ErrKeySize, alg.SeedSize(), len(seed))
 	}
 
 	switch alg {
@@ -161,7 +161,7 @@ func ParsePublicKey(alg SigAlg, raw []byte) (*PublicKey, error) {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(alg))
 	}
 	if len(raw) != alg.PublicKeySize() {
-		return nil, fmt.Errorf("%w: %s erwartet %d Byte, erhalten %d", ErrKeySize, alg, alg.PublicKeySize(), len(raw))
+		return nil, fmt.Errorf("%w: %s expected %d bytes, got %d", ErrKeySize, alg, alg.PublicKeySize(), len(raw))
 	}
 
 	// Kopieren, damit der Aufrufer den Puffer danach weiterverwenden darf, ohne
@@ -209,7 +209,7 @@ func computeKeyID(alg SigAlg, raw []byte) KeyID {
 // Rotationskette im Log selbst (OWM-3), nicht die Kennung.
 func DeriveLogID(genesis *PublicKey) (LogID, error) {
 	if genesis == nil {
-		return LogID{}, fmt.Errorf("%w: Gründungsschlüssel", ErrMissingField)
+		return LogID{}, fmt.Errorf("%w: genesis key", ErrMissingField)
 	}
 	var a [2]byte
 	binary.BigEndian.PutUint16(a[:], uint16(genesis.alg))

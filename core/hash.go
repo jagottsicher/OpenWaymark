@@ -59,7 +59,7 @@ func (d Digest) MarshalText() ([]byte, error) {
 
 func (d *Digest) UnmarshalText(text []byte) error {
 	if len(text) != hex.EncodedLen(DigestSize) {
-		return fmt.Errorf("owm: digest: erwartet %d Hexzeichen, erhalten %d", hex.EncodedLen(DigestSize), len(text))
+		return fmt.Errorf("owm: digest: expected %d hex characters, got %d", hex.EncodedLen(DigestSize), len(text))
 	}
 	if _, err := hex.Decode(d[:], text); err != nil {
 		return fmt.Errorf("owm: digest: %w", err)
@@ -78,7 +78,7 @@ func ParseDigest(s string) (Digest, error) {
 func DigestFromBytes(b []byte) (Digest, error) {
 	var d Digest
 	if len(b) != DigestSize {
-		return d, fmt.Errorf("owm: digest: erwartet %d Byte, erhalten %d", DigestSize, len(b))
+		return d, fmt.Errorf("owm: digest: expected %d bytes, got %d", DigestSize, len(b))
 	}
 	copy(d[:], b)
 	return d, nil
@@ -113,7 +113,7 @@ func (l *LogID) UnmarshalText(t []byte) error { return (*Digest)(l).UnmarshalTex
 // Namensraum teilweise in den Wert verschieben, ohne den Hash zu ändern.
 func hashLabeled(label string, parts ...[]byte) Digest {
 	if len(label) > 255 {
-		panic("owm: hashLabeled: Bezeichnung länger als 255 Byte")
+		panic("owm: hashLabeled: label longer than 255 bytes")
 	}
 	h := sha256.New()
 	h.Write([]byte{byte(len(label))})

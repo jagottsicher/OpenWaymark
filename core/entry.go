@@ -87,17 +87,17 @@ const maxProfileLen = 64
 const MaxParents = 1024
 
 // ErrTooManyParents meldet die Überschreitung von MaxParents.
-var ErrTooManyParents = errors.New("owm: zu viele Vorgänger")
+var ErrTooManyParents = errors.New("owm: too many parents")
 
 var (
-	ErrVersion        = errors.New("owm: unbekannte Formatversion")
-	ErrEntryType      = errors.New("owm: unbekannter Eintragstyp")
-	ErrMissingField   = errors.New("owm: Pflichtfeld fehlt")
-	ErrUnexpectedTgt  = errors.New("owm: tgt nur bei revocation und erasure zulässig")
-	ErrProfile        = errors.New("owm: ungültige Profilkennung")
-	ErrIssuerMismatch = errors.New("owm: Aussteller passt nicht zum Schlüssel")
-	ErrBadSignature   = errors.New("owm: Signatur ungültig")
-	ErrAlgMismatch    = errors.New("owm: Signaturalgorithmus passt nicht zum Schlüssel")
+	ErrVersion        = errors.New("owm: unknown format version")
+	ErrEntryType      = errors.New("owm: unknown entry type")
+	ErrMissingField   = errors.New("owm: missing required field")
+	ErrUnexpectedTgt  = errors.New("owm: tgt is only allowed for revocation and erasure")
+	ErrProfile        = errors.New("owm: invalid profile identifier")
+	ErrIssuerMismatch = errors.New("owm: issuer does not match the key")
+	ErrBadSignature   = errors.New("owm: invalid signature")
+	ErrAlgMismatch    = errors.New("owm: signature algorithm does not match the key")
 )
 
 // EntryRef verweist auf einen anderen Eintrag.
@@ -175,12 +175,12 @@ func (e *Entry) Validate() error {
 	// Widerruf und Löschbezeugung brauchen keine eigene Nutzlast; jeder andere
 	// Typ ohne Commitment sagt nichts aus.
 	if e.Commitment.IsZero() && !e.Type.RefersToEntry() {
-		return fmt.Errorf("%w: cmt bei %s", ErrMissingField, e.Type)
+		return fmt.Errorf("%w: cmt on %s", ErrMissingField, e.Type)
 	}
 
 	switch {
 	case e.Type.RefersToEntry() && e.Target == nil:
-		return fmt.Errorf("%w: tgt bei %s", ErrMissingField, e.Type)
+		return fmt.Errorf("%w: tgt on %s", ErrMissingField, e.Type)
 	case !e.Type.RefersToEntry() && e.Target != nil:
 		return fmt.Errorf("%w: %s", ErrUnexpectedTgt, e.Type)
 	}
@@ -188,7 +188,7 @@ func (e *Entry) Validate() error {
 		return fmt.Errorf("%w: tgt.entry", ErrMissingField)
 	}
 	if len(e.Parents) > MaxParents {
-		return fmt.Errorf("%w: %d, erlaubt %d", ErrTooManyParents, len(e.Parents), MaxParents)
+		return fmt.Errorf("%w: %d, allowed %d", ErrTooManyParents, len(e.Parents), MaxParents)
 	}
 	for i, p := range e.Parents {
 		if p.Entry.IsZero() {
@@ -206,14 +206,14 @@ func validateProfile(p string) error {
 		return nil
 	}
 	if len(p) > maxProfileLen {
-		return fmt.Errorf("%w: länger als %d Zeichen", ErrProfile, maxProfileLen)
+		return fmt.Errorf("%w: longer than %d characters", ErrProfile, maxProfileLen)
 	}
 	for _, r := range p {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9',
 			r == '.', r == '/', r == '-', r == '_':
 		default:
-			return fmt.Errorf("%w: unzulässiges Zeichen %q", ErrProfile, r)
+			return fmt.Errorf("%w: invalid character %q", ErrProfile, r)
 		}
 	}
 	return nil
@@ -257,10 +257,10 @@ type SignedEntry struct {
 // Eintrag, der zwar eine gültige Signatur trägt, aber niemandem zurechenbar ist.
 func SignEntry(k *PrivateKey, e *Entry) (*SignedEntry, error) {
 	if k == nil {
-		return nil, fmt.Errorf("%w: privater Schlüssel", ErrMissingField)
+		return nil, fmt.Errorf("%w: private key", ErrMissingField)
 	}
 	if e.Issuer != k.Public().ID() {
-		return nil, fmt.Errorf("%w: iss=%s, Schlüssel=%s", ErrIssuerMismatch, e.Issuer, k.Public().ID())
+		return nil, fmt.Errorf("%w: iss=%s, key=%s", ErrIssuerMismatch, e.Issuer, k.Public().ID())
 	}
 	b, err := e.Encode()
 	if err != nil {
@@ -290,17 +290,17 @@ func (s *SignedEntry) EntryID() Digest {
 // beliebigen Schlüssel „bestätigen" und die Zurechenbarkeit wäre dahin.
 func (s *SignedEntry) Verify(pub *PublicKey) error {
 	if pub == nil {
-		return fmt.Errorf("%w: öffentlicher Schlüssel", ErrMissingField)
+		return fmt.Errorf("%w: public key", ErrMissingField)
 	}
 	if s.Alg != pub.Alg() {
-		return fmt.Errorf("%w: Eintrag %s, Schlüssel %s", ErrAlgMismatch, s.Alg, pub.Alg())
+		return fmt.Errorf("%w: entry %s, key %s", ErrAlgMismatch, s.Alg, pub.Alg())
 	}
 	e, err := s.Entry()
 	if err != nil {
 		return err
 	}
 	if e.Issuer != pub.ID() {
-		return fmt.Errorf("%w: iss=%s, Schlüssel=%s", ErrIssuerMismatch, e.Issuer, pub.ID())
+		return fmt.Errorf("%w: iss=%s, key=%s", ErrIssuerMismatch, e.Issuer, pub.ID())
 	}
 	if !pub.Verify(SigContextEntry, s.EntryBytes, s.Signature) {
 		return ErrBadSignature

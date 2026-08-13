@@ -73,10 +73,10 @@ type Log struct {
 // New legt ein Log über dem angegebenen Speicher an.
 func New(opts Options) (*Log, error) {
 	if opts.Storage == nil {
-		return nil, fmt.Errorf("%w: Storage", ErrMissingField)
+		return nil, fmt.Errorf("%w: storage", ErrMissingField)
 	}
 	if opts.Signer == nil {
-		return nil, fmt.Errorf("%w: Signer", ErrMissingField)
+		return nil, fmt.Errorf("%w: signer", ErrMissingField)
 	}
 	genesis := opts.Genesis
 	if genesis == nil {
@@ -127,7 +127,7 @@ func (l *Log) RootAt(ctx context.Context, size uint64) (core.Digest, error) {
 		return core.Digest{}, err
 	}
 	if size > cur {
-		return core.Digest{}, fmt.Errorf("%w: %d angefragt, Baum hat %d", ErrProofSize, size, cur)
+		return core.Digest{}, fmt.Errorf("%w: %d requested, tree has %d", ErrProofSize, size, cur)
 	}
 	if size == 0 {
 		var d core.Digest
@@ -140,7 +140,7 @@ func (l *Log) RootAt(ctx context.Context, size uint64) (core.Digest, error) {
 	}
 	root, err := r.GetRootHash(nil)
 	if err != nil {
-		return core.Digest{}, fmt.Errorf("owm/log: Wurzel über %d Blätter: %w", size, err)
+		return core.Digest{}, fmt.Errorf("owm/log: root over %d leaves: %w", size, err)
 	}
 	return core.DigestFromBytes(root)
 }
@@ -154,7 +154,7 @@ func (l *Log) rangeAt(ctx context.Context, size uint64) (*compact.Range, error) 
 	}
 	r, err := l.rf.NewRange(0, size, digestsToBytes(hashes))
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Bereich [0,%d): %w", size, err)
+		return nil, fmt.Errorf("owm/log: range [0,%d): %w", size, err)
 	}
 	return r, nil
 }
@@ -162,11 +162,11 @@ func (l *Log) rangeAt(ctx context.Context, size uint64) (*compact.Range, error) 
 // Append prüft einen signierten Eintrag und hängt ihn an.
 func (l *Log) Append(ctx context.Context, se *core.SignedEntry) (*Leaf, error) {
 	if se == nil {
-		return nil, fmt.Errorf("%w: Eintrag", ErrMissingField)
+		return nil, fmt.Errorf("%w: entry", ErrMissingField)
 	}
 	entryBytes, err := se.Encode()
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Eintrag kodieren: %w", err)
+		return nil, fmt.Errorf("owm/log: encode entry: %w", err)
 	}
 	e, err := l.checkEntry(ctx, se)
 	if err != nil {
@@ -208,10 +208,10 @@ func (l *Log) Append(ctx context.Context, se *core.SignedEntry) (*Leaf, error) {
 		nodes = append(nodes, Node{Level: id.Level, Index: id.Index, Hash: d})
 	})
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: anhängen: %w", err)
+		return nil, fmt.Errorf("owm/log: append: %w", err)
 	}
 	if visitErr != nil {
-		return nil, fmt.Errorf("owm/log: Knotenhash: %w", visitErr)
+		return nil, fmt.Errorf("owm/log: node hash: %w", visitErr)
 	}
 
 	rec := LeafRecord{
@@ -243,14 +243,14 @@ func (l *Log) AppendWithPayload(ctx context.Context, se *core.SignedEntry, salt 
 		return nil, ErrNoBlobStore
 	}
 	if se == nil {
-		return nil, fmt.Errorf("%w: Eintrag", ErrMissingField)
+		return nil, fmt.Errorf("%w: entry", ErrMissingField)
 	}
 	e, err := se.Entry()
 	if err != nil {
 		return nil, err
 	}
 	if !core.VerifyCommitment(e.Commitment, salt, payload) {
-		return nil, fmt.Errorf("%w: Eintrag %s", ErrCommitment, se.EntryID())
+		return nil, fmt.Errorf("%w: entry %s", ErrCommitment, se.EntryID())
 	}
 	entryID := se.EntryID()
 	if err := l.blobs.Put(ctx, entryID, salt, payload); err != nil {
@@ -281,7 +281,7 @@ func (l *Log) checkEntry(ctx context.Context, se *core.SignedEntry) (*core.Entry
 	}
 	pub, err := l.keys.PublicKey(ctx, e.Issuer)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Aussteller %s: %w", e.Issuer, err)
+		return nil, fmt.Errorf("owm/log: issuer %s: %w", e.Issuer, err)
 	}
 	if err := se.Verify(pub); err != nil {
 		return nil, err
@@ -317,7 +317,7 @@ func (l *Log) History(ctx context.Context, subject core.SubjectID) ([]*Leaf, err
 	for i := range recs {
 		leaf, err := ParseLeaf(recs[i].Data)
 		if err != nil {
-			return nil, fmt.Errorf("owm/log: Blatt %d: %w", recs[i].Seq, err)
+			return nil, fmt.Errorf("owm/log: leaf %d: %w", recs[i].Seq, err)
 		}
 		out = append(out, leaf)
 	}
@@ -332,14 +332,14 @@ func (l *Log) InclusionProof(ctx context.Context, seq, size uint64) (*InclusionP
 		return nil, err
 	}
 	if size > cur {
-		return nil, fmt.Errorf("%w: %d angefragt, Baum hat %d", ErrProofSize, size, cur)
+		return nil, fmt.Errorf("%w: %d requested, tree has %d", ErrProofSize, size, cur)
 	}
 	if seq >= size {
-		return nil, fmt.Errorf("%w: Blatt %d in Baum der Größe %d", ErrProofSize, seq, size)
+		return nil, fmt.Errorf("%w: leaf %d in a tree of size %d", ErrProofSize, seq, size)
 	}
 	nodes, err := proof.Inclusion(seq, size)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Inklusionsbeweis: %w", err)
+		return nil, fmt.Errorf("owm/log: inclusion proof: %w", err)
 	}
 	path, err := l.buildPath(ctx, nodes)
 	if err != nil {
@@ -355,7 +355,7 @@ func (l *Log) ConsistencyProof(ctx context.Context, oldSize, newSize uint64) (*C
 		return nil, err
 	}
 	if newSize > cur {
-		return nil, fmt.Errorf("%w: %d angefragt, Baum hat %d", ErrProofSize, newSize, cur)
+		return nil, fmt.Errorf("%w: %d requested, tree has %d", ErrProofSize, newSize, cur)
 	}
 	if oldSize > newSize {
 		return nil, fmt.Errorf("%w: %d > %d", ErrProofSize, oldSize, newSize)
@@ -366,7 +366,7 @@ func (l *Log) ConsistencyProof(ctx context.Context, oldSize, newSize uint64) (*C
 	}
 	nodes, err := proof.Consistency(oldSize, newSize)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Konsistenzbeweis: %w", err)
+		return nil, fmt.Errorf("owm/log: consistency proof: %w", err)
 	}
 	path, err := l.buildPath(ctx, nodes)
 	if err != nil {
@@ -384,7 +384,7 @@ func (l *Log) buildPath(ctx context.Context, nodes proof.Nodes) ([]core.Digest, 
 	}
 	raw, err := nodes.Rehash(digestsToBytes(hashes), hasher.HashChildren)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log: Beweispfad: %w", err)
+		return nil, fmt.Errorf("owm/log: proof path: %w", err)
 	}
 	return bytesToDigests(raw)
 }
@@ -450,7 +450,7 @@ func (l *Log) Payload(ctx context.Context, entryID core.Digest) ([]byte, error) 
 		return nil, err
 	}
 	if !core.VerifyCommitment(e.Commitment, salt, payload) {
-		return nil, fmt.Errorf("%w: Eintrag %s", ErrCommitment, entryID)
+		return nil, fmt.Errorf("%w: entry %s", ErrCommitment, entryID)
 	}
 	return payload, nil
 }

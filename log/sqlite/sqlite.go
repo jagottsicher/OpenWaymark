@@ -99,7 +99,7 @@ var (
 func Open(ctx context.Context, path string) (*Store, error) {
 	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: öffnen: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: open: %w", err)
 	}
 	// SQLite serialisiert Schreibvorgänge ohnehin. Eine einzige Verbindung
 	// erspart das Aufeinanderwarten und hält ":memory:" über die Lebensdauer
@@ -107,11 +107,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("owm/log/sqlite: verbinden: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: connect: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, schema); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("owm/log/sqlite: Schema anlegen: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: create schema: %w", err)
 	}
 	return &Store{db: db}, nil
 }
@@ -154,7 +154,7 @@ func (s *Store) Size(ctx context.Context) (uint64, error) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(MAX(seq) + 1, 0) FROM leaves`).Scan(&size)
 	if err != nil {
-		return 0, fmt.Errorf("owm/log/sqlite: Größe: %w", err)
+		return 0, fmt.Errorf("owm/log/sqlite: size: %w", err)
 	}
 	return uint64(size), nil
 }
@@ -163,7 +163,7 @@ func (s *Store) Size(ctx context.Context) (uint64, error) {
 func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafRecord, nodes []owmlog.Node) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: Transaktion: %w", err)
+		return fmt.Errorf("owm/log/sqlite: transaction: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -174,14 +174,14 @@ func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafReco
 	var size int64
 	if err = tx.QueryRowContext(ctx,
 		`SELECT COALESCE(MAX(seq) + 1, 0) FROM leaves`).Scan(&size); err != nil {
-		return fmt.Errorf("owm/log/sqlite: Größe: %w", err)
+		return fmt.Errorf("owm/log/sqlite: size: %w", err)
 	}
 	if uint64(size) != oldSize {
-		err = fmt.Errorf("%w: erwartet %d, gespeichert %d", owmlog.ErrConflict, oldSize, size)
+		err = fmt.Errorf("%w: expected %d, stored %d", owmlog.ErrConflict, oldSize, size)
 		return err
 	}
 	if leaf.Seq != oldSize {
-		err = fmt.Errorf("%w: seq=%d, erwartet %d", owmlog.ErrLeafConflict, leaf.Seq, oldSize)
+		err = fmt.Errorf("%w: seq=%d, expected %d", owmlog.ErrLeafConflict, leaf.Seq, oldSize)
 		return err
 	}
 
@@ -190,7 +190,7 @@ func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafReco
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		int64(leaf.Seq), leaf.Hash[:], leaf.EntryID[:], leaf.Subject[:],
 		leaf.LoggedAt, leaf.Data); err != nil {
-		return fmt.Errorf("owm/log/sqlite: Blatt schreiben: %w", err)
+		return fmt.Errorf("owm/log/sqlite: write leaf: %w", err)
 	}
 
 	// Knoten werden ohne OR REPLACE eingefügt. Ein Konflikt hieße, dass ein
@@ -200,11 +200,11 @@ func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafReco
 		if _, err = tx.ExecContext(ctx,
 			`INSERT INTO nodes (level, idx, hash) VALUES (?, ?, ?)`,
 			int64(n.Level), int64(n.Index), n.Hash[:]); err != nil {
-			return fmt.Errorf("owm/log/sqlite: Knoten (%d,%d): %w", n.Level, n.Index, err)
+			return fmt.Errorf("owm/log/sqlite: node (%d,%d): %w", n.Level, n.Index, err)
 		}
 	}
 	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("owm/log/sqlite: festschreiben: %w", err)
+		return fmt.Errorf("owm/log/sqlite: commit: %w", err)
 	}
 	return nil
 }
@@ -224,14 +224,14 @@ func scanLeaf(row interface{ Scan(...any) error }) (*owmlog.LeafRecord, error) {
 	rec := &owmlog.LeafRecord{Seq: uint64(seq), LoggedAt: loggedAt, Data: data}
 	var err error
 	if rec.Hash, err = core.DigestFromBytes(hash); err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Blatthash: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: leaf hash: %w", err)
 	}
 	if rec.EntryID, err = core.DigestFromBytes(entryID); err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Eintragskennung: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: entry ID: %w", err)
 	}
 	d, err := core.DigestFromBytes(subject)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Subjekt: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: subject: %w", err)
 	}
 	rec.Subject = core.SubjectID(d)
 	return rec, nil
@@ -242,7 +242,7 @@ func (s *Store) LeafBySeq(ctx context.Context, seq uint64) (*owmlog.LeafRecord, 
 		`SELECT `+leafColumns+` FROM leaves WHERE seq = ?`, int64(seq))
 	rec, err := scanLeaf(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: Blatt %d", owmlog.ErrNotFound, seq)
+		return nil, fmt.Errorf("%w: leaf %d", owmlog.ErrNotFound, seq)
 	}
 	return rec, err
 }
@@ -252,7 +252,7 @@ func (s *Store) LeafByEntryID(ctx context.Context, id core.Digest) (*owmlog.Leaf
 		`SELECT `+leafColumns+` FROM leaves WHERE entry_id = ? ORDER BY seq LIMIT 1`, id[:])
 	rec, err := scanLeaf(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: Eintrag %s", owmlog.ErrNotFound, id)
+		return nil, fmt.Errorf("%w: entry %s", owmlog.ErrNotFound, id)
 	}
 	return rec, err
 }
@@ -261,7 +261,7 @@ func (s *Store) LeavesBySubject(ctx context.Context, subject core.SubjectID) ([]
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+leafColumns+` FROM leaves WHERE subject = ? ORDER BY seq`, subject[:])
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Subjektsuche: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: subject lookup: %w", err)
 	}
 	defer rows.Close()
 
@@ -274,7 +274,7 @@ func (s *Store) LeavesBySubject(ctx context.Context, subject core.SubjectID) ([]
 		out = append(out, *rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Subjektsuche: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: subject lookup: %w", err)
 	}
 	return out, nil
 }
@@ -287,7 +287,7 @@ func (s *Store) Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest,
 	stmt, err := s.db.PrepareContext(ctx,
 		`SELECT hash FROM nodes WHERE level = ? AND idx = ?`)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: Knotenabfrage: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: node query: %w", err)
 	}
 	defer stmt.Close()
 
@@ -295,13 +295,13 @@ func (s *Store) Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest,
 		var hash []byte
 		err := stmt.QueryRowContext(ctx, int64(id.Level), int64(id.Index)).Scan(&hash)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: Knoten (%d,%d)", owmlog.ErrNotFound, id.Level, id.Index)
+			return nil, fmt.Errorf("%w: node (%d,%d)", owmlog.ErrNotFound, id.Level, id.Index)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("owm/log/sqlite: Knoten (%d,%d): %w", id.Level, id.Index, err)
+			return nil, fmt.Errorf("owm/log/sqlite: node (%d,%d): %w", id.Level, id.Index, err)
 		}
 		if out[i], err = core.DigestFromBytes(hash); err != nil {
-			return nil, fmt.Errorf("owm/log/sqlite: Knoten (%d,%d): %w", id.Level, id.Index, err)
+			return nil, fmt.Errorf("owm/log/sqlite: node (%d,%d): %w", id.Level, id.Index, err)
 		}
 	}
 	return out, nil
@@ -327,7 +327,7 @@ func (s *Store) PutSTH(ctx context.Context, size uint64, sth *owmlog.SignedSTH) 
 		 ON CONFLICT (size) DO NOTHING`,
 		int64(size), parsed.IssuedAt, blob)
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: STH schreiben: %w", err)
+		return fmt.Errorf("owm/log/sqlite: write STH: %w", err)
 	}
 	return nil
 }
@@ -337,10 +337,10 @@ func (s *Store) LatestSTH(ctx context.Context) (*owmlog.SignedSTH, error) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT data FROM sths ORDER BY size DESC, issued_at DESC LIMIT 1`).Scan(&blob)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: noch kein STH ausgestellt", owmlog.ErrNotFound)
+		return nil, fmt.Errorf("%w: no STH issued yet", owmlog.ErrNotFound)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: STH lesen: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: read STH: %w", err)
 	}
 	return owmlog.ParseSignedSTH(blob)
 }
@@ -350,10 +350,10 @@ func (s *Store) STHBySize(ctx context.Context, size uint64) (*owmlog.SignedSTH, 
 	err := s.db.QueryRowContext(ctx,
 		`SELECT data FROM sths WHERE size = ?`, int64(size)).Scan(&blob)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: STH über %d Blätter", owmlog.ErrNotFound, size)
+		return nil, fmt.Errorf("%w: STH over %d leaves", owmlog.ErrNotFound, size)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: STH lesen: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: read STH: %w", err)
 	}
 	return owmlog.ParseSignedSTH(blob)
 }
@@ -362,7 +362,7 @@ func (s *Store) STHBySize(ctx context.Context, size uint64) (*owmlog.SignedSTH, 
 func (s *Store) STHSizes(ctx context.Context) ([]uint64, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT size FROM sths ORDER BY size`)
 	if err != nil {
-		return nil, fmt.Errorf("owm/log/sqlite: STH-Größen: %w", err)
+		return nil, fmt.Errorf("owm/log/sqlite: STH sizes: %w", err)
 	}
 	defer rows.Close()
 	var out []uint64
@@ -387,14 +387,14 @@ func (s *Store) Put(ctx context.Context, entryID core.Digest, salt core.Salt, pa
 		// anzunehmen hieße, die Löschung zurückzunehmen.
 		return fmt.Errorf("%w: %s", owmlog.ErrErased, entryID)
 	case err != nil && !errors.Is(err, sql.ErrNoRows):
-		return fmt.Errorf("owm/log/sqlite: Nutzlast prüfen: %w", err)
+		return fmt.Errorf("owm/log/sqlite: check payload: %w", err)
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO blobs (entry_id, salt, payload, erased) VALUES (?, ?, ?, 0)
 		 ON CONFLICT (entry_id) DO UPDATE SET salt = excluded.salt, payload = excluded.payload`,
 		entryID[:], salt[:], payload)
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: Nutzlast schreiben: %w", err)
+		return fmt.Errorf("owm/log/sqlite: write payload: %w", err)
 	}
 	return nil
 }
@@ -408,16 +408,16 @@ func (s *Store) Get(ctx context.Context, entryID core.Digest) (core.Salt, []byte
 		`SELECT salt, payload, erased FROM blobs WHERE entry_id = ?`,
 		entryID[:]).Scan(&salt, &payload, &erased)
 	if errors.Is(err, sql.ErrNoRows) {
-		return core.Salt{}, nil, fmt.Errorf("%w: Nutzlast zu %s", owmlog.ErrNotFound, entryID)
+		return core.Salt{}, nil, fmt.Errorf("%w: payload for %s", owmlog.ErrNotFound, entryID)
 	}
 	if err != nil {
-		return core.Salt{}, nil, fmt.Errorf("owm/log/sqlite: Nutzlast lesen: %w", err)
+		return core.Salt{}, nil, fmt.Errorf("owm/log/sqlite: read payload: %w", err)
 	}
 	if erased != 0 {
 		return core.Salt{}, nil, fmt.Errorf("%w: %s", owmlog.ErrErased, entryID)
 	}
 	if len(salt) != core.SaltSize {
-		return core.Salt{}, nil, fmt.Errorf("owm/log/sqlite: Salt hat %d Byte, erwartet %d",
+		return core.Salt{}, nil, fmt.Errorf("owm/log/sqlite: salt has %d bytes, expected %d",
 			len(salt), core.SaltSize)
 	}
 	var out core.Salt
@@ -439,11 +439,11 @@ func (s *Store) Erase(ctx context.Context, entryID core.Digest) error {
 		        erased_at = unixepoch('subsec') * 1000
 		 WHERE entry_id = ?`, entryID[:])
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: löschen: %w", err)
+		return fmt.Errorf("owm/log/sqlite: delete: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: löschen: %w", err)
+		return fmt.Errorf("owm/log/sqlite: delete: %w", err)
 	}
 	if n > 0 {
 		return nil
@@ -455,7 +455,7 @@ func (s *Store) Erase(ctx context.Context, entryID core.Digest) error {
 		 VALUES (?, NULL, NULL, 1, unixepoch('subsec') * 1000)
 		 ON CONFLICT (entry_id) DO NOTHING`, entryID[:])
 	if err != nil {
-		return fmt.Errorf("owm/log/sqlite: Grabstein setzen: %w", err)
+		return fmt.Errorf("owm/log/sqlite: set tombstone: %w", err)
 	}
 	return nil
 }
@@ -468,7 +468,7 @@ func (s *Store) Status(ctx context.Context, entryID core.Digest) (owmlog.BlobSta
 		return owmlog.BlobAbsent, nil
 	}
 	if err != nil {
-		return owmlog.BlobAbsent, fmt.Errorf("owm/log/sqlite: Status: %w", err)
+		return owmlog.BlobAbsent, fmt.Errorf("owm/log/sqlite: status: %w", err)
 	}
 	if erased != 0 {
 		return owmlog.BlobErased, nil

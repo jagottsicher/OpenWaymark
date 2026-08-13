@@ -86,7 +86,7 @@ func TestEncodeMatchesHandBuiltCBOR(t *testing.T) {
 		t.Fatalf("Encode: %v", err)
 	}
 	if want := handBuiltEntry(e); !bytes.Equal(got, want) {
-		t.Errorf("Kodierung weicht ab\n  erhalten: %x\n  erwartet: %x", got, want)
+		t.Errorf("encoding differs\n  got:      %x\n  expected: %x", got, want)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestEncodeOmitsAbsentOptionalFields(t *testing.T) {
 	// Sechs Paare: kein prof, kein par, kein tgt. Ein null-kodiertes Feld
 	// ergäbe eine zweite gültige Kodierung desselben Eintrags.
 	if b[0] != 0xA6 {
-		t.Errorf("Map-Kopf = %#x, erwartet 0xA6 (sechs Paare)", b[0])
+		t.Errorf("map header = %#x, expected 0xA6 (six pairs)", b[0])
 	}
 }
 
@@ -121,23 +121,23 @@ func TestEncodeIsDeterministic(t *testing.T) {
 			t.Fatalf("Encode: %v", err)
 		}
 		if !bytes.Equal(first, again) {
-			t.Fatal("Kodierung ist nicht deterministisch")
+			t.Fatal("encoding is not deterministic")
 		}
 	}
 }
 
 func TestEntryRoundTrip(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x23)
-	rev := EntryRef{Entry: hashLabeled("t", []byte("ziel"))}
+	rev := EntryRef{Entry: hashLabeled("t", []byte("target"))}
 
 	cases := map[string]func(*Entry){
-		"minimal":       func(e *Entry) { e.Profile = "" },
-		"mit Profil":    func(*Entry) {},
-		"ein Vorgänger": func(e *Entry) { e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p"))}} },
-		"Vorgänger mit Log": func(e *Entry) {
+		"minimal":      func(e *Entry) { e.Profile = "" },
+		"with profile": func(*Entry) {},
+		"one parent":   func(e *Entry) { e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p"))}} },
+		"parent with log": func(e *Entry) {
 			e.Parents = []EntryRef{{Entry: hashLabeled("t", []byte("p")), Log: LogID(hashLabeled("t", []byte("l")))}}
 		},
-		"drei Vorgänger": func(e *Entry) {
+		"three parents": func(e *Entry) {
 			e.Parents = []EntryRef{
 				{Entry: hashLabeled("t", []byte("p1"))},
 				{Entry: hashLabeled("t", []byte("p2"))},
@@ -168,13 +168,13 @@ func TestEntryRoundTrip(t *testing.T) {
 			}
 			again, err := got.Encode()
 			if err != nil {
-				t.Fatalf("erneutes Encode: %v", err)
+				t.Fatalf("re-encode: %v", err)
 			}
 			if !bytes.Equal(b, again) {
-				t.Error("Rückweg ändert die Kodierung")
+				t.Error("round trip changes the encoding")
 			}
 			if id1, _ := e.ID(); id1 != EntryIDFromBytes(again) {
-				t.Error("Inhaltsadresse ändert sich über den Rückweg")
+				t.Error("content address changes across the round trip")
 			}
 		})
 	}
@@ -187,7 +187,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 	e := minimalEntry(t)
 
 	cases := map[string][]byte{
-		"Schlüssel falsch sortiert": concat(
+		"keys sorted wrongly": concat(
 			cborMapN(6),
 			cborUint(2), cborUint(uint64(e.Type)),
 			cborUint(1), cborUint(uint64(e.Version)),
@@ -196,7 +196,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"Ganzzahl nicht kürzestmöglich": concat(
+		"integer not shortest form": concat(
 			cborMapN(6),
 			cborUint(1), cborHeadLong(0, uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -205,7 +205,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"Schlüssel nicht kürzestmöglich": concat(
+		"key not shortest form": concat(
 			cborMapN(6),
 			cborHeadLong(0, 1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -214,7 +214,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"leeres Profil ausdrücklich kodiert": concat(
+		"empty profile encoded explicitly": concat(
 			cborMapN(7),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -224,7 +224,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"leere Vorgängerliste ausdrücklich kodiert": concat(
+		"empty parent list encoded explicitly": concat(
 			cborMapN(7),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -239,7 +239,7 @@ func TestParseRejectsNonCanonical(t *testing.T) {
 	for name, b := range cases {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParseEntry(b); !errors.Is(err, ErrNotCanonical) {
-				t.Errorf("ParseEntry liefert %v, erwartet ErrNotCanonical", err)
+				t.Errorf("ParseEntry returns %v, expected ErrNotCanonical", err)
 			}
 		})
 	}
@@ -249,9 +249,9 @@ func TestParseRejectsMalformed(t *testing.T) {
 	e := minimalEntry(t)
 
 	cases := map[string][]byte{
-		"leer":       {},
-		"Bruchstück": {0xA6, 0x01},
-		"doppelter Schlüssel": concat(
+		"empty":    {},
+		"fragment": {0xA6, 0x01},
+		"duplicate key": concat(
 			cborMapN(7),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(1), cborUint(uint64(e.Version)),
@@ -261,7 +261,7 @@ func TestParseRejectsMalformed(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"unbekannter Schlüssel": concat(
+		"unknown key": concat(
 			cborMapN(7),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -271,7 +271,7 @@ func TestParseRejectsMalformed(t *testing.T) {
 			cborUint(7), cborBstr(e.Commitment[:]),
 			cborUint(42), cborUint(1),
 		),
-		"unbestimmte Länge": concat(
+		"indefinite length": concat(
 			[]byte{0xBF},
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -281,7 +281,7 @@ func TestParseRejectsMalformed(t *testing.T) {
 			cborUint(7), cborBstr(e.Commitment[:]),
 			[]byte{0xFF},
 		),
-		"Subjekt zu kurz": concat(
+		"subject too short": concat(
 			cborMapN(6),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -290,7 +290,7 @@ func TestParseRejectsMalformed(t *testing.T) {
 			cborUint(6), cborBstr(e.Issuer[:]),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"Pflichtfeld fehlt": concat(
+		"missing required field": concat(
 			cborMapN(5),
 			cborUint(1), cborUint(uint64(e.Version)),
 			cborUint(2), cborUint(uint64(e.Type)),
@@ -298,13 +298,13 @@ func TestParseRejectsMalformed(t *testing.T) {
 			cborUint(5), cborUint(uint64(e.IssuedAt)),
 			cborUint(7), cborBstr(e.Commitment[:]),
 		),
-		"Anhang nach dem Eintrag": concat(handBuiltEntry(e), []byte{0x00}),
+		"trailing data after the entry": concat(handBuiltEntry(e), []byte{0x00}),
 	}
 
 	for name, b := range cases {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParseEntry(b); err == nil {
-				t.Error("Kodierung akzeptiert, erwartet Fehler")
+				t.Error("encoding accepted, expected an error")
 			}
 		})
 	}
@@ -327,14 +327,14 @@ func TestSignedEntryRoundTrip(t *testing.T) {
 			t.Fatalf("%s: ParseSignedEntry: %v", alg, err)
 		}
 		if err := got.Verify(k.Public()); err != nil {
-			t.Errorf("%s: Verify nach Rückweg: %v", alg, err)
+			t.Errorf("%s: Verify after round trip: %v", alg, err)
 		}
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("%s: erneutes Encode: %v", alg, err)
+			t.Fatalf("%s: re-encode: %v", alg, err)
 		}
 		if !bytes.Equal(b, again) {
-			t.Errorf("%s: Rückweg ändert die Kodierung", alg)
+			t.Errorf("%s: round trip changes the encoding", alg)
 		}
 	}
 }
@@ -346,7 +346,7 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 		t.Fatalf("SignEntry: %v", err)
 	}
 
-	t.Run("unbekannter Algorithmus", func(t *testing.T) {
+	t.Run("unknown algorithm", func(t *testing.T) {
 		bad := concat(
 			cborMapN(3),
 			cborUint(1), cborBstr(se.EntryBytes),
@@ -354,11 +354,11 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 			cborUint(3), cborBstr(se.Signature),
 		)
 		if _, err := ParseSignedEntry(bad); !errors.Is(err, ErrUnknownAlg) {
-			t.Errorf("liefert %v, erwartet ErrUnknownAlg", err)
+			t.Errorf("returns %v, expected ErrUnknownAlg", err)
 		}
 	})
 
-	t.Run("falsche Signaturlänge", func(t *testing.T) {
+	t.Run("wrong signature length", func(t *testing.T) {
 		bad := concat(
 			cborMapN(3),
 			cborUint(1), cborBstr(se.EntryBytes),
@@ -366,11 +366,11 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 			cborUint(3), cborBstr(se.Signature[:100]),
 		)
 		if _, err := ParseSignedEntry(bad); !errors.Is(err, ErrSigSize) {
-			t.Errorf("liefert %v, erwartet ErrSigSize", err)
+			t.Errorf("returns %v, expected ErrSigSize", err)
 		}
 	})
 
-	t.Run("leerer Eintrag", func(t *testing.T) {
+	t.Run("empty entry", func(t *testing.T) {
 		bad := concat(
 			cborMapN(3),
 			cborUint(1), cborBstr(nil),
@@ -378,11 +378,11 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 			cborUint(3), cborBstr(se.Signature),
 		)
 		if _, err := ParseSignedEntry(bad); !errors.Is(err, ErrMissingField) {
-			t.Errorf("liefert %v, erwartet ErrMissingField", err)
+			t.Errorf("returns %v, expected ErrMissingField", err)
 		}
 	})
 
-	t.Run("Eintrag nicht kanonisch", func(t *testing.T) {
+	t.Run("entry not canonical", func(t *testing.T) {
 		// Der äußere Umschlag ist kanonisch, der eingebettete Eintrag nicht.
 		// Der Fehler darf erst beim Auspacken auffallen, nicht gar nicht.
 		e := minimalEntry(t)
@@ -397,10 +397,10 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 		)
 		bad := SignedEntry{EntryBytes: noncanon, Alg: se.Alg, Signature: se.Signature}
 		if _, err := bad.Entry(); !errors.Is(err, ErrNotCanonical) {
-			t.Errorf("Entry() liefert %v, erwartet ErrNotCanonical", err)
+			t.Errorf("Entry() returns %v, expected ErrNotCanonical", err)
 		}
 		if err := bad.Verify(k.Public()); !errors.Is(err, ErrNotCanonical) {
-			t.Errorf("Verify liefert %v, erwartet ErrNotCanonical", err)
+			t.Errorf("Verify returns %v, expected ErrNotCanonical", err)
 		}
 	})
 }
@@ -430,10 +430,10 @@ func FuzzParseEntry(f *testing.F) {
 		// zu einem Eintrag mehrere gültige Bytefolgen.
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("angenommener Eintrag lässt sich nicht kodieren: %v", err)
+			t.Fatalf("accepted entry cannot be encoded: %v", err)
 		}
 		if !bytes.Equal(data, again) {
-			t.Fatalf("angenommene Kodierung ist nicht kanonisch\n  Eingabe: %x\n  erneut:  %x", data, again)
+			t.Fatalf("accepted encoding is not canonical\n  input: %x\n  again: %x", data, again)
 		}
 	})
 }
@@ -457,10 +457,10 @@ func FuzzParseSignedEntry(f *testing.F) {
 		}
 		again, err := got.Encode()
 		if err != nil {
-			t.Fatalf("angenommener Umschlag lässt sich nicht kodieren: %v", err)
+			t.Fatalf("accepted envelope cannot be encoded: %v", err)
 		}
 		if !bytes.Equal(data, again) {
-			t.Fatalf("angenommene Kodierung ist nicht kanonisch")
+			t.Fatalf("accepted encoding is not canonical")
 		}
 		// Verify darf niemals in Panik geraten, egal was ankommt.
 		_ = got.Verify(k.Public())

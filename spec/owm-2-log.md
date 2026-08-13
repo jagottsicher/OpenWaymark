@@ -23,7 +23,7 @@ Abweichungen gäbe es nur um den Preis, die Referenzimplementierung und zwei Jah
 aufzugeben; OpenWaymark weicht deshalb nur dort ab, wo es einen Grund gibt — und der eine Grund
 ist die Löschbarkeit (§7), die CT nicht kennt, weil CT nie löscht.
 
-**Was dieses Dokument nicht regelt:** Wie Beweise über HTTP übertragen werden (OWM-4), wie
+**Was dieses Dokument nicht regelt:** Wie Beweise über HTTP übertragen werden (OWM-7), wie
 Nachfolgeschlüssel autorisiert werden (OWM-3), wie STHs zwischen Nodes ausgetauscht werden
 (OWM-5). Dieses Dokument definiert die Datenstrukturen und die Regeln, nach denen sie geprüft
 werden.
@@ -40,7 +40,7 @@ auf dieses Log entwerten. Der Gründungsschlüssel wechselt nie.
 
 Die Ableitung macht die Kennung selbstzertifizierend: Wer den Gründungsschlüssel hat, rechnet sie
 nach, ohne ein Verzeichnis zu befragen. Welche **Nachfolge**schlüssel für dieses Log signieren
-dürfen, beantwortet die Rotationskette im Log selbst (OWM-3) — nicht die Kennung.
+dürfen, beantwortet die Rotationskette im Log selbst ([OWM-3](owm-3-keys.md)) — nicht die Kennung.
 
 ## 3. Blatt
 
@@ -145,7 +145,7 @@ Zusage des Logs.
 Und brauchen deshalb **kein kanonisches Format**. Ihre Integrität ergibt sich vollständig daraus,
 dass sie gegen einen signierten Wurzelhash aufgehen oder eben nicht. Ein manipulierter Beweis
 schlägt fehl; ein Beweis in abweichender Kodierung, der aufgeht, ist ein gültiger Beweis.
-Die Übertragung regelt OWM-4.
+Die Übertragung regelt [OWM-7](owm-7-node-api.md).
 
 ## 6. Anhängen
 
@@ -264,7 +264,7 @@ keinen gemeinsamen Batch unterschreiben können. Es bleiben zwei Hebel:
 Der zweite Hebel ist der wirksame, und er gehört **nicht in das Log**, sondern in die Profilebene:
 Ob und wie gebündelt wird, hängt daran, was gemessen wird und wie fein es einzeln belegbar sein
 muss. Das Log sieht in beiden Fällen nur einen Eintrag. Ausgeführt wird das im Lebensmittelprofil
-(OWM-4).
+([OWM-4 §12](owm-4-profiles.md#12-messreihen)).
 
 ## 9. Erkennung von Fehlverhalten
 
@@ -293,6 +293,6 @@ damit teuer. Siehe OWM-9 A1 und A2.
 - Aufbewahrungsfristen für STHs: Ein Beobachter braucht alte STHs, um überhaupt vergleichen zu
   können. Wie lange eine Node sie vorhalten MUSS, ist noch nicht festgelegt.
 - Quittungen beim Anhängen (analog zum SCT in CT), damit das Zurückhalten eines Eintrags beweisbar
-  wird und nicht nur behauptbar. Gehört zur Node-API, OWM-4.
+  wird und nicht nur behauptbar. Gehört zur Node-API, [OWM-7 §9](owm-7-node-api.md#9-offene-punkte).
 - Verhalten bei Erreichen der Blattgrenze von 128 KiB durch sehr breite Aggregationen
   (`par` bis MaxParents = 1024).
