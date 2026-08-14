@@ -53,7 +53,7 @@ itself, and of the ability to contradict a node that lies.
 Requires Go 1.25 or newer. Nothing else — no Docker, no outbound network, no database to set up.
 
 ```sh
-git clone <repository-url> openwaymark
+git clone https://gitlab.jens-schendel.com/jagottsicher/openwaymark.git openwaymark
 cd openwaymark
 go run ./demo
 ```
@@ -360,7 +360,7 @@ in this order:
 Builds are made from the tag:
 
 ```sh
-git clone --branch v0.1.0 <repository-url> openwaymark
+git clone --branch v0.1.0 https://gitlab.jens-schendel.com/jagottsicher/openwaymark.git openwaymark
 cd openwaymark
 CGO_ENABLED=0 go build -trimpath -o owmnode ./node/cmd/owmnode
 ```
