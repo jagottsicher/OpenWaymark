@@ -35,8 +35,13 @@ format:
   extends: .go-base
   stage: check
   script:
-    # gofmt reports deviations on stdout and not via the exit code.
-    - test -z "$(gofmt -l .)" || { gofmt -d .; echo 'gofmt deviations, see above'; exit 1; }
+    - |
+      files=$(git ls-files '*.go')
+      if [ -n "$files" ] && [ -n "$(gofmt -l $files)" ]; then
+        gofmt -d $files
+        echo 'gofmt deviations, see above'
+        exit 1
+      fi
 
 vet:
   extends: .go-base
