@@ -15,49 +15,48 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// KeyResolver liefert den öffentlichen Schlüssel zu einer Kennung.
+// KeyResolver returns the public key for an identifier.
 //
-// Ohne einen solchen Auflöser kann ein Log die Signatur eines eingereichten
-// Eintrags nicht prüfen — es kennt den Aussteller nicht. Eine Node im Betrieb
-// MUSS einen setzen. Die Verwaltung der Schlüssel selbst gehört nicht hierher,
-// sondern in OWM-3.
+// Without such a resolver a log cannot check the signature of a submitted entry
+// — it does not know the issuer. A node in production MUST set one. Managing
+// the keys themselves does not belong here but in OWM-3.
 type KeyResolver interface {
 	PublicKey(ctx context.Context, id core.KeyID) (*core.PublicKey, error)
 }
 
-// Options konfiguriert ein Log.
+// Options configures a log.
 type Options struct {
-	// Storage ist Pflicht.
+	// Storage is mandatory.
 	Storage Storage
 
-	// Signer unterschreibt STHs und Löschbezeugungen. Pflicht.
+	// Signer signs STHs and erasure witnesses. Mandatory.
 	Signer *core.PrivateKey
 
-	// Genesis bestimmt die Log-Kennung. Bleibt das Feld leer, wird der
-	// öffentliche Schlüssel des Signers verwendet — richtig beim Anlegen eines
-	// neuen Logs, falsch nach jeder Schlüsselrotation. Nach einer Rotation MUSS
-	// hier weiterhin der ursprüngliche Gründungsschlüssel stehen, sonst
-	// wechselt die Log-Kennung mit (OWM-2 §2).
+	// Genesis determines the log identifier. If the field is empty, the
+	// signer's public key is used — correct when creating a new log, wrong
+	// after any key rotation. After a rotation the original genesis key MUST
+	// still be given here, otherwise the log identifier changes with it
+	// (OWM-2 §2).
 	Genesis *core.PublicKey
 
-	// Blobs hält die Nutzlasten. Ohne diesen Speicher sind
-	// AppendWithPayload, Payload und Erase nicht verfügbar.
+	// Blobs holds the payloads. Without this store AppendWithPayload, Payload
+	// and Erase are unavailable.
 	Blobs BlobStore
 
-	// Keys prüft die Signaturen eingereichter Einträge. Ist das Feld leer,
-	// prüft Append nur die Struktur und akzeptiert Einträge unbekannter
-	// Aussteller — brauchbar für Tests, nicht für den Betrieb.
+	// Keys checks the signatures of submitted entries. If the field is empty,
+	// Append only checks the structure and accepts entries from unknown issuers
+	// — usable for tests, not for production.
 	Keys KeyResolver
 
-	// Now liefert die Zeit. Leer bedeutet time.Now.
+	// Now returns the time. Empty means time.Now.
 	Now func() time.Time
 }
 
-// Log führt den Merkle-Baum einer Node.
+// Log maintains the Merkle tree of a node.
 //
-// Alle Methoden sind nebenläufigkeitssicher. Das Anhängen ist serialisiert: Ein
-// Log wächst an genau einer Stelle, und zwei gleichzeitige Anhänger würden
-// dieselbe Position beanspruchen.
+// All methods are safe for concurrent use. Appending is serialised: a log grows
+// in exactly one place, and two concurrent appenders would claim the same
+// position.
 type Log struct {
 	id     core.LogID
 	signer *core.PrivateKey
@@ -67,10 +66,10 @@ type Log struct {
 	rf     *compact.RangeFactory
 	now    func() time.Time
 
-	mu sync.Mutex // serialisiert Append
+	mu sync.Mutex // serialises Append
 }
 
-// New legt ein Log über dem angegebenen Speicher an.
+// New creates a log on top of the given storage.
 func New(opts Options) (*Log, error) {
 	if opts.Storage == nil {
 		return nil, fmt.Errorf("%w: storage", ErrMissingField)
@@ -101,13 +100,13 @@ func New(opts Options) (*Log, error) {
 	}, nil
 }
 
-// ID liefert die Kennung des Logs.
+// ID returns the identifier of the log.
 func (l *Log) ID() core.LogID { return l.id }
 
-// Size liefert die aktuelle Zahl der Blätter.
+// Size returns the current number of leaves.
 func (l *Log) Size(ctx context.Context) (uint64, error) { return l.st.Size(ctx) }
 
-// Root liefert den Wurzelhash über den gesamten aktuellen Baum.
+// Root returns the root hash over the whole current tree.
 func (l *Log) Root(ctx context.Context) (core.Digest, error) {
 	size, err := l.st.Size(ctx)
 	if err != nil {
@@ -116,11 +115,10 @@ func (l *Log) Root(ctx context.Context) (core.Digest, error) {
 	return l.RootAt(ctx, size)
 }
 
-// RootAt liefert den Wurzelhash über die ersten size Blätter.
+// RootAt returns the root hash over the first size leaves.
 //
-// Das geht auch für längst überschrittene Größen, weil vollständige Teilbäume
-// unveränderlich sind: Was einmal gespeichert wurde, gilt für jede spätere
-// Baumgröße weiter.
+// This works for sizes long since passed as well, because complete subtrees are
+// immutable: whatever was stored once still holds for every later tree size.
 func (l *Log) RootAt(ctx context.Context, size uint64) (core.Digest, error) {
 	cur, err := l.st.Size(ctx)
 	if err != nil {
@@ -145,7 +143,7 @@ func (l *Log) RootAt(ctx context.Context, size uint64) (core.Digest, error) {
 	return core.DigestFromBytes(root)
 }
 
-// rangeAt lädt den kompakten Bereich [0, size) aus dem Speicher.
+// rangeAt loads the compact range [0, size) from storage.
 func (l *Log) rangeAt(ctx context.Context, size uint64) (*compact.Range, error) {
 	ids := compact.RangeNodes(0, size, nil)
 	hashes, err := l.st.Nodes(ctx, ids)
@@ -159,7 +157,7 @@ func (l *Log) rangeAt(ctx context.Context, size uint64) (*compact.Range, error) 
 	return r, nil
 }
 
-// Append prüft einen signierten Eintrag und hängt ihn an.
+// Append checks a signed entry and appends it.
 func (l *Log) Append(ctx context.Context, se *core.SignedEntry) (*Leaf, error) {
 	if se == nil {
 		return nil, fmt.Errorf("%w: entry", ErrMissingField)
@@ -228,16 +226,15 @@ func (l *Log) Append(ctx context.Context, se *core.SignedEntry) (*Leaf, error) {
 	return leaf, nil
 }
 
-// AppendWithPayload hinterlegt die Nutzlast und hängt den Eintrag an.
+// AppendWithPayload stores the payload and appends the entry.
 //
-// Die Nutzlast wird vorher gegen das Commitment im Eintrag geprüft. Ohne diese
-// Prüfung nähme die Node Daten an, die zu ihrem eigenen Log nicht passen und
-// die niemand je verifizieren könnte.
+// The payload is checked against the commitment in the entry beforehand.
+// Without that check the node would accept data that does not match its own log
+// and that nobody could ever verify.
 //
-// Reihenfolge: erst die Nutzlast ablegen, dann anhängen. Scheitert das
-// Anhängen, wird die Nutzlast wieder gelöscht. Andersherum bliebe im
-// Fehlerfall ein Eintrag im Baum, dessen Beleg nie eintrifft — und der Baum
-// vergisst nicht.
+// Order: store the payload first, then append. If the append fails, the payload
+// is deleted again. The other way round an entry would remain in the tree in
+// the error case whose evidence never arrives — and the tree does not forget.
 func (l *Log) AppendWithPayload(ctx context.Context, se *core.SignedEntry, salt core.Salt, payload []byte) (*Leaf, error) {
 	if l.blobs == nil {
 		return nil, ErrNoBlobStore
@@ -258,16 +255,15 @@ func (l *Log) AppendWithPayload(ctx context.Context, se *core.SignedEntry, salt 
 	}
 	leaf, err := l.Append(ctx, se)
 	if err != nil {
-		// Aufräumen, damit keine Nutzlast ohne zugehöriges Blatt zurückbleibt.
-		// Eine solche Waise wäre unsichtbar gespeicherte Personendatenmenge.
+		// Clean up so that no payload is left behind without a matching leaf.
+		// Such an orphan would be personal data stored invisibly.
 		_ = l.blobs.Erase(ctx, entryID)
 		return nil, err
 	}
 	return leaf, nil
 }
 
-// checkEntry prüft Struktur und, sofern ein KeyResolver gesetzt ist, die
-// Signatur.
+// checkEntry checks the structure and, if a KeyResolver is set, the signature.
 func (l *Log) checkEntry(ctx context.Context, se *core.SignedEntry) (*core.Entry, error) {
 	e, err := se.Entry()
 	if err != nil {
@@ -289,7 +285,7 @@ func (l *Log) checkEntry(ctx context.Context, se *core.SignedEntry) (*core.Entry
 	return e, nil
 }
 
-// Leaf liefert das Blatt an der angegebenen Position.
+// Leaf returns the leaf at the given position.
 func (l *Log) Leaf(ctx context.Context, seq uint64) (*Leaf, error) {
 	rec, err := l.st.LeafBySeq(ctx, seq)
 	if err != nil {
@@ -298,7 +294,7 @@ func (l *Log) Leaf(ctx context.Context, seq uint64) (*Leaf, error) {
 	return ParseLeaf(rec.Data)
 }
 
-// LeafByEntryID liefert das Blatt zu einer Eintragskennung.
+// LeafByEntryID returns the leaf for an entry identifier.
 func (l *Log) LeafByEntryID(ctx context.Context, id core.Digest) (*Leaf, error) {
 	rec, err := l.st.LeafByEntryID(ctx, id)
 	if err != nil {
@@ -307,7 +303,7 @@ func (l *Log) LeafByEntryID(ctx context.Context, id core.Digest) (*Leaf, error) 
 	return ParseLeaf(rec.Data)
 }
 
-// History liefert alle Blätter zu einem Subjekt, nach Position aufsteigend.
+// History returns all leaves for a subject, ascending by position.
 func (l *Log) History(ctx context.Context, subject core.SubjectID) ([]*Leaf, error) {
 	recs, err := l.st.LeavesBySubject(ctx, subject)
 	if err != nil {
@@ -324,8 +320,8 @@ func (l *Log) History(ctx context.Context, subject core.SubjectID) ([]*Leaf, err
 	return out, nil
 }
 
-// InclusionProof erzeugt den Inklusionsbeweis für das Blatt an Position seq in
-// einem Baum der Größe size.
+// InclusionProof produces the inclusion proof for the leaf at position seq in a
+// tree of size size.
 func (l *Log) InclusionProof(ctx context.Context, seq, size uint64) (*InclusionProof, error) {
 	cur, err := l.st.Size(ctx)
 	if err != nil {
@@ -348,7 +344,7 @@ func (l *Log) InclusionProof(ctx context.Context, seq, size uint64) (*InclusionP
 	return &InclusionProof{LeafIndex: seq, TreeSize: size, Path: path}, nil
 }
 
-// ConsistencyProof erzeugt den Konsistenzbeweis zwischen zwei Baumgrößen.
+// ConsistencyProof produces the consistency proof between two tree sizes.
 func (l *Log) ConsistencyProof(ctx context.Context, oldSize, newSize uint64) (*ConsistencyProof, error) {
 	cur, err := l.st.Size(ctx)
 	if err != nil {
@@ -360,7 +356,7 @@ func (l *Log) ConsistencyProof(ctx context.Context, oldSize, newSize uint64) (*C
 	if oldSize > newSize {
 		return nil, fmt.Errorf("%w: %d > %d", ErrProofSize, oldSize, newSize)
 	}
-	// Der leere Baum ist Präfix von allem; RFC 6962 kennt dafür keinen Beweis.
+	// The empty tree is a prefix of everything; RFC 6962 has no proof for that.
 	if oldSize == 0 || oldSize == newSize {
 		return &ConsistencyProof{OldSize: oldSize, NewSize: newSize}, nil
 	}
@@ -375,8 +371,8 @@ func (l *Log) ConsistencyProof(ctx context.Context, oldSize, newSize uint64) (*C
 	return &ConsistencyProof{OldSize: oldSize, NewSize: newSize, Path: path}, nil
 }
 
-// buildPath holt die benötigten Knoten und rechnet die ephemeren Knoten am
-// rechten Baumrand nach — gespeichert werden nur vollständige Teilbäume.
+// buildPath fetches the required nodes and recomputes the ephemeral nodes along
+// the right-hand edge of the tree — only complete subtrees are stored.
 func (l *Log) buildPath(ctx context.Context, nodes proof.Nodes) ([]core.Digest, error) {
 	hashes, err := l.st.Nodes(ctx, nodes.IDs)
 	if err != nil {
@@ -389,8 +385,7 @@ func (l *Log) buildPath(ctx context.Context, nodes proof.Nodes) ([]core.Digest, 
 	return bytesToDigests(raw)
 }
 
-// IssueSTH stellt einen Signed Tree Head über den aktuellen Baum aus und legt
-// ihn ab.
+// IssueSTH issues a Signed Tree Head over the current tree and stores it.
 func (l *Log) IssueSTH(ctx context.Context) (*SignedSTH, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -421,14 +416,14 @@ func (l *Log) IssueSTH(ctx context.Context) (*SignedSTH, error) {
 	return signed, nil
 }
 
-// LatestSTH liefert den zuletzt ausgestellten STH.
+// LatestSTH returns the most recently issued STH.
 func (l *Log) LatestSTH(ctx context.Context) (*SignedSTH, error) { return l.st.LatestSTH(ctx) }
 
-// Payload liefert die Nutzlast eines Eintrags und prüft sie gegen das
-// Commitment im Log.
+// Payload returns the payload of an entry and checks it against the commitment
+// in the log.
 //
-// Die Prüfung ist der Sinn der Sache: Ohne sie wäre die Nutzlast nur das, was
-// der Server gerade herausgibt.
+// The check is the whole point: without it the payload would be no more than
+// whatever the server happens to hand out.
 func (l *Log) Payload(ctx context.Context, entryID core.Digest) ([]byte, error) {
 	if l.blobs == nil {
 		return nil, ErrNoBlobStore
@@ -455,18 +450,18 @@ func (l *Log) Payload(ctx context.Context, entryID core.Digest) ([]byte, error) 
 	return payload, nil
 }
 
-// Erase löscht Nutzlast und Salt eines Eintrags und hängt eine Löschbezeugung
-// an.
+// Erase deletes the payload and salt of an entry and appends an erasure
+// witness.
 //
-// Der Baum wird dabei NICHT angefasst. Genau daraus folgt, dass alle je
-// ausgestellten STHs und alle je ausgestellten Beweise gültig bleiben — auch
-// der Inklusionsbeweis des gelöschten Eintrags. Von außen ist eine Löschung ein
-// gewöhnliches Anhängen. Siehe OWM-2 §7.
+// The tree is NOT touched in the process. Exactly that is why all STHs ever
+// issued and all proofs ever issued stay valid — including the inclusion proof
+// of the erased entry. From the outside an erasure is an ordinary append. See
+// OWM-2 §7.
 //
-// Zuerst wird gelöscht, dann bezeugt. Scheitert das Anhängen, sind die Daten
-// trotzdem fort und die Bezeugung fehlt noch — die harmlose Richtung. Andersherum
-// stünde eine Löschbezeugung im Log, während die Daten noch da wären, und das
-// Log löge.
+// Erasure comes first, the witness second. If the append fails, the data are
+// gone anyway and the witness is still missing — the harmless direction. The
+// other way round an erasure witness would sit in the log while the data were
+// still there, and the log would be lying.
 func (l *Log) Erase(ctx context.Context, entryID core.Digest) (*Leaf, error) {
 	if l.blobs == nil {
 		return nil, ErrNoBlobStore
@@ -483,9 +478,9 @@ func (l *Log) Erase(ctx context.Context, entryID core.Digest) (*Leaf, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Ohne die Rotationskette ließen sich alle späteren Signaturen des
-	// Ausstellers niemandem mehr zuordnen. Ein öffentlicher Schlüssel ist
-	// zudem nichts, was durch Löschen geschützt würde. OWM-2 §7.6.
+	// Without the rotation chain none of the issuer's later signatures could be
+	// attributed to anyone any more. A public key is, moreover, not something
+	// erasure would protect. OWM-2 §7.6.
 	if target.Type == core.EntryTypeKeyRotation {
 		return nil, fmt.Errorf("%w: %s", ErrNotErasable, target.Type)
 	}
@@ -509,8 +504,8 @@ func (l *Log) Erase(ctx context.Context, entryID core.Digest) (*Leaf, error) {
 	return l.Append(ctx, signed)
 }
 
-// BlobStatus meldet, ob zu einem Eintrag eine Nutzlast vorliegt, nie eine
-// hinterlegt wurde oder sie gelöscht ist.
+// BlobStatus reports whether a payload exists for an entry, was never stored,
+// or has been erased.
 func (l *Log) BlobStatus(ctx context.Context, entryID core.Digest) (BlobStatus, error) {
 	if l.blobs == nil {
 		return BlobAbsent, ErrNoBlobStore

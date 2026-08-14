@@ -16,13 +16,13 @@ import (
 	owmlog "openwaymark.org/owm/log"
 )
 
-// Fehler des Schlüsselverzeichnisses.
+// Errors of the key directory.
 var (
-	// ErrUnknownKey meldet einen Aussteller, den diese Node nicht kennt.
+	// ErrUnknownKey reports an issuer this node does not know.
 	ErrUnknownKey = errors.New("owm/node: unknown key")
-	// ErrKeyDisabled meldet einen stillgelegten Schlüssel.
+	// ErrKeyDisabled reports a disabled key.
 	ErrKeyDisabled = errors.New("owm/node: key is disabled")
-	// ErrKeyConflict meldet eine Kennung, die bereits auf andere Bytes zeigt.
+	// ErrKeyConflict reports an identifier that already points at other bytes.
 	ErrKeyConflict = errors.New("owm/node: identifier points at a different key")
 )
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS node_keys (
 ) WITHOUT ROWID;
 `
 
-// KeyInfo beschreibt einen Eintrag des Verzeichnisses.
+// KeyInfo describes one record of the directory.
 type KeyInfo struct {
 	ID         core.KeyID  `json:"key_id"`
 	Alg        core.SigAlg `json:"alg"`
@@ -48,17 +48,16 @@ type KeyInfo struct {
 	Parent     *core.KeyID `json:"parent,omitempty"`
 }
 
-// KeyDirectory ist das Schlüsselverzeichnis einer Node.
+// KeyDirectory is a node's key directory.
 //
-// Es beantwortet genau eine Frage: Wessen Einträge nimmt diese Node an? Damit
-// ist es die Einlasskontrolle des Logs — log.Log prüft jede Signatur über
-// diesen Auflöser und weist alles ab, was von einem unbekannten Aussteller
-// kommt.
+// It answers exactly one question: whose entries does this node accept? That
+// makes it the log's admission control — log.Log checks every signature through
+// this resolver and turns away everything coming from an unknown issuer.
 //
-// Aufnehmen darf nur die Betreiberin, über die Verwaltungsschnittstelle. Das
-// ist keine Bequemlichkeitsentscheidung, sondern folgt aus dem föderierten
-// Modell: Eine Node ist autoritativ für ihre eigenen Teilnehmer und für sonst
-// niemanden. Wer hier nicht steht, hat eine andere Node.
+// Only the operator may admit keys, through the admin interface. That is not a
+// convenience decision but follows from the federated model: a node is
+// authoritative for its own participants and for nobody else. Whoever is not
+// listed here has a different node.
 type KeyDirectory struct {
 	db *sql.DB
 
@@ -68,10 +67,10 @@ type KeyDirectory struct {
 
 var _ owmlog.KeyResolver = (*KeyDirectory)(nil)
 
-// OpenKeyDirectory legt die Tabelle an, falls sie fehlt.
+// OpenKeyDirectory creates the table if it is missing.
 //
-// Das Verzeichnis liegt in derselben Datenbank wie das Log — eine Datei, ein
-// Backup, ein Zustand. Die Tabellen des Logs fasst es nicht an.
+// The directory lives in the same database as the log — one file, one backup,
+// one state. It does not touch the log's tables.
 func OpenKeyDirectory(ctx context.Context, db *sql.DB) (*KeyDirectory, error) {
 	if db == nil {
 		return nil, errors.New("owm/node: no database")
@@ -82,12 +81,12 @@ func OpenKeyDirectory(ctx context.Context, db *sql.DB) (*KeyDirectory, error) {
 	return &KeyDirectory{db: db, cache: make(map[core.KeyID]*core.PublicKey)}, nil
 }
 
-// Register nimmt einen öffentlichen Schlüssel auf.
+// Register admits a public key.
 //
-// Der Aufruf ist wiederholbar: Ist die Kennung schon da und zeigt auf dieselben
-// Bytes, ändert sich nichts. Zeigt sie auf andere Bytes, wäre eine
-// SHA-256-Kollision gefunden — das meldet ErrKeyConflict, und dann stimmt etwas
-// Grundlegendes nicht.
+// The call is repeatable: if the identifier is already there and points at the
+// same bytes, nothing changes. If it points at other bytes, a SHA-256 collision
+// would have been found — that is what ErrKeyConflict reports, and then
+// something fundamental is wrong.
 func (d *KeyDirectory) Register(ctx context.Context, pub *core.PublicKey, label string, parent *core.KeyID) error {
 	if pub == nil {
 		return fmt.Errorf("%w: key", owmlog.ErrMissingField)
@@ -105,8 +104,8 @@ func (d *KeyDirectory) Register(ctx context.Context, pub *core.PublicKey, label 
 			return fmt.Errorf("%w: %s", ErrKeyConflict, id)
 		}
 		if disabled.Valid {
-			// Ein stillgelegter Schlüssel wird nicht nebenbei wieder scharf
-			// geschaltet. Wer das will, soll es ausdrücklich tun.
+			// A disabled key is not quietly armed again on the side. Whoever
+			// wants that should do it explicitly.
 			return fmt.Errorf("%w: %s", ErrKeyDisabled, id)
 		}
 		return nil
@@ -128,13 +127,12 @@ func (d *KeyDirectory) Register(ctx context.Context, pub *core.PublicKey, label 
 	return nil
 }
 
-// Disable legt einen Schlüssel still: Von ihm werden keine neuen Einträge mehr
-// angenommen.
+// Disable retires a key: no new entries are accepted from it any more.
 //
-// Was er früher signiert hat, bleibt gültig. Ein Log, das rückwirkend Aussagen
-// entwertet, wäre kein Transparenzlog — die Frage "war diese Signatur zum
-// Zeitpunkt X gültig?" beantwortet die Rotationskette, nicht das Streichen
-// eines Eintrags.
+// What it signed earlier stays valid. A log that retroactively invalidates
+// statements would be no transparency log — the question "was this signature
+// valid at time X?" is answered by the rotation chain, not by striking out an
+// entry.
 func (d *KeyDirectory) Disable(ctx context.Context, id core.KeyID) error {
 	res, err := d.db.ExecContext(ctx,
 		`UPDATE node_keys SET disabled_at = ? WHERE key_id = ? AND disabled_at IS NULL`,
@@ -148,8 +146,8 @@ func (d *KeyDirectory) Disable(ctx context.Context, id core.KeyID) error {
 	}
 	d.forget(id)
 	if n == 0 {
-		// Entweder unbekannt oder längst stillgelegt. Der Unterschied ist für
-		// den Aufrufer belanglos, das Ergebnis dasselbe.
+		// Either unknown or long since disabled. The difference is irrelevant
+		// to the caller, the outcome the same.
 		if _, err := d.Info(ctx, id); err != nil {
 			return err
 		}
@@ -157,7 +155,7 @@ func (d *KeyDirectory) Disable(ctx context.Context, id core.KeyID) error {
 	return nil
 }
 
-// PublicKey erfüllt log.KeyResolver.
+// PublicKey satisfies log.KeyResolver.
 func (d *KeyDirectory) PublicKey(ctx context.Context, id core.KeyID) (*core.PublicKey, error) {
 	d.mu.RLock()
 	pub, ok := d.cache[id]
@@ -175,15 +173,15 @@ func (d *KeyDirectory) PublicKey(ctx context.Context, id core.KeyID) (*core.Publ
 	return pub, nil
 }
 
-// Lookup liefert den öffentlichen Schlüssel samt Angaben — auch für
-// stillgelegte Schlüssel.
+// Lookup returns the public key together with its record — for disabled keys as
+// well.
 //
-// Der Unterschied zu PublicKey ist Absicht und der Grund, warum es beide gibt:
-// PublicKey beantwortet "darf dieser Schlüssel gerade einreichen?" und lehnt
-// einen stillgelegten deshalb ab. Hier geht es um die andere Frage — "womit
-// prüfe ich eine Signatur, die längst im Log steht?". Ein Schlüssel, der heute
-// stillgelegt ist, hat gestern gültig unterschrieben; würde diese Auskunft ihn
-// verschweigen, wäre jeder ältere Eintrag unprüfbar.
+// The difference to PublicKey is deliberate and the reason both exist:
+// PublicKey answers "may this key submit right now?" and therefore turns a
+// disabled one away. Here it is the other question — "what do I check a
+// signature with that has long been in the log?". A key disabled today signed
+// validly yesterday; were this lookup to conceal it, every older entry would be
+// unverifiable.
 func (d *KeyDirectory) Lookup(ctx context.Context, id core.KeyID) (*core.PublicKey, KeyInfo, error) {
 	var (
 		keyID    []byte
@@ -227,7 +225,7 @@ func (d *KeyDirectory) Lookup(ctx context.Context, id core.KeyID) (*core.PublicK
 	return pub, info, nil
 }
 
-// Info liefert die Angaben zu einer Kennung, auch für stillgelegte Schlüssel.
+// Info returns the record for an identifier, for disabled keys as well.
 func (d *KeyDirectory) Info(ctx context.Context, id core.KeyID) (KeyInfo, error) {
 	row := d.db.QueryRowContext(ctx,
 		`SELECT key_id, alg, label, added_at, disabled_at, parent FROM node_keys WHERE key_id = ?`, id[:])
@@ -238,7 +236,7 @@ func (d *KeyDirectory) Info(ctx context.Context, id core.KeyID) (KeyInfo, error)
 	return info, err
 }
 
-// List liefert alle bekannten Schlüssel, zuletzt aufgenommene zuerst.
+// List returns every known key, most recently admitted first.
 func (d *KeyDirectory) List(ctx context.Context) ([]KeyInfo, error) {
 	rows, err := d.db.QueryContext(ctx,
 		`SELECT key_id, alg, label, added_at, disabled_at, parent FROM node_keys ORDER BY added_at DESC, key_id`)
@@ -261,7 +259,7 @@ func (d *KeyDirectory) List(ctx context.Context) ([]KeyInfo, error) {
 	return out, nil
 }
 
-// load holt einen Schlüssel aus der Datenbank.
+// load fetches a key from the database.
 func (d *KeyDirectory) load(ctx context.Context, id core.KeyID) (*core.PublicKey, error) {
 	var (
 		alg      int64
@@ -285,8 +283,8 @@ func (d *KeyDirectory) load(ctx context.Context, id core.KeyID) (*core.PublicKey
 		return nil, fmt.Errorf("owm/node: key %s: %w", id, err)
 	}
 	if pub.ID() != id {
-		// Die Kennung ist der Hash des Schlüssels. Weichen sie voneinander ab,
-		// wurde die Datenbank angefasst.
+		// The identifier is the hash of the key. If the two diverge, the
+		// database has been tampered with.
 		return nil, fmt.Errorf("%w: %s", ErrKeyConflict, id)
 	}
 	return pub, nil
@@ -298,7 +296,7 @@ func (d *KeyDirectory) forget(id core.KeyID) {
 	d.mu.Unlock()
 }
 
-// scanner fasst *sql.Row und *sql.Rows zusammen.
+// scanner covers both *sql.Row and *sql.Rows.
 type scanner interface{ Scan(dest ...any) error }
 
 func scanKeyInfo(s scanner) (KeyInfo, error) {

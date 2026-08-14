@@ -22,24 +22,22 @@ var (
 	ErrLeafConflict = errors.New("owm/log: a leaf with this position already exists")
 )
 
-// Node ist ein Knoten des Merkle-Baums.
+// Node is a node of the Merkle tree.
 //
-// Level 0 sind die Blätter. Gespeichert werden nur vollständige (perfekte)
-// Teilbäume; die unvollständigen Knoten am rechten Rand werden bei Bedarf neu
-// gerechnet. Ein einmal vollständiger Knoten ändert sich nie wieder — deshalb
-// genügt ein einziger Knotenbestand, um Beweise für jede vergangene Baumgröße
-// auszustellen.
+// Level 0 are the leaves. Only complete (perfect) subtrees are stored; the
+// incomplete nodes along the right-hand edge are recomputed on demand. A node
+// that is complete once never changes again — which is why a single set of
+// nodes suffices to issue proofs for every past tree size.
 type Node struct {
 	Level uint
 	Index uint64
 	Hash  core.Digest
 }
 
-// LeafRecord ist ein gespeichertes Blatt samt der Felder, nach denen gesucht
-// wird.
+// LeafRecord is a stored leaf together with the fields that are searched on.
 //
-// EntryID und Subject sind aus Data ableitbar und werden trotzdem mitgeführt:
-// Ohne sie müsste für jede Suche jedes Blatt dekodiert werden.
+// EntryID and Subject are derivable from Data and are carried along anyway:
+// without them every search would have to decode every leaf.
 type LeafRecord struct {
 	Seq      uint64
 	Hash     core.Digest
@@ -49,63 +47,62 @@ type LeafRecord struct {
 	Data     []byte
 }
 
-// Storage hält Blätter, Knoten und STHs.
+// Storage holds leaves, nodes and STHs.
 //
-// Die Schnittstelle ist bewusst schmal und kennt keine Transaktionen: Die
-// einzige Operation, die atomar sein muss, ist Append, und die trägt ihre
-// erwartete Ausgangsgröße selbst mit sich.
+// The interface is deliberately narrow and knows nothing of transactions: the
+// only operation that has to be atomic is Append, and that one carries its
+// expected starting size with it.
 type Storage interface {
-	// Size liefert die aktuelle Zahl der Blätter.
+	// Size returns the current number of leaves.
 	Size(ctx context.Context) (uint64, error)
 
-	// Append fügt ein Blatt und die dadurch vervollständigten Knoten atomar
-	// hinzu und erhöht die Baumgröße um eins.
+	// Append adds a leaf and the nodes it completes atomically and increases
+	// the tree size by one.
 	//
-	// Weicht die gespeicherte Größe von oldSize ab, MUSS die Implementierung
-	// ErrConflict liefern und nichts schreiben. Das ist die einzige
-	// Nebenläufigkeitssicherung der Schnittstelle — und sie genügt, weil ein
-	// Log nur an einer Stelle wächst.
+	// If the stored size differs from oldSize, the implementation MUST return
+	// ErrConflict and write nothing. That is the interface's only concurrency
+	// safeguard — and it suffices, because a log only grows in one place.
 	Append(ctx context.Context, oldSize uint64, leaf LeafRecord, nodes []Node) error
 
-	// LeafBySeq liefert das Blatt an der angegebenen Position.
+	// LeafBySeq returns the leaf at the given position.
 	LeafBySeq(ctx context.Context, seq uint64) (*LeafRecord, error)
 
-	// LeafByEntryID liefert das älteste Blatt mit dieser Eintragskennung.
-	// Derselbe Eintrag darf mehrfach angehängt worden sein.
+	// LeafByEntryID returns the oldest leaf with this entry identifier. The
+	// same entry may have been appended more than once.
 	LeafByEntryID(ctx context.Context, id core.Digest) (*LeafRecord, error)
 
-	// LeavesBySubject liefert alle Blätter zu einem Subjekt, nach Position
-	// aufsteigend. Das ist die Grundlage der Produkthistorie.
+	// LeavesBySubject returns all leaves for a subject, ascending by position.
+	// This is the basis of the product history.
 	LeavesBySubject(ctx context.Context, subject core.SubjectID) ([]LeafRecord, error)
 
-	// Nodes liefert die Hashes der angegebenen Knoten in derselben Reihenfolge.
-	// Fehlt einer, ist das ErrNotFound.
+	// Nodes returns the hashes of the given nodes in the same order. A missing
+	// one is ErrNotFound.
 	Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest, error)
 
-	// PutSTH legt einen ausgestellten STH ab.
+	// PutSTH stores an issued STH.
 	//
-	// Ein Beobachter braucht alte STHs, um überhaupt vergleichen zu können; ein
-	// Log, das nur den jeweils neuesten vorhält, macht sich unüberprüfbar.
+	// An observer needs old STHs to be able to compare at all; a log that only
+	// keeps the most recent one makes itself uncheckable.
 	PutSTH(ctx context.Context, size uint64, s *SignedSTH) error
 
-	// LatestSTH liefert den zuletzt ausgestellten STH oder ErrNotFound.
+	// LatestSTH returns the most recently issued STH or ErrNotFound.
 	LatestSTH(ctx context.Context) (*SignedSTH, error)
 
-	// STHBySize liefert einen STH zur angegebenen Baumgröße oder ErrNotFound.
+	// STHBySize returns an STH for the given tree size or ErrNotFound.
 	STHBySize(ctx context.Context, size uint64) (*SignedSTH, error)
 }
 
-// BlobStatus beschreibt den Zustand einer Nutzlast.
+// BlobStatus describes the state of a payload.
 type BlobStatus int
 
 const (
-	// BlobAbsent: zu diesem Eintrag wurde nie eine Nutzlast hinterlegt.
+	// BlobAbsent: no payload was ever stored for this entry.
 	BlobAbsent BlobStatus = iota
-	// BlobPresent: Nutzlast und Salt liegen vor.
+	// BlobPresent: payload and salt are available.
 	BlobPresent
-	// BlobErased: Nutzlast und Salt wurden gelöscht. Der Zustand bleibt
-	// dauerhaft nachweisbar — er ist der Unterschied zwischen einer
-	// rechtmäßigen Löschung und dem Zurückhalten von Daten (OWM-9 A3).
+	// BlobErased: payload and salt have been deleted. The state remains
+	// permanently provable — it is the difference between a lawful erasure and
+	// withholding data (OWM-9 A3).
 	BlobErased
 )
 
@@ -122,24 +119,24 @@ func (s BlobStatus) String() string {
 	}
 }
 
-// BlobStore hält die Nutzlasten außerhalb des Logs.
+// BlobStore holds the payloads outside the log.
 //
-// Der Salt liegt beim Blob und wird mit ihm gelöscht. Genau das macht die
-// Löschung wirksam: Das Commitment im Log ist HMAC-SHA-256 mit dem Salt als
-// Schlüssel — ohne ihn ist der Wert über den Schlüsselraum gleichverteilt und
-// selbst ein Wertebereich aus zwei Möglichkeiten nicht mehr aufzulösen.
+// The salt lives with the blob and is deleted with it. Exactly that makes the
+// erasure effective: the commitment in the log is HMAC-SHA-256 with the salt as
+// the key — without it the value is uniformly distributed over the key space
+// and even a value range of two possibilities can no longer be resolved.
 type BlobStore interface {
-	// Put hinterlegt Nutzlast und Salt zu einer Eintragskennung.
+	// Put stores payload and salt for an entry identifier.
 	Put(ctx context.Context, entryID core.Digest, salt core.Salt, payload []byte) error
 
-	// Get liefert Nutzlast und Salt, ErrErased nach einer Löschung oder
-	// ErrNotFound, wenn nie etwas hinterlegt wurde.
+	// Get returns payload and salt, ErrErased after an erasure, or ErrNotFound
+	// if nothing was ever stored.
 	Get(ctx context.Context, entryID core.Digest) (core.Salt, []byte, error)
 
-	// Erase löscht Nutzlast und Salt unwiederbringlich und vermerkt die
-	// Löschung. Ein zweiter Aufruf ist zulässig und ändert nichts.
+	// Erase deletes payload and salt irrecoverably and records the erasure. A
+	// second call is permitted and changes nothing.
 	Erase(ctx context.Context, entryID core.Digest) error
 
-	// Status meldet den Zustand ohne die Daten zu lesen.
+	// Status reports the state without reading the data.
 	Status(ctx context.Context, entryID core.Digest) (BlobStatus, error)
 }

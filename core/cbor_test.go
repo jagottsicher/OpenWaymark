@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// Von Hand gebaute CBOR-Bausteine. Sie prüfen den Encoder gegen eine zweite,
-// unabhängige Implementierung der Kodierregeln — ein Test, der die Bibliothek
-// nur gegen sich selbst prüft, würde einen Fehler in ihr nicht bemerken.
+// Hand-built CBOR building blocks. They check the encoder against a second,
+// independent implementation of the encoding rules — a test that only checks
+// the library against itself would not notice a bug inside it.
 func cborHead(major byte, n uint64) []byte {
 	mt := major << 5
 	switch {
@@ -35,8 +35,8 @@ func cborHead(major byte, n uint64) []byte {
 	}
 }
 
-// cborHeadLong erzeugt die 8-Byte-Form auch dort, wo eine kürzere reichen
-// würde — also gerade das, was Core Deterministic Encoding verbietet.
+// cborHeadLong produces the 8-byte form even where a shorter one would do —
+// exactly what Core Deterministic Encoding forbids.
 func cborHeadLong(major byte, n uint64) []byte {
 	b := []byte{major<<5 | 27, 0, 0, 0, 0, 0, 0, 0, 0}
 	binary.BigEndian.PutUint64(b[1:], n)
@@ -57,8 +57,8 @@ func concat(parts ...[]byte) []byte {
 	return out
 }
 
-// handBuiltEntry baut die kanonische Kodierung des Fixture-Eintrags ohne
-// optionale Felder von Hand: Map mit sechs Paaren, Schlüssel aufsteigend.
+// handBuiltEntry builds the canonical encoding of the fixture entry without
+// optional fields by hand: a map of six pairs, keys in ascending order.
 func handBuiltEntry(e *Entry) []byte {
 	return concat(
 		cborMapN(6),
@@ -75,7 +75,7 @@ func minimalEntry(t *testing.T) *Entry {
 	t.Helper()
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x21)
 	e := fixtureEntry(k)
-	e.Profile = "" // optionale Felder bleiben weg
+	e.Profile = "" // optional fields stay out
 	return e
 }
 
@@ -96,8 +96,8 @@ func TestEncodeOmitsAbsentOptionalFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	// Sechs Paare: kein prof, kein par, kein tgt. Ein null-kodiertes Feld
-	// ergäbe eine zweite gültige Kodierung desselben Eintrags.
+	// Six pairs: no prof, no par, no tgt. A field encoded as null would yield
+	// a second valid encoding of the same entry.
 	if b[0] != 0xA6 {
 		t.Errorf("map header = %#x, expected 0xA6 (six pairs)", b[0])
 	}
@@ -144,13 +144,13 @@ func TestEntryRoundTrip(t *testing.T) {
 				{Entry: hashLabeled("t", []byte("p3"))},
 			}
 		},
-		"Widerruf": func(e *Entry) {
+		"revocation": func(e *Entry) {
 			e.Type = EntryTypeRevocation
 			e.Profile = ""
 			e.Commitment = Commitment{}
 			e.Target = &rev
 		},
-		"Sensormesswert": func(e *Entry) { e.Type = EntryTypeSensorReading },
+		"sensor reading": func(e *Entry) { e.Type = EntryTypeSensorReading },
 	}
 
 	for name, mutate := range cases {
@@ -180,9 +180,8 @@ func TestEntryRoundTrip(t *testing.T) {
 	}
 }
 
-// TestParseRejectsNonCanonical ist die Prüfung, ohne die eine gültige Signatur
-// an eine abweichend kodierte Fassung desselben Eintrags geheftet werden
-// könnte.
+// TestParseRejectsNonCanonical covers the check without which a valid signature
+// could be attached to a differently encoded version of the same entry.
 func TestParseRejectsNonCanonical(t *testing.T) {
 	e := minimalEntry(t)
 
@@ -383,8 +382,8 @@ func TestSignedEntryRejectsMalformed(t *testing.T) {
 	})
 
 	t.Run("entry not canonical", func(t *testing.T) {
-		// Der äußere Umschlag ist kanonisch, der eingebettete Eintrag nicht.
-		// Der Fehler darf erst beim Auspacken auffallen, nicht gar nicht.
+		// The outer envelope is canonical, the embedded entry is not. The
+		// error may surface on unwrapping, but it must surface.
 		e := minimalEntry(t)
 		noncanon := concat(
 			cborMapN(6),
@@ -426,8 +425,8 @@ func FuzzParseEntry(f *testing.F) {
 		if err != nil {
 			return
 		}
-		// Was ParseEntry annimmt, muss kanonisch gewesen sein — sonst gäbe es
-		// zu einem Eintrag mehrere gültige Bytefolgen.
+		// Whatever ParseEntry accepts must have been canonical — otherwise
+		// one entry would have several valid byte sequences.
 		again, err := got.Encode()
 		if err != nil {
 			t.Fatalf("accepted entry cannot be encoded: %v", err)
@@ -462,7 +461,7 @@ func FuzzParseSignedEntry(f *testing.F) {
 		if !bytes.Equal(data, again) {
 			t.Fatalf("accepted encoding is not canonical")
 		}
-		// Verify darf niemals in Panik geraten, egal was ankommt.
+		// Verify must never panic, whatever arrives.
 		_ = got.Verify(k.Public())
 	})
 }

@@ -14,15 +14,15 @@ import (
 	owmlog "openwaymark.org/owm/log"
 )
 
-// maxHistory begrenzt eine Historieantwort. Ein Subjekt kann tausende
-// Messreihen tragen; eine Antwort, die alles auf einmal liefert, wäre für den
-// Abruf per Telefon unbrauchbar.
+// maxHistory caps a history response. A subject can carry thousands of
+// measurement series; a response delivering all of it at once would be useless
+// for a lookup over a phone.
 const (
 	defaultHistoryLimit = 200
 	maxHistoryLimit     = 1000
 )
 
-// PublicHandler ist die öffentliche API der Node (OWM-7).
+// PublicHandler is the node's public API (OWM-7).
 func (n *Node) PublicHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /.well-known/openwaymark", n.handleMeta)
@@ -40,12 +40,12 @@ func (n *Node) PublicHandler() http.Handler {
 	return jsonRouterErrors(mux)
 }
 
-// submitRequest ist der Umschlag einer Einreichung.
+// submitRequest is the envelope of a submission.
 //
-// Der Eintrag wird als Base64 der kanonischen Bytes übertragen und von der Node
-// unverändert weitergereicht. Er wird nicht als JSON-Objekt entgegengenommen und
-// serverseitig neu kodiert: Die Signatur gilt für genau diese Bytes, und jede
-// Neukodierung wäre eine Gelegenheit, sie zu verlieren.
+// The entry travels as Base64 of the canonical bytes and is passed on by the
+// node unchanged. It is not taken in as a JSON object and re-encoded on the
+// server: the signature covers exactly these bytes, and every re-encoding would
+// be an opportunity to lose it.
 type submitRequest struct {
 	Entry   []byte   `json:"entry"`
 	Salt    hexBytes `json:"salt,omitempty"`
@@ -103,7 +103,7 @@ func (n *Node) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// leafView ist die Antwort auf eine Blattabfrage.
+// leafView is the response to a leaf query.
 type leafView struct {
 	Log      core.LogID  `json:"log"`
 	Seq      uint64      `json:"seq"`
@@ -183,11 +183,11 @@ func (n *Node) handleLeaf(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-// payloadResponse liefert Nutzlast und Salt zusammen.
+// payloadResponse delivers payload and salt together.
 //
-// Ohne den Salt ließe sich das Commitment nicht nachrechnen, und die Nutzlast
-// wäre nur das, was der Server gerade behauptet. Wer beides hat, kann prüfen —
-// das ist der Sinn. Nach einer Löschung ist beides fort, und die Antwort ist
+// Without the salt the commitment could not be recomputed, and the payload
+// would be no more than what the server currently claims. Whoever has both can
+// check — that is the point. After an erasure both are gone and the response is
 // 410.
 type payloadResponse struct {
 	EntryID core.Digest `json:"entry_id"`
@@ -202,7 +202,7 @@ func (n *Node) handlePayload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	// Payload prüft das Commitment mit, liefert aber den Salt nicht heraus.
+	// Payload checks the commitment along the way but does not hand out the salt.
 	payload, err := n.log.Payload(ctx, id)
 	if err != nil {
 		writeError(w, err)
@@ -246,12 +246,12 @@ func (n *Node) handleSTH(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sthResponse{Signed: signed, Decoded: sth})
 }
 
-// proofSize bestimmt die Baumgröße, gegen die ein Beweis ausgestellt wird.
+// proofSize determines the tree size a proof is issued against.
 //
-// Voreinstellung ist die Größe des zuletzt ausgestellten STH und nicht die
-// aktuelle Baumgröße. Ein Beweis gegen eine Größe, zu der es keine Unterschrift
-// gibt, ist gegen nichts prüfbar — der Client müsste dem Server glauben, und
-// genau das soll er nicht müssen.
+// The default is the size of the most recently issued STH and not the current
+// tree size. A proof against a size for which no signature exists cannot be
+// checked against anything — the client would have to believe the server, and
+// that is precisely what it should not have to do.
 func (n *Node) proofSize(ctx context.Context) (uint64, error) {
 	signed, err := n.log.LatestSTH(ctx)
 	if err == nil {
@@ -391,16 +391,16 @@ func (n *Node) handleSubject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// publicKeyView ist die öffentliche Auskunft über einen Schlüssel.
+// publicKeyView is the public information about a key.
 //
-// Ohne sie könnte ein fremder Client keine einzige Signatur prüfen: Der Eintrag
-// nennt nur die Kennung des Ausstellers, und die ist der Hash des Schlüssels —
-// aus ihr lässt sich der Schlüssel nicht zurückgewinnen. Wer den Schlüssel
-// bekommt, prüft die Kennung selbst nach und braucht der Node nicht zu glauben.
+// Without it a foreign client could not check a single signature: the entry
+// names only the issuer's identifier, and that is the hash of the key — the key
+// cannot be recovered from it. Whoever receives the key recomputes the
+// identifier and does not have to believe the node.
 //
-// Das Etikett aus dem Verzeichnis steht ausdrücklich nicht darin. Es ist
-// Freitext der Betreiberin und trägt oft einen Namen; die öffentliche API ist
-// kein Ort, an dem so etwas nebenbei erscheint.
+// The label from the directory is explicitly not part of it. It is free text
+// written by the operator and often carries a name; the public API is no place
+// for something like that to show up in passing.
 type publicKeyView struct {
 	ID         core.KeyID  `json:"key_id"`
 	Alg        string      `json:"alg"`
@@ -410,17 +410,16 @@ type publicKeyView struct {
 	Parent     *core.KeyID `json:"parent,omitempty"`
 }
 
-// handlePublicKey liefert einen einzelnen Schlüssel, nachgeschlagen über seine
-// Kennung.
+// handlePublicKey returns a single key, looked up by its identifier.
 //
-// Nur einzeln und nur über die Kennung: Eine Liste aller Schlüssel wäre das
-// Teilnehmerverzeichnis dieser Node und damit die Antwort auf eine Frage, die
-// niemand gestellt hat. Wer hier nachschlägt, hat die Kennung aus einem
-// Eintrag, den er ohnehin schon vor sich hat.
+// Singly and by identifier only: a list of all keys would be this node's
+// participant directory and thereby the answer to a question nobody asked.
+// Whoever looks something up here has the identifier from an entry they already
+// have in front of them.
 //
-// Auch ein stillgelegter Schlüssel wird herausgegeben, mit disabled_at. Was er
-// früher unterschrieben hat, bleibt prüfbar — sonst wäre jeder ältere Eintrag
-// nach der ersten Stilllegung wertlos.
+// A disabled key is handed out as well, with disabled_at. What it signed
+// earlier stays verifiable — otherwise every older entry would be worthless
+// after the first key was retired.
 func (n *Node) handlePublicKey(w http.ResponseWriter, r *http.Request) {
 	id, err := parseDigestParam(r, "id")
 	if err != nil {
@@ -430,8 +429,8 @@ func (n *Node) handlePublicKey(w http.ResponseWriter, r *http.Request) {
 	pub, info, err := n.keys.Lookup(r.Context(), core.KeyID(id))
 	if err != nil {
 		if errors.Is(err, ErrUnknownKey) {
-			// Auf einer Leseabfrage ist ein unbekannter Schlüssel keine
-			// Zugangsfrage, sondern schlicht nichts da.
+			// On a read query an unknown key is not a question of access but
+			// simply nothing there.
 			writeError(w, fmt.Errorf("%w: key %s", owmlog.ErrNotFound, id))
 			return
 		}
@@ -478,11 +477,11 @@ func (n *Node) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"profiles": n.profileViews()})
 }
 
-// handleSchema liefert eine einzelne Schemadatei.
+// handleSchema returns a single schema file.
 //
-// Profil und Datei stehen in der Abfrage und nicht im Pfad, weil eine
-// Profilkennung selbst Schrägstriche enthalten darf ("eu/battery.v1") — im Pfad
-// wäre nicht mehr zu erkennen, wo die Kennung endet.
+// Profile and file sit in the query string and not in the path because a
+// profile identifier may itself contain slashes ("eu/battery.v1") — in the path
+// it would no longer be possible to tell where the identifier ends.
 func (n *Node) handleSchema(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	p, ok := n.profiles.Get(q.Get("profile"))
@@ -495,7 +494,7 @@ func (n *Node) handleSchema(w http.ResponseWriter, r *http.Request) {
 		if f.Name == name {
 			w.Header().Set("Content-Type", "application/schema+json")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
-			w.Write(f.Data) //nolint:errcheck // siehe writeJSON
+			w.Write(f.Data) //nolint:errcheck // see writeJSON
 			return
 		}
 	}
@@ -522,11 +521,11 @@ type metaResponse struct {
 	API        string        `json:"api"`
 }
 
-// handleMeta beschreibt die Node.
+// handleMeta describes the node.
 //
-// Das ist der Einstiegspunkt der Föderation: Der DNS-TXT-Eintrag verweist auf
-// die Node, diese Antwort sagt, welches Log sie führt, mit welchem Schlüssel sie
-// unterschreibt und wer für sie verantwortlich ist.
+// This is the federation's entry point: the DNS TXT record points at the node,
+// this response says which log it maintains, which key it signs with and who is
+// responsible for it.
 func (n *Node) handleMeta(w http.ResponseWriter, r *http.Request) {
 	size, err := n.log.Size(r.Context())
 	if err != nil {
@@ -549,8 +548,8 @@ func (n *Node) handleMeta(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Run startet die öffentliche API, die Verwaltungsschnittstelle und die
-// selbsttätige STH-Ausgabe und läuft, bis ctx endet.
+// Run starts the public API, the admin interface and the automatic STH
+// issuance, and runs until ctx ends.
 func (n *Node) Run(ctx context.Context) error {
 	public := &http.Server{
 		Addr:              n.cfg.Listen,
@@ -584,7 +583,7 @@ func (n *Node) Run(ctx context.Context) error {
 
 	shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	public.Shutdown(shutdown) //nolint:errcheck // Wir beenden ohnehin.
+	public.Shutdown(shutdown) //nolint:errcheck // We are shutting down anyway.
 	admin.Shutdown(shutdown)  //nolint:errcheck
 	if errors.Is(first, context.Canceled) {
 		return nil

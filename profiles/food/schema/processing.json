@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Verarbeitung",
-  "description": "Aus Eingangsgütern werden andere Güter: Milch dreier Höfe wird ein Käselaib. Entspricht dem EPCIS-TransformationEvent. Anders als bei der Aggregation gehen die Eingänge dabei unter — sie lassen sich nicht wieder auseinandernehmen. Die Herkunftskette bleibt trotzdem verfolgbar, weil die Eingänge im Feld par des Eintrags stehen.",
+  "title": "Processing",
+  "description": "Input goods become other goods: milk from three farms becomes a wheel of cheese. Corresponds to the EPCIS TransformationEvent. Unlike aggregation the inputs perish in the process - they cannot be taken apart again. The chain of origin nevertheless stays traceable, because the inputs are listed in the entry's par field.",
   "type": "object",
   "required": ["process", "inputs", "outputs"],
   "properties": {
     "process": {
-      "description": "Was getan wurde, etwa \"pasteurisieren\" oder \"mahlen\".",
+      "description": "What was done, e.g. \"pasteurizing\" or \"grinding\".",
       "$ref": "defs.json#/$defs/text"
     },
     "inputs": {

@@ -13,11 +13,11 @@ import (
 	"testing"
 )
 
-// Die Testvektoren sind Teil der Spezifikation, nicht bloß Testbeiwerk: Eine
-// Fremdimplementierung gilt als konform, wenn sie sie Byte für Byte
-// reproduziert. Deshalb liegen sie als lesbare Datei im Repo und werden nicht
-// bei jedem Lauf neu erzeugt — eine Änderung an ihnen ist eine Änderung am
-// Protokoll und muss im Diff sichtbar werden.
+// The test vectors are part of the specification, not mere test scaffolding: an
+// independent implementation counts as conforming when it reproduces them byte
+// for byte. That is why they live in the repository as a readable file instead
+// of being regenerated on every run — a change to them is a change to the
+// protocol and has to be visible in the diff.
 //
 //	go test ./core/ -update
 var updateVectors = flag.Bool("update", false, "regenerate the test vectors in testdata/vectors")
@@ -109,9 +109,9 @@ type entryVector struct {
 	EntryCBOR hexBytes `json:"entry_cbor"`
 	EntryID   hexBytes `json:"entry_id"`
 
-	// SignatureDeterministic ist mit dem deterministischen Zweig von FIPS 204
-	// erzeugt und damit reproduzierbar. Im Betrieb wird randomisiert signiert;
-	// dort ist jede Signatur anders und trotzdem gültig.
+	// SignatureDeterministic is produced with the deterministic branch of
+	// FIPS 204 and is therefore reproducible. In production signing is
+	// randomised; there every signature differs and is still valid.
 	SignatureDeterministic hexBytes `json:"signature_deterministic"`
 	SignedEntryCBOR        hexBytes `json:"signed_entry_cbor"`
 }
@@ -147,8 +147,8 @@ func viewEntry(e *Entry) entryView {
 	return v
 }
 
-// vectorFixtures beschreibt die Fälle, die abgedeckt sein müssen: jeder
-// Eintragstyp, beide Signaturstufen, mit und ohne optionale Felder.
+// vectorFixtures describes the cases that have to be covered: every entry type,
+// both signature levels, with and without optional fields.
 type vectorFixture struct {
 	name  string
 	note  string
@@ -162,7 +162,7 @@ func vectorFixtures() []vectorFixture {
 	payload := []byte(`{"typ":"harvest","lot":"2026-08-10-A"}`)
 	parentA := hashLabeled(labelEntryID, []byte("parent a"))
 	parentB := hashLabeled(labelEntryID, []byte("parent b"))
-	logID := LogID(hashLabeled(labelLogID, []byte("beispiel-log")))
+	logID := LogID(hashLabeled(labelLogID, []byte("example-log")))
 
 	base := func(k *PrivateKey) *Entry {
 		return &Entry{
@@ -256,9 +256,8 @@ func buildVectors(t *testing.T) *vectorFile {
 		FormatVersion: FormatVersion,
 	}
 
-	// Domänengetrennter Hash, inklusive des Falls, in dem sich die
-	// Argumentaufteilung verschiebt — dort schlägt eine Implementierung ohne
-	// Längenpräfixe fehl.
+	// Domain-separated hash, including the case where the argument split
+	// shifts — that is where an implementation without length prefixes fails.
 	for _, c := range []struct {
 		label string
 		parts [][]byte
@@ -431,8 +430,8 @@ func TestVectors(t *testing.T) {
 	}
 }
 
-// TestVectorsAreSelfConsistent prüft die Datei ohne Rückgriff auf den
-// Erzeugungscode — so, wie es eine Fremdimplementierung täte.
+// TestVectorsAreSelfConsistent checks the file without falling back on the
+// generating code — the way an independent implementation would.
 func TestVectorsAreSelfConsistent(t *testing.T) {
 	raw, err := os.ReadFile(vectorPath)
 	if err != nil {

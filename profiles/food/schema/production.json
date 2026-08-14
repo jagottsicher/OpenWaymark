@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Erzeugung",
-  "description": "Ein Gut entsteht und bekommt seine Kennung — Ernte, Schlachtung, Fang, Abfüllung. Entspricht dem EPCIS-ObjectEvent mit action ADD und bizStep commissioning. Das Subjekt des Eintrags ist das entstandene Gut.",
+  "title": "Production",
+  "description": "A good comes into being and receives its identifier - harvest, slaughter, catch, bottling. Corresponds to the EPCIS ObjectEvent with action ADD and bizStep commissioning. The subject of the entry is the good that came into being.",
   "type": "object",
   "required": ["product"],
   "properties": {
     "product": { "$ref": "defs.json#/$defs/product" },
     "quantity": { "$ref": "defs.json#/$defs/quantity" },
     "certifications": {
-      "description": "Was die Erzeugerin für dieses Gut behauptet. Eine Behauptung, keine Prüfung — bestätigt wird sie erst durch einen attestation-Eintrag der Zertifizierungsstelle.",
+      "description": "What the producer asserts about this good. An assertion, not a check - it is confirmed only by an attestation entry from the certification body.",
       "type": "array",
       "items": { "$ref": "defs.json#/$defs/certification" },
       "maxItems": 32

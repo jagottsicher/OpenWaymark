@@ -17,15 +17,15 @@ import (
 	"openwaymark.org/owm/profiles"
 )
 
-// maxRequestBody begrenzt eine Anfrage. Ein Blatt darf MaxLeafSize groß werden,
-// dazu kommt die Nutzlast und der Base64-Aufschlag von einem Drittel.
+// maxRequestBody caps a request. A leaf may grow to MaxLeafSize, plus the
+// payload and the one-third overhead of Base64.
 const maxRequestBody = 2 * (owmlog.MaxLeafSize + DefaultMaxPayload)
 
-// errorBody ist die Fehlerantwort der API.
+// errorBody is the API's error response.
 //
-// Ein Feld für die Maschine, eines für den Menschen. Die Fehlertexte nennen
-// beim Namen, was schiefging: Wer einen Eintrag einreicht und ihn abgelehnt
-// bekommt, muss erfahren, warum — sonst rät er.
+// One field for the machine, one for the human. The error texts name what went
+// wrong: whoever submits an entry and has it rejected has to learn why —
+// otherwise they are guessing.
 type errorBody struct {
 	Error  string `json:"error"`
 	Detail string `json:"detail,omitempty"`
@@ -40,7 +40,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
-	w.Write(buf) //nolint:errcheck // Der Client ist weg; melden ließe sich das niemandem.
+	w.Write(buf) //nolint:errcheck // The client is gone; there is nobody left to report it to.
 }
 
 func writeError(w http.ResponseWriter, err error) {
@@ -66,19 +66,19 @@ func writeError(w http.ResponseWriter, err error) {
 	}
 	detail := err.Error()
 	if status == http.StatusInternalServerError {
-		// Interne Fehler können Pfade und SQL enthalten. Nach außen genügt,
-		// dass etwas schiefging.
+		// Internal errors can contain paths and SQL. To the outside it is enough
+		// that something went wrong.
 		detail = ""
 	}
 	writeJSON(w, status, errorBody{Error: code, Detail: detail})
 }
 
-// statusFor übersetzt die Fehler der unteren Schichten in HTTP-Codes.
+// statusFor translates the errors of the lower layers into HTTP codes.
 //
-// Die Unterscheidung, auf die es ankommt: 400 heißt "die Anfrage war schon
-// formal kaputt", 422 heißt "die Anfrage war lesbar, der Eintrag wurde
-// geprüft und abgelehnt", 403 heißt "der Aussteller gehört nicht zu dieser
-// Node". Nur der mittlere Fall besagt etwas über den Inhalt.
+// The distinction that matters: 400 means "the request was already broken
+// formally", 422 means "the request was readable, the entry was checked and
+// rejected", 403 means "the issuer does not belong to this node". Only the
+// middle case says anything about the content.
 func statusFor(err error) int {
 	switch {
 	case err == nil:
@@ -137,14 +137,14 @@ func statusFor(err error) int {
 	return http.StatusInternalServerError
 }
 
-// errMalformed steht für alles, was schon am Umschlag scheitert.
+// errMalformed stands for everything that already fails at the envelope.
 var errMalformed = errors.New("owm/node: request is unreadable")
 
 func malformed(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", errMalformed, fmt.Sprintf(format, args...))
 }
 
-// decodeBody liest den JSON-Umschlag einer Anfrage.
+// decodeBody reads the JSON envelope of a request.
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 	dec := json.NewDecoder(r.Body)
@@ -159,7 +159,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 
-// parseDigestParam liest einen hexkodierten Hashwert aus dem Pfad.
+// parseDigestParam reads a hex-encoded hash value from the path.
 func parseDigestParam(r *http.Request, name string) (core.Digest, error) {
 	s := r.PathValue(name)
 	d, err := core.ParseDigest(s)
@@ -169,7 +169,7 @@ func parseDigestParam(r *http.Request, name string) (core.Digest, error) {
 	return d, nil
 }
 
-// parsePathUint liest eine vorzeichenlose Zahl aus dem Pfad.
+// parsePathUint reads an unsigned number from the path.
 func parsePathUint(r *http.Request, name string) (uint64, error) {
 	v, err := strconv.ParseUint(r.PathValue(name), 10, 64)
 	if err != nil {
@@ -178,8 +178,8 @@ func parsePathUint(r *http.Request, name string) (uint64, error) {
 	return v, nil
 }
 
-// parseUintQuery liest eine vorzeichenlose Zahl aus der Abfrage.
-// Fehlt der Parameter, gilt def.
+// parseUintQuery reads an unsigned number from the query string.
+// If the parameter is absent, def applies.
 func parseUintQuery(r *http.Request, name string, def uint64) (uint64, error) {
 	s := r.URL.Query().Get(name)
 	if s == "" {
@@ -192,13 +192,13 @@ func parseUintQuery(r *http.Request, name string, def uint64) (uint64, error) {
 	return v, nil
 }
 
-// jsonRouterErrors sorgt dafür, dass auch die Antworten des Routers JSON sind.
+// jsonRouterErrors makes sure the router's own responses are JSON as well.
 //
-// http.ServeMux beantwortet einen unbekannten Pfad mit 404 und eine falsche
-// Methode auf einem bekannten Pfad mit 405 — beides in text/plain. Ein Client,
-// der Fehler in einer Form erwartet, bekäme ausgerechnet in diesen beiden
-// Fällen eine andere. Die Unterscheidung 404/405 stammt weiterhin vom Router,
-// sie ist nur ohne eigene Routentabelle nicht nachzubauen.
+// http.ServeMux answers an unknown path with 404 and a wrong method on a known
+// path with 405 — both in text/plain. A client that expects errors in one shape
+// would get another one in exactly those two cases. The 404/405 distinction
+// still comes from the router; it just cannot be rebuilt without a routing
+// table of one's own.
 func jsonRouterErrors(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(&routerErrorWriter{ResponseWriter: w}, r)
@@ -214,8 +214,8 @@ func (w *routerErrorWriter) WriteHeader(status int) {
 	if w.replaced {
 		return
 	}
-	// Ein Handler, der selbst geantwortet hat, hat den JSON-Typ bereits
-	// gesetzt. Nur die Standardantworten des Routers werden ersetzt.
+	// A handler that answered on its own has already set the JSON type. Only
+	// the router's default responses get replaced.
 	replaceable := status == http.StatusNotFound || status == http.StatusMethodNotAllowed
 	if !replaceable || strings.HasPrefix(w.Header().Get("Content-Type"), "application/json") {
 		w.ResponseWriter.WriteHeader(status)
@@ -236,22 +236,22 @@ func (w *routerErrorWriter) WriteHeader(status int) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Length", strconv.Itoa(len(buf)))
 	w.ResponseWriter.WriteHeader(status)
-	w.ResponseWriter.Write(buf) //nolint:errcheck // siehe writeJSON
+	w.ResponseWriter.Write(buf) //nolint:errcheck // see writeJSON
 }
 
 func (w *routerErrorWriter) Write(b []byte) (int, error) {
 	if w.replaced {
-		// Der Standardtext des Routers wird verworfen, nicht angehängt.
+		// The router's default text is discarded, not appended.
 		return len(b), nil
 	}
 	return w.ResponseWriter.Write(b)
 }
 
-// hexBytes ist ein Bytefeld, das in JSON hexadezimal steht.
+// hexBytes is a byte slice that appears in JSON as hexadecimal.
 //
-// Hex und nicht Base64 überall dort, wo ein Mensch den Wert vergleichen können
-// muss: Schlüssel, Kennungen, Salt. Für die großen, opaken Bytefolgen — Eintrag,
-// Blatt, Signatur — bleibt es bei Base64, weil sie niemand von Hand vergleicht.
+// Hex and not Base64 wherever a human needs to be able to compare the value:
+// keys, identifiers, salt. For the large opaque byte strings — entry, leaf,
+// signature — Base64 stays, because nobody compares those by hand.
 type hexBytes []byte
 
 func (h hexBytes) MarshalJSON() ([]byte, error) {
@@ -271,11 +271,11 @@ func (h *hexBytes) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// entryView ist die dekodierte Sicht auf einen Eintrag.
+// entryView is the decoded view of an entry.
 //
-// Ausdrücklich kein Beweis, sondern Bequemlichkeit: Verbindlich sind allein die
-// kanonischen Bytes im Feld entry, gegen die die Signatur geprüft wird. Wer
-// dieser Sicht glaubt statt den Bytes, glaubt dem Server.
+// Explicitly not proof but convenience: what counts are the canonical bytes in
+// the entry field alone, against which the signature is checked. Whoever
+// believes this view instead of the bytes is believing the server.
 type entryView struct {
 	Version    uint16           `json:"v"`
 	Type       string           `json:"typ"`

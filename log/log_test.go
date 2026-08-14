@@ -15,9 +15,9 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// testEnv ist ein Log mit Speicher, Nutzlastspeicher und einer Uhr, die bei
-// jedem Aufruf eine Millisekunde weiterläuft. Gleiche Zeitstempel würden die
-// Reihenfolgeprüfungen in CheckSTHPair bedeutungslos machen.
+// testEnv is a log with storage, payload store and a clock that advances by one
+// millisecond on every call. Identical timestamps would render the ordering
+// checks in CheckSTHPair meaningless.
 type testEnv struct {
 	t     *testing.T
 	key   *core.PrivateKey
@@ -64,7 +64,7 @@ func (e *testEnv) now() time.Time {
 	return time.UnixMilli(e.clock).UTC()
 }
 
-// entry baut einen signierten Assertion-Eintrag samt Salt.
+// entry builds a signed assertion entry together with its salt.
 func (e *testEnv) entry(subject core.SubjectID, payload []byte) (*core.SignedEntry, core.Salt) {
 	e.t.Helper()
 	salt, err := core.NewSalt()
@@ -87,7 +87,7 @@ func (e *testEnv) entry(subject core.SubjectID, payload []byte) (*core.SignedEnt
 	return se, salt
 }
 
-// appendN hängt n Einträge zu wechselnden Subjekten an.
+// appendN appends n entries for varying subjects.
 func (e *testEnv) appendN(ctx context.Context, n int) []*Leaf {
 	e.t.Helper()
 	out := make([]*Leaf, 0, n)
@@ -96,8 +96,8 @@ func (e *testEnv) appendN(ctx context.Context, n int) []*Leaf {
 		if err != nil {
 			e.t.Fatalf("subject: %v", err)
 		}
-		se, salt := e.entry(subject, []byte(fmt.Sprintf("nutzlast-%d", i)))
-		leaf, err := e.log.AppendWithPayload(ctx, se, salt, []byte(fmt.Sprintf("nutzlast-%d", i)))
+		se, salt := e.entry(subject, []byte(fmt.Sprintf("payload-%d", i)))
+		leaf, err := e.log.AppendWithPayload(ctx, se, salt, []byte(fmt.Sprintf("payload-%d", i)))
 		if err != nil {
 			e.t.Fatalf("append %d: %v", i, err)
 		}
@@ -122,7 +122,7 @@ func TestEmptyTreeRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("root: %v", err)
 	}
-	// RFC 6962: die Wurzel des leeren Baums ist SHA-256 über die leere Eingabe.
+	// RFC 6962: the root of the empty tree is SHA-256 over the empty input.
 	want := sha256.Sum256(nil)
 	if root != core.Digest(want) {
 		t.Errorf("empty root = %s, expected %s", root, core.Digest(want))
@@ -195,10 +195,10 @@ func TestInclusionProofRejectsWrongLeaf(t *testing.T) {
 	}
 }
 
-// TestAllSTHsPairwiseConsistent ist Verifikationstest 1 aus dem Plan: Nach
-// beliebigen Anhänge- und Ausstellungsfolgen müssen alle je ausgegebenen STHs
-// paarweise konsistent sein. Wäre das nicht so, hätte die Node zwei Historien
-// unterschrieben.
+// TestAllSTHsPairwiseConsistent is verification test 1 from the plan: after
+// arbitrary sequences of appends and issuances, all STHs ever issued must be
+// pairwise consistent. Were that not so, the node would have signed two
+// histories.
 func TestAllSTHsPairwiseConsistent(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
@@ -220,7 +220,7 @@ func TestAllSTHsPairwiseConsistent(t *testing.T) {
 		sths = append(sths, sth)
 	}
 
-	issue() // auch der leere Baum wird bezeugt
+	issue() // the empty tree is witnessed too
 	for round := 0; round < 12; round++ {
 		env.appendN(ctx, 1+rnd.Intn(4))
 		issue()
@@ -269,8 +269,7 @@ func TestConsistencyProofRejectsForeignRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("consistency proof: %v", err)
 	}
-	// Ein einziges gekipptes Bit in der alten Wurzel: der Beweis darf nicht
-	// mehr aufgehen.
+	// A single flipped bit in the old root: the proof must no longer check out.
 	tampered := *oldSTH
 	tampered.Root[0] ^= 0x01
 	if err := p.Verify(&tampered, newSTH); !errors.Is(err, ErrProofInvalid) {
@@ -278,16 +277,16 @@ func TestConsistencyProofRejectsForeignRoot(t *testing.T) {
 	}
 }
 
-// TestSplitViewDetected ist Verifikationstest 2 aus dem Plan: Eine Node, die
-// zwei Beobachtern verschiedene Bäume zeigt, muss auffliegen — und zwar allein
-// anhand dessen, was sie selbst unterschrieben hat.
+// TestSplitViewDetected is verification test 2 from the plan: a node that shows
+// two observers different trees must be caught — and caught solely by what it
+// signed itself.
 func TestSplitViewDetected(t *testing.T) {
 	ctx := context.Background()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
 	if err != nil {
 		t.Fatalf("key: %v", err)
 	}
-	// Zwei Logs derselben Node — die zwei Sichten, die der Angreifer führt.
+	// Two logs of the same node — the two views the attacker maintains.
 	viewA := newTestEnvWithKey(t, key)
 	viewB := newTestEnvWithKey(t, key)
 	if viewA.log.ID() != viewB.log.ID() {
@@ -295,7 +294,7 @@ func TestSplitViewDetected(t *testing.T) {
 	}
 
 	viewA.appendN(ctx, 4)
-	viewB.appendN(ctx, 4) // andere Einträge, gleiche Anzahl
+	viewB.appendN(ctx, 4) // different entries, same count
 
 	signedA, err := viewA.log.IssueSTH(ctx)
 	if err != nil {
@@ -305,7 +304,8 @@ func TestSplitViewDetected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("STH B: %v", err)
 	}
-	// Beide Signaturen sind echt. Genau das macht den Befund unabstreitbar.
+	// Both signatures are genuine. That is exactly what makes the finding
+	// undeniable.
 	if err := signedA.Verify(key.Public()); err != nil {
 		t.Fatalf("STH A invalid: %v", err)
 	}
@@ -327,8 +327,8 @@ func TestSplitViewDetected(t *testing.T) {
 		t.Fatalf("split view not detected: %v", err)
 	}
 
-	// Und der zweite Weg zum selben Befund: Der Konsistenzbeweis der einen
-	// Sicht geht gegen die Wurzel der anderen nicht auf.
+	// And the second route to the same finding: the consistency proof of one
+	// view does not check out against the root of the other.
 	viewA.appendN(ctx, 2)
 	later, err := viewA.log.IssueSTH(ctx)
 	if err != nil {
@@ -354,7 +354,7 @@ func TestCheckSTHPairShrunk(t *testing.T) {
 	if err := CheckSTHPair(early, late); !errors.Is(err, ErrShrunk) {
 		t.Errorf("shrinking not detected: %v", err)
 	}
-	// Reihenfolge der Argumente darf keine Rolle spielen.
+	// The order of the arguments must not matter.
 	if err := CheckSTHPair(late, early); !errors.Is(err, ErrShrunk) {
 		t.Errorf("shrinking not detected (swapped): %v", err)
 	}
@@ -368,20 +368,20 @@ func TestCheckSTHPairForeignLog(t *testing.T) {
 	}
 }
 
-// TestErasure ist Verifikationstest 3 aus dem Plan: Nach der Löschung ist die
-// Nutzlast auch bei kleinem Wertebereich nicht rekonstruierbar, und der
-// Inklusionsbeweis des Blattes gilt weiter.
+// TestErasure is verification test 3 from the plan: after the erasure the
+// payload is not reconstructible even for a small value range, and the
+// inclusion proof of the leaf still holds.
 func TestErasure(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	env.appendN(ctx, 5) // Nachbarn, damit das Blatt mitten im Baum liegt
+	env.appendN(ctx, 5) // neighbours, so the leaf sits in the middle of the tree
 
-	// Ein Wertebereich aus wenigen tausend Möglichkeiten — genau der Fall, in
-	// dem ein ungesalzenes Commitment sofort zurückgerechnet wäre.
+	// A value range of a few thousand possibilities — precisely the case in
+	// which an unsalted commitment would be inverted straight away.
 	const domainSize = 4096
 	domain := make([][]byte, domainSize)
 	for i := range domain {
-		domain[i] = []byte(fmt.Sprintf("hof-%04d", i))
+		domain[i] = []byte(fmt.Sprintf("farm-%04d", i))
 	}
 	secret := domain[1234]
 
@@ -420,7 +420,7 @@ func TestErasure(t *testing.T) {
 		t.Fatalf("payload before the erasure: %q, %v", got, err)
 	}
 
-	// Löschen.
+	// Erase.
 	tomb, err := env.log.Erase(ctx, entryID)
 	if err != nil {
 		t.Fatalf("erase: %v", err)
@@ -436,7 +436,7 @@ func TestErasure(t *testing.T) {
 		t.Errorf("tombstone names log %s, expected %s", tombEntry.Target.Log, env.log.ID())
 	}
 
-	// Die Nutzlast ist fort und der Zustand bleibt nachweisbar.
+	// The payload is gone and the state stays provable.
 	if _, err := env.log.Payload(ctx, entryID); !errors.Is(err, ErrErased) {
 		t.Errorf("payload still retrievable after the erasure: %v", err)
 	}
@@ -447,21 +447,21 @@ func TestErasure(t *testing.T) {
 	if status != BlobErased {
 		t.Errorf("status = %s, expected erased", status)
 	}
-	// Und sie lässt sich auch nicht wieder hineinschmuggeln.
+	// And it cannot be smuggled back in either.
 	if err := env.blobs.Put(ctx, entryID, salt, secret); !errors.Is(err, ErrErased) {
 		t.Errorf("erased payload accepted again: %v", err)
 	}
 
-	// Der Wörterbuchangriff über den vollständigen Wertebereich. Ohne den Salt
-	// ist das Commitment über den Schlüsselraum gleichverteilt.
+	// The dictionary attack over the complete value range. Without the salt the
+	// commitment is uniformly distributed over the key space.
 	entry := entryOf(t, leaf)
 	for _, cand := range domain {
 		if core.VerifyCommitment(entry.Commitment, core.Salt{}, cand) {
 			t.Fatalf("payload %q recovered from the commitment", cand)
 		}
 	}
-	// Gegenprobe: Mit dem Salt geht genau ein Kandidat auf. Der Angriff
-	// scheitert am fehlenden Salt, nicht daran, dass er nicht funktionierte.
+	// Control run: with the salt exactly one candidate matches. The attack
+	// fails on the missing salt, not because it would not work at all.
 	hits := 0
 	for _, cand := range domain {
 		if core.VerifyCommitment(entry.Commitment, salt, cand) {
@@ -472,7 +472,7 @@ func TestErasure(t *testing.T) {
 		t.Errorf("control run: %d hits with the salt, expected 1", hits)
 	}
 
-	// Der Kern der Sache: Der Baum wurde nicht angefasst.
+	// The heart of the matter: the tree was not touched.
 	rootNow, err := env.log.RootAt(ctx, before.Size)
 	if err != nil {
 		t.Fatalf("root: %v", err)
@@ -486,13 +486,13 @@ func TestErasure(t *testing.T) {
 	if err := beforeProof.Verify(leafHash, before); err != nil {
 		t.Errorf("old inclusion proof invalid after the erasure: %v", err)
 	}
-	// Auch das Blatt selbst und seine Signatur bleiben prüfbar — gelöscht wurde
-	// die Nutzlast, nicht die Bezeugung.
+	// The leaf itself and its signature stay checkable too — what was erased is
+	// the payload, not the witness.
 	if err := leaf.Verify(env.log.ID(), env.key.Public()); err != nil {
 		t.Errorf("leaf no longer verifiable after the erasure: %v", err)
 	}
 
-	// Und der Baum ist seither gewachsen, nicht geschrumpft.
+	// And the tree has grown since then, not shrunk.
 	afterSigned, err := env.log.IssueSTH(ctx)
 	if err != nil {
 		t.Fatalf("STH: %v", err)
@@ -517,8 +517,8 @@ func TestEraseIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subject: %v", err)
 	}
-	se, salt := env.entry(subject, []byte("geheim"))
-	if _, err := env.log.AppendWithPayload(ctx, se, salt, []byte("geheim")); err != nil {
+	se, salt := env.entry(subject, []byte("secret"))
+	if _, err := env.log.AppendWithPayload(ctx, se, salt, []byte("secret")); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	if _, err := env.log.Erase(ctx, se.EntryID()); err != nil {
@@ -558,8 +558,8 @@ func TestEraseRefusesKeyRotation(t *testing.T) {
 	if _, err := env.log.Erase(ctx, se.EntryID()); !errors.Is(err, ErrNotErasable) {
 		t.Errorf("rotation entry erasable: %v", err)
 	}
-	// Und die Nutzlast liegt noch da — eine abgelehnte Löschung darf nichts
-	// halb erledigt haben.
+	// And the payload is still there — a refused erasure must not have done
+	// anything by halves.
 	if status, err := env.log.BlobStatus(ctx, se.EntryID()); err != nil || status != BlobPresent {
 		t.Errorf("status = %s, %v; expected present", status, err)
 	}
@@ -572,8 +572,8 @@ func TestAppendWithPayloadRejectsMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subject: %v", err)
 	}
-	se, salt := env.entry(subject, []byte("echt"))
-	_, err = env.log.AppendWithPayload(ctx, se, salt, []byte("untergeschoben"))
+	se, salt := env.entry(subject, []byte("genuine"))
+	_, err = env.log.AppendWithPayload(ctx, se, salt, []byte("substituted"))
 	if !errors.Is(err, ErrCommitment) {
 		t.Fatalf("wrong payload accepted: %v", err)
 	}
@@ -653,9 +653,9 @@ func TestLogIDFollowsGenesisKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("key: %v", err)
 	}
-	// Nach einer Rotation unterschreibt ein neuer Schlüssel, aber die
-	// Log-Kennung bleibt am Gründungsschlüssel hängen — sonst zeigten alle
-	// bestehenden Verweise ins Leere.
+	// After a rotation a new key does the signing, but the log identifier stays
+	// tied to the genesis key — otherwise every existing reference would point
+	// into the void.
 	after, err := New(Options{
 		Storage: env.st,
 		Signer:  rotated,

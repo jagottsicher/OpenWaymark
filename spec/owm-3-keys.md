@@ -3,265 +3,256 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OWM-3 — Schlüssel, Node-Identität, Verzeichnis und Rotation
+# OWM-3 — Keys, node identity, directory and rotation
 
-**Stand:** Entwurf · **Voraussetzung:** [OWM-0](owm-0-overview.md), [OWM-2](owm-2-log.md) ·
-**Angreifermodell:** [OWM-9](owm-9-threat-model.md)
+**Status:** draft · **Prerequisite:** [OWM-0](owm-0-overview.md), [OWM-2](owm-2-log.md) ·
+**Threat model:** [OWM-9](owm-9-threat-model.md)
 
-Die Schlüsselwörter MUSS, DARF NICHT, SOLLTE und KANN sind wie in RFC 2119 zu verstehen.
+The key words MUST, MUST NOT, SHOULD and MAY are to be understood as in RFC 2119.
 
-## 1. Zweck und Abgrenzung
+## 1. Purpose and scope
 
-Dieses Dokument beantwortet vier Fragen:
+This document answers four questions:
 
-1. Welche Schlüssel gibt es und wie werden sie bezeichnet?
-2. Woraus besteht die Identität einer Node und wie liegt sie auf der Platte?
-3. Wessen Einträge nimmt eine Node an — und wer entscheidet das?
-4. Wie wechselt ein Schlüssel, ohne die bisherigen Aussagen zu entwerten?
+1. Which keys exist and how are they identified?
+2. What does a node's identity consist of and how does it sit on disk?
+3. Whose entries does a node accept — and who decides that?
+4. How does a key change without devaluing the statements made so far?
 
-**Was dieses Dokument nicht regelt:** wie eine Entität einen Vertrauensgrad erlangt (OWM-6),
-wie Schlüssel zwischen Nodes bekannt werden (OWM-5), wie das Verzeichnis über HTTP bedient
-wird (OWM-7).
+**What this document does not govern:** how an entity attains a trust level (OWM-6), how keys
+become known between nodes (OWM-5), how the directory is served over HTTP (OWM-7).
 
-## 2. Verfahren
+## 2. Schemes
 
-Ausschließlich Post-Quantum-Signaturen nach FIPS 204 (ML-DSA). Kein RSA, kein ECC, kein
-Hybridmodell — die Begründung steht in OWM-0 §5.
+Post-quantum signatures per FIPS 204 (ML-DSA) exclusively. No RSA, no ECC, no hybrid model — the
+reasoning is in OWM-0 §5.
 
-| Verfahren | `alg` | Öff. Schlüssel | Signatur | Vorgesehen für |
+| Scheme | `alg` | Public key | Signature | Intended for |
 |---|---|---|---|---|
-| ML-DSA-44 | 1 | 1312 B | 2420 B | Sensoren, Masseneinträge |
-| ML-DSA-65 | 2 | 1952 B | 3309 B | Node- und Entitätsschlüssel |
+| ML-DSA-44 | 1 | 1312 B | 2420 B | sensors, bulk entries |
+| ML-DSA-65 | 2 | 1952 B | 3309 B | node and entity keys |
 
-Die Wahl ist keine Sicherheitsabstufung, sondern eine Größenabwägung: 889 Byte Unterschied je
-Eintrag entscheiden bei einer Node, die stündlich Messreihen aufnimmt, über Jahre den
-Speicherbedarf. Eine Node MUSS beide Verfahren prüfen können. Eine Node SOLLTE ihren eigenen
-Schlüssel als ML-DSA-65 führen.
+The choice is not a security grading but a size trade-off: 889 bytes of difference per entry
+decide, over years, the storage requirement of a node that takes in hourly series of readings. A
+node MUST be able to verify both schemes. A node SHOULD keep its own key as ML-DSA-65.
 
-Signaturen sind randomisiert (`Sign`, nicht `SignDeterministic`) — ausgenommen die Testvektoren,
-die deterministisch erzeugt werden, damit sie überhaupt vergleichbar sind.
+Signatures are randomised (`Sign`, not `SignDeterministic`) — except for the test vectors, which
+are generated deterministically so that they are comparable at all.
 
-## 3. Schlüsselkennung
+## 3. Key identifier
 
 ```
 KeyID = H("OWM/1 key-id", u16be(alg), pubkey)
 ```
 
-32 Byte. `H` ist die längenpräfixierte Hashfunktion aus OWM-0 §4.1; das Verfahren geht mit ein,
-damit derselbe Bytestring unter zwei Verfahren nicht dieselbe Kennung erhielte.
+32 bytes. `H` is the length-prefixed hash function from OWM-0 §4.1; the scheme goes into it so
+that the same byte string would not receive the same identifier under two different schemes.
 
-Die Kennung ist **selbstzertifizierend**: Wer den öffentlichen Schlüssel hat, rechnet sie nach,
-ohne ein Verzeichnis zu befragen. Ein Verzeichnis, das zu einer Kennung einen Schlüssel mit
-anderen Bytes ausliefert, ist damit nicht nur unzuverlässig, sondern nachweisbar falsch — eine
-Node MUSS diesen Fall als Fehler behandeln und DARF den Schlüssel NICHT verwenden.
+The identifier is **self-certifying**: whoever has the public key recomputes it without consulting
+a directory. A directory that hands out a key with different bytes for an identifier is thereby
+not merely unreliable but provably wrong — a node MUST treat this case as an error and MUST NOT
+use the key.
 
-## 4. Node-Identität
+## 4. Node identity
 
-Eine Node führt **zwei** Schlüsselrollen, und sie auseinanderzuhalten ist der Kern dieses
-Abschnitts:
+A node keeps **two** key roles, and telling them apart is the heart of this section:
 
-| Rolle | Wechselt | Wofür |
+| Role | Changes | What for |
 |---|---|---|
-| Gründungsschlüssel | nie | Ableitung der LogID (OWM-2 §2) |
-| Signierschlüssel | darf und soll | STHs, Löschbezeugungen |
+| Genesis key | never | derivation of the LogID (OWM-2 §2) |
+| Signing key | may and should | STHs, erasure witnesses |
 
-Bei einer neuen Node sind beide derselbe. Nach der ersten Rotation sind sie es nicht mehr, und
-die LogID bleibt trotzdem, was sie war. Wäre die LogID an den jeweils aktuellen Schlüssel
-gebunden, entwertete jede Rotation sämtliche je ausgestellten Verweise auf dieses Log — QR-Codes
-auf Verpackungen eingeschlossen, die niemand mehr einsammeln kann.
+With a new node the two are the same. After the first rotation they are not, and the LogID stays
+what it was regardless. Were the LogID bound to whichever key is current, every rotation would
+devalue all references to this log ever issued — QR codes on packaging included, which nobody can
+collect back in.
 
-### 4.1 Identitätsdatei
+### 4.1 Identity file
 
-Die Identität liegt als JSON-Datei vor:
+The identity exists as a JSON file:
 
 ```json
 {
   "alg": "ML-DSA-65",
-  "seed": "…64 Hexzeichen…",
-  "genesis_public": "…3904 Hexzeichen…",
+  "seed": "…64 hex characters…",
+  "genesis_public": "…3904 hex characters…",
   "created": "2026-08-11T06:12:00Z",
-  "_note": "Diese Datei IST der private Schlüssel der Node. …"
+  "_note": "This file IS the node's private key. …"
 }
 ```
 
-Gespeichert wird der **Saatwert**, nicht das ausgepackte Schlüsselpaar: FIPS 204 leitet das Paar
-deterministisch daraus ab, und 32 Byte Hex sind notierbar, auf Papier sicherbar und im Fehlerfall
-von Hand prüfbar. Ein ausgepackter ML-DSA-65-Privatschlüssel ist 4032 Byte und nichts davon.
+What is stored is the **seed**, not the expanded key pair: FIPS 204 derives the pair from it
+deterministically, and 32 bytes of hex can be written down, secured on paper and checked by hand
+in case of trouble. An expanded ML-DSA-65 private key is 4032 bytes and none of those things.
 
-Anforderungen:
+Requirements:
 
-- Die Datei MUSS mit Rechten `0600` angelegt werden, das Verzeichnis mit `0700`.
-- Eine Implementierung MUSS das Laden verweigern, wenn Gruppe oder Andere Rechte an der Datei
-  haben. Eine weltlesbare Identitätsdatei ist ein stiller Totalverlust: Die Node signiert weiter,
-  jeder andere aber auch.
-- Eine bestehende Identitätsdatei DARF NICHT überschrieben werden. Der Schreibvorgang MUSS
-  `O_EXCL` verwenden.
-- `genesis_public` ist redundant, solange nicht rotiert wurde, und wird nach der ersten Rotation
-  zur einzigen Quelle der LogID. Weicht der aus dem Saatwert abgeleitete öffentliche Schlüssel
-  von `genesis_public` ab, MUSS das Laden fehlschlagen.
+- The file MUST be created with permissions `0600`, the directory with `0700`.
+- An implementation MUST refuse to load if group or others have rights on the file. A
+  world-readable identity file is a silent total loss: the node keeps signing, but so does
+  everybody else.
+- An existing identity file MUST NOT be overwritten. The write MUST use `O_EXCL`.
+- `genesis_public` is redundant as long as no rotation has happened, and becomes the only source
+  of the LogID after the first rotation. If the public key derived from the seed differs from
+  `genesis_public`, loading MUST fail.
 
-### 4.2 Verlust und Kompromittierung
+### 4.2 Loss and compromise
 
-| Fall | Folge |
+| Case | Consequence |
 |---|---|
-| Signierschlüssel verloren, Gründungsschlüssel vorhanden | Rotation, Log läuft weiter |
-| Gründungsschlüssel verloren, Log vorhanden | LogID nicht mehr nachrechenbar; das Log bleibt lesbar und prüfbar, weil die Rotationskette darin steht |
-| Identitätsdatei kompromittiert | Der Angreifer kann STHs zu **beliebigen** Wurzeln ausstellen. Kein interner Mechanismus hilft. |
+| Signing key lost, genesis key present | rotation, the log carries on |
+| Genesis key lost, log present | LogID no longer recomputable; the log stays readable and checkable because the rotation chain is in it |
+| Identity file compromised | the attacker can issue STHs for **arbitrary** roots. No internal mechanism helps. |
 
-Der letzte Fall ist A3 aus dem Angreifermodell. Wirksam ist dagegen allein, dass ein Monitor
-zwei widersprüchliche STHs derselben Größe sieht (OWM-2 §6.3) — die Node kann ihre Unterschrift
-nicht zurückziehen. Deshalb: Die Datei gehört nicht in ein Repository, nicht in ein
-ungeschütztes Backup und, wo verfügbar, in ein Hardware-Sicherheitselement statt auf die Platte.
+The last case is A3 from the threat model. The only effective answer is a monitor seeing two
+contradictory STHs of the same size (OWM-2 §6.3) — the node cannot withdraw its own signature.
+Hence: the file does not belong in a repository, not in an unprotected backup and, where
+available, into a hardware security element rather than on disk.
 
-## 5. Schlüsselverzeichnis
+## 5. Key directory
 
-Das Verzeichnis einer Node beantwortet genau eine Frage: **Wessen Einträge nimmt diese Node an?**
+A node's directory answers exactly one question: **whose entries does this node accept?**
 
-Es ist damit die Einlasskontrolle des Logs. Vor dem Anhängen MUSS eine Node den öffentlichen
-Schlüssel des Ausstellers im eigenen Verzeichnis nachschlagen und den Eintrag abweisen, wenn er
-fehlt oder stillgelegt ist. Ein Log ohne diese Prüfung nähme von jedem alles an und wäre als
-Herkunftsnachweis wertlos.
+It is thereby the log's admission control. Before appending, a node MUST look up the issuer's
+public key in its own directory and reject the entry if it is missing or disabled. A log without
+this check would accept anything from anyone and would be worthless as provenance evidence.
 
-Jeder Verzeichniseintrag hält:
+Every directory record holds:
 
-| Feld | Bedeutung |
+| Field | Meaning |
 |---|---|
-| `key_id` | Kennung nach §3, Primärschlüssel |
-| `alg`, `public` | Verfahren und öffentlicher Schlüssel |
-| `label` | freier Text der Betreiberin, kein Protokollbestandteil |
-| `added_at` | Aufnahmezeit |
-| `disabled_at` | Stilllegungszeit, falls stillgelegt |
-| `parent` | Vorgängerschlüssel, falls durch Rotation aufgenommen (§6) |
+| `key_id` | identifier per §3, primary key |
+| `alg`, `public` | scheme and public key |
+| `label` | free text of the operator, not part of the protocol |
+| `added_at` | time of admission |
+| `disabled_at` | time of disabling, if disabled |
+| `parent` | predecessor key, if admitted through a rotation (§6) |
 
-### 5.1 Aufnahme
+### 5.1 Admission
 
-Aufnehmen darf allein die Betreiberin über die Verwaltungsschnittstelle (OWM-7 §7) — oder das
-Protokoll selbst über eine Rotation (§6). Das folgt aus dem föderierten Modell: Eine Node ist
-autoritativ für ihre eigenen Teilnehmer und für sonst niemanden. Wer hier nicht steht, hat eine
-andere Node.
+Only the operator may admit, through the administration interface (OWM-7 §8) — or the protocol
+itself through a rotation (§6). That follows from the federated model: a node is authoritative for
+its own participants and for nobody else. Whoever is not listed here has a different node.
 
-Die Aufnahme ist **wiederholbar**: Dieselbe Kennung mit denselben Bytes erneut aufzunehmen ist
-kein Fehler. Dieselbe Kennung mit **anderen** Bytes ist einer, und zwar ein grundlegender — es
-wäre eine SHA-256-Kollision. Eine Implementierung MUSS das melden und DARF den vorhandenen
-Schlüssel NICHT ersetzen.
+Admission is **repeatable**: admitting the same identifier with the same bytes again is not an
+error. The same identifier with **different** bytes is one, and a fundamental one at that — it
+would be a SHA-256 collision. An implementation MUST report that and MUST NOT replace the existing
+key.
 
-Ein stillgelegter Schlüssel wird durch erneute Aufnahme **nicht** wieder scharf geschaltet. Das
-Wiederinbetriebnehmen ist ein eigener, ausdrücklicher Schritt.
+A disabled key is **not** re-armed by being admitted again. Putting it back into service is a
+separate, explicit step.
 
-### 5.2 Stilllegung
+### 5.2 Disabling
 
-Stilllegen heißt: **keine neuen** Einträge mehr von diesem Schlüssel. Was er früher signiert hat,
-bleibt gültig.
+Disabling means: **no new** entries from this key. What it signed earlier stays valid.
 
-Das ist keine Nachlässigkeit, sondern die Bedingung dafür, dass das Log ein Transparenzlog ist.
-Ein Log, das rückwirkend Aussagen entwertet, weil ein Schlüssel später stillgelegt wurde,
-beantwortete die Frage "war diese Signatur zum Zeitpunkt X gültig?" nicht mehr — und genau diese
-Frage ist der einzige Grund, ein Log zu führen. Wer eine **inhaltliche** Aussage zurücknehmen
-will, widerruft sie mit einem `revocation`-Eintrag (OWM-0 §3); wer eine Nutzlast loswerden muss,
-löscht sie (OWM-2 §7). Beides sind Einträge im Log, keine Löcher darin.
+That is not negligence but the condition for the log being a transparency log. A log that
+retroactively devalues statements because a key was disabled later would no longer answer the
+question "was this signature valid at time X?" — and precisely that question is the only reason to
+keep a log. Whoever wants to withdraw a statement **in substance** revokes it with a `revocation`
+entry (OWM-0 §3); whoever has to get rid of a payload erases it (OWM-2 §7). Both are entries in
+the log, not holes in it.
 
-Die Node MUSS ihren **eigenen** Schlüssel im Verzeichnis führen. Sie signiert damit
-Löschbezeugungen, und die laufen durch dieselbe Einlasskontrolle wie jeder fremde Eintrag.
+The node MUST carry its **own** key in the directory. It signs erasure witnesses with it, and
+those go through the same admission control as any foreign entry.
 
-### 5.3 Auskunft nach außen
+### 5.3 Disclosure to the outside
 
-Eine Node MUSS zu einer Kennung den zugehörigen öffentlichen Schlüssel herausgeben
-(OWM-7 §4.9). Ohne diese Auskunft könnte ein fremder Client keine einzige Signatur prüfen: Der
-Eintrag nennt in `iss` nur die Kennung, und aus ihr ist der Schlüssel nicht zurückzugewinnen.
+A node MUST hand out the public key belonging to an identifier (OWM-7 §4.9). Without this
+disclosure a foreign client could not check a single signature: the entry names only the
+identifier in `iss`, and the key cannot be recovered from it.
 
-Herausgegeben werden `alg`, `public`, `added_at`, `disabled_at` und `parent` — **nicht** das
-`label`. Das Etikett ist Freitext der Betreiberin und trägt in der Praxis oft einen
-Personennamen; es hat in einer öffentlichen Auskunft nichts zu suchen.
+What is handed out is `alg`, `public`, `added_at`, `disabled_at` and `parent` — **not** the
+`label`. The label is the operator's free text and in practice often carries a person's name; it
+has no business in a public disclosure.
 
-Die Auskunft gilt auch für **stillgelegte** Schlüssel, mit gesetztem `disabled_at`. Sonst wäre
-alles, was ein Schlüssel vor seiner Stilllegung unterschrieben hat, nicht mehr prüfbar — und
-damit wäre §5.2 hinfällig.
+The disclosure also applies to **disabled** keys, with `disabled_at` set. Otherwise everything a
+key signed before it was disabled would no longer be checkable — and §5.2 would be void.
 
-Nachgeschlagen wird einzeln über die Kennung. Eine Node MUSS ihr Verzeichnis nicht öffentlich
-auflisten und SOLLTE es nicht tun: Die Liste wäre ihr Teilnehmerverzeichnis, und wer eine
-Signatur prüfen will, hat die Kennung ohnehin aus dem Eintrag vor sich.
+Lookups happen one at a time by identifier. A node need not list its directory publicly and SHOULD
+not: the list would be its participant register, and whoever wants to check a signature has the
+identifier from the entry in front of them anyway.
 
 ## 6. Rotation
 
-Ein Schlüsselwechsel ist ein Eintrag im Log, kein Vorgang daneben.
+A key change is an entry in the log, not a procedure beside it.
 
 ```
 typ  = key_rotation
-subj = KeyID des Nachfolgers
-iss  = KeyID des Vorgängers
-cmt  = Commitment über die Nutzlast
+subj = KeyID of the successor
+iss  = KeyID of the predecessor
+cmt  = commitment over the payload
 ```
 
-Nutzlast:
+Payload:
 
 ```json
 {
   "alg": "ML-DSA-65",
-  "public": "…Hex des öffentlichen Nachfolgeschlüssels…",
+  "public": "…hex of the successor public key…",
   "label": "Hof Sonnenblick (2027)"
 }
 ```
 
-Regeln:
+Rules:
 
-- Der Eintrag MUSS vom **Vorgänger** signiert sein. Damit ist die Rotation, was sie sein soll:
-  eine Aussage des bisherigen Inhabers, im Log festgehalten. Ein Schlüssel, der sich selbst
-  ankündigt, ist keine Rotation, sondern eine Neuanmeldung — und die geht über §5.1.
-- `subj` MUSS die Kennung des angekündigten Nachfolgers sein. Ohne diese Bindung stünde im Log
-  eine Rotation zu Schlüssel A, während die Nutzlast Schlüssel B nennt — und **nach einer
-  Löschung der Nutzlast** wäre nicht mehr feststellbar, welcher gemeint war. Die Bindung ist
-  genau deshalb Pflicht: Sie ist der Teil der Aussage, der die Löschung überlebt.
-- Aussteller und Subjekt MÜSSEN verschieden sein.
-- Eine Node MUSS die angekündigte Länge gegen das genannte Verfahren prüfen, statt sie zu erraten.
-- Die Node nimmt den Nachfolger mit `parent = iss` ins Verzeichnis auf.
+- The entry MUST be signed by the **predecessor**. That makes the rotation what it is meant to be:
+  a statement by the previous holder, recorded in the log. A key that announces itself is not a
+  rotation but a new registration — and that goes through §5.1.
+- `subj` MUST be the identifier of the announced successor. Without this binding the log would
+  carry a rotation to key A while the payload names key B — and **after an erasure of the
+  payload** it would no longer be determinable which one was meant. The binding is mandatory for
+  exactly that reason: it is the part of the statement that survives the erasure.
+- Issuer and subject MUST be different.
+- A node MUST check the announced length against the scheme named rather than guessing it.
+- The node admits the successor to the directory with `parent = iss`.
 
-### 6.1 Überlappende Gültigkeit
+### 6.1 Overlapping validity
 
-Der Vorgänger wird durch die Rotation **nicht** stillgelegt.
+The predecessor is **not** disabled by the rotation.
 
-Beide Schlüssel gelten eine Zeit lang nebeneinander. Sonst bräche jede Rotation den laufenden
-Betrieb: Ein Sensor im Kühllaster, der die Ankündigung noch nicht gesehen hat, signiert weiter
-mit dem alten Schlüssel, und seine Messreihe fiele aus der Kühlkette heraus — wegen eines
-Verwaltungsvorgangs, der mit der Ware nichts zu tun hat. Das Stilllegen des Vorgängers ist ein
-eigener, späterer Schritt der Betreiberin (§5.2).
+Both keys are valid alongside each other for a while. Otherwise every rotation would break
+day-to-day operation: a sensor in a refrigerated lorry that has not yet seen the announcement goes
+on signing with the old key, and its series of readings would drop out of the cold chain — because
+of an administrative act that has nothing to do with the goods. Disabling the predecessor is a
+separate, later step by the operator (§5.2).
 
-Wie lang die Überlappung sein SOLLTE, hängt davon ab, wie lange ein Gerät im Feld offline sein
-kann. Für Sensoren in Transportketten sind Wochen realistisch, nicht Stunden.
+How long the overlap SHOULD be depends on how long a device can be offline in the field. For
+sensors in transport chains, weeks are realistic, not hours.
 
-### 6.2 Was Rotation nicht leistet
+### 6.2 What rotation does not achieve
 
-Rotation ist **kein** Widerruf. Wurde ein Schlüssel kompromittiert, sind alle mit ihm signierten
-Einträge weiterhin gültig signiert — auch die, die der Angreifer erzeugt hat. Was hilft:
+Rotation is **not** revocation. If a key was compromised, all entries signed with it remain validly
+signed — including those the attacker produced. What helps:
 
-1. Vorgänger stilllegen (§5.2), damit keine neuen dazukommen.
-2. Die betroffenen Aussagen einzeln widerrufen (`revocation`, OWM-0 §3).
-3. Den Zeitraum benennen, ab dem der Schlüssel als kompromittiert gilt.
+1. Disable the predecessor (§5.2), so that no new ones are added.
+2. Revoke the affected statements individually (`revocation`, OWM-0 §3).
+3. Name the period from which the key counts as compromised.
 
-Punkt 3 ist der schwierige: Das Log bezeugt, **wann** eine Node einen Eintrag aufgenommen hat
-(OWM-2 §3.1), nicht wann ein Schlüssel abhandenkam. Wer den Zeitpunkt später behauptet, als er
-war, verschont eigene Einträge; wer ihn früher behauptet, entwertet fremde. Das Protokoll kann
-das nicht auflösen — es ist derselbe Grenzfall wie das Orakelproblem (OWM-9), nur auf der
-Schlüsselebene.
+Point 3 is the hard one: the log witnesses **when** a node took an entry in (OWM-2 §3.1), not when
+a key went missing. Whoever claims the moment later than it was spares their own entries; whoever
+claims it earlier devalues other people's. The protocol cannot resolve that — it is the same
+borderline case as the oracle problem (OWM-9), only at the key level.
 
-## 7. Sensorschlüssel
+## 7. Sensor keys
 
-Ein Sensor erhält bei Inbetriebnahme ein eigenes Schlüsselpaar, wo verfügbar in einem
-Hardware-Sicherheitselement. Der **Node-Betreiber** nimmt es ins Verzeichnis auf und bindet es
-damit an die eigene Identität; es gibt keine zentrale Stelle, die Sensoren zertifiziert.
+A sensor receives its own key pair when put into service, where available in a hardware security
+element. The **node operator** admits it to the directory and thereby binds it to their own
+identity; there is no central body that certifies sensors.
 
-Der Vertrauensgrad eines Sensors ist nach oben durch den seines Betreibers begrenzt. Die
-Einzelheiten dazu — Berechnung, Vererbung, Minimum-Prinzip über die Kette — stehen in OWM-6.
+A sensor's trust level is capped by that of its operator. The details — computation, inheritance,
+minimum principle across the chain — are in OWM-6.
 
-Ein Sensorschlüssel SOLLTE ML-DSA-44 sein (§2) und ausschließlich `sensor_reading`-Einträge
-signieren. Eine Node KANN das erzwingen; das Profil kann es verlangen (OWM-4 §5).
+A sensor key SHOULD be ML-DSA-44 (§2) and SHOULD sign `sensor_reading` entries exclusively. A node
+MAY enforce that; the profile can require it (OWM-4 §5).
 
-## 8. Sicherheitsbetrachtung
+## 8. Security considerations
 
-| Angriff | Wirkung | Gegenmittel |
+| Attack | Effect | Countermeasure |
 |---|---|---|
-| Fremder Schlüssel reicht Einträge ein | keine | Verzeichnis weist ab (§5) |
-| Kennung zeigt auf andere Bytes | Schlüsselverwechslung | selbstzertifizierende Kennung (§3) |
-| Rotation durch den Nachfolger selbst | Übernahme einer Identität | nur der Vorgänger darf ankündigen (§6) |
-| Rotation ohne Subjektbindung | Ziel nach Löschung unbestimmbar | `subj` = KeyID des Nachfolgers (§6) |
-| Identitätsdatei entwendet | beliebige STHs, Split-View | Dateirechte, HSM; Erkennung nur extern (OWM-9 A3) |
-| Stilllegung als Rückdatierung missbraucht | Altaussagen entwertet | Stilllegung wirkt nur vorwärts (§5.2) |
+| Foreign key submits entries | none | directory rejects (§5) |
+| Identifier points to different bytes | key confusion | self-certifying identifier (§3) |
+| Rotation by the successor itself | takeover of an identity | only the predecessor may announce (§6) |
+| Rotation without subject binding | target indeterminable after erasure | `subj` = KeyID of the successor (§6) |
+| Identity file stolen | arbitrary STHs, split view | file permissions, HSM; detection only externally (OWM-9 A3) |
+| Disabling abused as backdating | old statements devalued | disabling only takes effect forwards (§5.2) |

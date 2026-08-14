@@ -11,17 +11,16 @@ import (
 	"fmt"
 )
 
-// DigestSize ist die Länge aller Kennungen und Commitments in Byte.
+// DigestSize is the length of every identifier and commitment in bytes.
 //
-// SHA-256 und nicht SHA-384, obwohl OpenWaymark sonst durchgängig
-// post-quantum-sicher ausgelegt ist: 128 Bit Kollisionsresistenz sind auch
-// gegen Quantenangriffe ausreichend, und SHA-256 hält die Kompatibilität zu
-// RFC 6962. Begründung in spec/owm-0-overview.md §3.1.
+// SHA-256 rather than SHA-384, even though OpenWaymark is otherwise designed to
+// be post-quantum secure throughout: 128 bits of collision resistance are
+// sufficient against quantum attacks too, and SHA-256 keeps compatibility with
+// RFC 6962. Rationale in spec/owm-0-overview.md §3.1.
 const DigestSize = sha256.Size
 
-// Bezeichnungen zur Domänentrennung. Jeder Hashwert ist an genau einen
-// Verwendungszweck gebunden, damit ein Wert aus einem Kontext niemals in einem
-// anderen gültig ist.
+// Labels for domain separation. Every hash value is bound to exactly one
+// purpose, so that a value from one context is never valid in another.
 const (
 	labelKeyID     = "OWM/1 key-id"
 	labelEntryID   = "OWM/1 entry-id"
@@ -30,14 +29,13 @@ const (
 	labelLogID     = "OWM/1 log-id"
 )
 
-// Digest ist ein SHA-256-Hashwert.
+// Digest is a SHA-256 hash value.
 type Digest [DigestSize]byte
 
-// KeyID kennzeichnet einen öffentlichen Schlüssel, SubjectID ein Subjekt,
-// Commitment eine off-chain gehaltene Nutzlast, LogID ein Log. Alle vier sind
-// eigene Typen und keine Aliase, damit der Compiler eine Verwechslung im
-// Eintrag aufdeckt — der Unterschied zwischen Aussteller und Subjekt ist
-// sicherheitsrelevant und würde sich sonst still auswirken.
+// KeyID identifies a public key, SubjectID a subject, Commitment a payload held
+// off-chain, LogID a log. All four are distinct types rather than aliases, so
+// that the compiler catches a mix-up inside an entry — the difference between
+// issuer and subject is security relevant and would otherwise go unnoticed.
 type (
 	KeyID      Digest
 	SubjectID  Digest
@@ -47,8 +45,8 @@ type (
 
 func (d Digest) String() string { return hex.EncodeToString(d[:]) }
 
-// IsZero meldet, ob der Wert uninitialisiert ist. Ein Nullwert ist in einem
-// Eintrag nie zulässig, sondern immer ein vergessenes Feld.
+// IsZero reports whether the value is uninitialised. A zero value is never
+// legitimate in an entry, it is always a forgotten field.
 func (d Digest) IsZero() bool { return d == Digest{} }
 
 func (d Digest) MarshalText() ([]byte, error) {
@@ -67,14 +65,14 @@ func (d *Digest) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// ParseDigest liest einen hexkodierten Hashwert.
+// ParseDigest reads a hex-encoded hash value.
 func ParseDigest(s string) (Digest, error) {
 	var d Digest
 	err := d.UnmarshalText([]byte(s))
 	return d, err
 }
 
-// DigestFromBytes übernimmt genau DigestSize Byte in einen Digest.
+// DigestFromBytes takes exactly DigestSize bytes into a Digest.
 func DigestFromBytes(b []byte) (Digest, error) {
 	var d Digest
 	if len(b) != DigestSize {
@@ -104,13 +102,13 @@ func (l LogID) IsZero() bool                  { return Digest(l).IsZero() }
 func (l LogID) MarshalText() ([]byte, error)  { return Digest(l).MarshalText() }
 func (l *LogID) UnmarshalText(t []byte) error { return (*Digest)(l).UnmarshalText(t) }
 
-// hashLabeled berechnet
+// hashLabeled computes
 //
 //	SHA-256( u8(len(label)) ‖ label ‖ u64be(len(p₁)) ‖ p₁ ‖ … )
 //
-// Die Längenpräfixe machen die Eingabe präfixfrei: keine zwei verschiedenen
-// Argumentlisten erzeugen denselben Hashinput. Ohne sie ließe sich etwa ein
-// Namensraum teilweise in den Wert verschieben, ohne den Hash zu ändern.
+// The length prefixes make the input prefix-free: no two different argument
+// lists produce the same hash input. Without them one could, for instance,
+// shift part of a namespace into the value without changing the hash.
 func hashLabeled(label string, parts ...[]byte) Digest {
 	if len(label) > 255 {
 		panic("owm: hashLabeled: label longer than 255 bytes")
@@ -129,17 +127,17 @@ func hashLabeled(label string, parts ...[]byte) Digest {
 	return d
 }
 
-// DeriveSubjectID leitet eine Subjekt-ID aus Kennzeichnungssystem und
-// Bezeichner ab, etwa aus "gs1:sgtin" und einer SGTIN.
+// DeriveSubjectID derives a subject ID from an identification scheme and an
+// identifier, for example from "gs1:sgtin" and an SGTIN.
 //
-// Das ist bequem, aber keine Vertraulichkeitsmaßnahme: Wer den Namensraum und
-// einen kleinen Wertebereich kennt, kann die ID durchprobieren. Wo das
-// Verknüpfbarkeit erzeugen würde, ist NewSubjectID zu verwenden.
+// This is convenient but not a confidentiality measure: anyone who knows the
+// namespace and a small value range can guess the ID by enumeration. Where that
+// would create linkability, use NewSubjectID instead.
 func DeriveSubjectID(namespace string, value []byte) SubjectID {
 	return SubjectID(hashLabeled(labelSubjectID, []byte(namespace), value))
 }
 
-// NewSubjectID zieht eine zufällige, nicht ableitbare Subjekt-ID.
+// NewSubjectID draws a random subject ID that cannot be derived.
 func NewSubjectID() (SubjectID, error) {
 	var s SubjectID
 	if _, err := rand.Read(s[:]); err != nil {

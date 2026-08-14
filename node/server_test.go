@@ -20,7 +20,7 @@ import (
 	"openwaymark.org/owm/profiles/food"
 )
 
-// api ist ein knapper Testclient für die HTTP-Schnittstellen.
+// api is a terse test client for the HTTP interfaces.
 type api struct {
 	t      *testing.T
 	public string
@@ -36,7 +36,7 @@ func newAPI(t *testing.T, n *Node) *api {
 	return &api{t: t, public: pub.URL, admin: adm.URL}
 }
 
-// call schickt eine Anfrage und dekodiert die Antwort, falls out gesetzt ist.
+// call sends a request and decodes the response if out is set.
 func (a *api) call(method, url string, body, out any) int {
 	a.t.Helper()
 	var rd io.Reader
@@ -63,7 +63,7 @@ func (a *api) call(method, url string, body, out any) int {
 	if err != nil {
 		a.t.Fatalf("read response: %v", err)
 	}
-	// Jede Antwort dieser API ist JSON — auch die des Routers.
+	// Every response of this API is JSON — the router's included.
 	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") &&
 		!strings.HasPrefix(ct, "application/schema+json") {
 		a.t.Fatalf("%s %s: Content-Type %q", method, url, ct)
@@ -94,7 +94,7 @@ func (a *api) mustGet(path string, out any) {
 	}
 }
 
-// submit reicht einen signierten Eintrag über die öffentliche API ein.
+// submit hands in a signed entry through the public API.
 func (a *api) submit(se *core.SignedEntry, salt core.Salt, payload []byte) submitResponse {
 	a.t.Helper()
 	encoded, err := se.Encode()
@@ -113,10 +113,10 @@ func (a *api) submit(se *core.SignedEntry, salt core.Salt, payload []byte) submi
 	return out
 }
 
-// Die Ereignisse einer durchgehenden Lebensmittelkette, in der Reihenfolge, in
-// der sie anfallen. Zusammen sind sie der Beleg, dass sich eine reale Kette mit
-// dem Profil food.v1 abbilden lässt — Erzeugung, Zusammenfassung, Transport mit
-// Kühlkettenmessung, Verarbeitung, Übergabe.
+// The events of one continuous food chain, in the order in which they occur.
+// Together they are the evidence that a real chain can be modelled with the
+// food.v1 profile — production, aggregation, transport with cold chain
+// measurement, processing, handover.
 const (
 	evProduction = `{
 		"event": "production",
@@ -140,7 +140,7 @@ const (
 	evMeasurement = `{
 		"event": "measurement",
 		"time": "2026-08-10T11:15:00+02:00",
-		"sensor": {"id": "kuehl-77", "model": "TempLog 3"},
+		"sensor": {"id": "cool-77", "model": "TempLog 3"},
 		"quantity_kind": "temperature",
 		"unit": "CEL",
 		"readings": [
@@ -158,17 +158,17 @@ const (
 	}`
 )
 
-// TestSupplyChainEndToEnd führt eine vollständige Kette über die HTTP-API und
-// prüft am Ende, was das Protokoll verspricht: Die Historie ist abrufbar, jeder
-// Eintrag ist gegen einen unterschriebenen Baumzustand beweisbar, und eine
-// Löschung nimmt die Nutzlast, ohne einen einzigen Beweis zu entwerten.
+// TestSupplyChainEndToEnd runs a complete chain through the HTTP API and checks
+// at the end what the protocol promises: the history can be retrieved, every
+// entry is provable against a signed tree state, and an erasure takes the
+// payload without invalidating a single proof.
 func TestSupplyChainEndToEnd(t *testing.T) {
 	n := newTestNode(t)
 	a := newAPI(t, n)
 
 	farm := newParticipant(t, n, core.SigAlgMLDSA65, "Hof Sonnenblick")
 	dairy := newParticipant(t, n, core.SigAlgMLDSA65, "Molkerei Tal")
-	sensor := newParticipant(t, n, core.SigAlgMLDSA44, "kuehl-77")
+	sensor := newParticipant(t, n, core.SigAlgMLDSA44, "cool-77")
 
 	milk := newSubject(t)
 	tank := newSubject(t)
@@ -178,39 +178,39 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		return core.EntryRef{Entry: r.EntryID, Log: r.Log}
 	}
 
-	// 1. Erzeugung.
+	// 1. Production.
 	se, salt, payload := farm.sign(t, core.EntryTypeAssertion, milk, evProduction)
 	production := a.submit(se, salt, payload)
 	if production.Seq != 0 {
 		t.Fatalf("first entry has seq %d", production.Seq)
 	}
 
-	// Ein STH von früh in der Kette — gegen ihn wird später die Konsistenz
-	// geprüft.
+	// An STH from early in the chain — consistency is checked against it later
+	// on.
 	var early sthResponse
 	if code := a.adminPost("/admin/v1/sth", nil, &early); code != http.StatusOK {
 		t.Fatalf("issue STH: %d", code)
 	}
 
-	// 2. Zusammenfassung im Tank.
+	// 2. Aggregation in the tank.
 	evAggregation := `{
 		"event": "aggregation",
 		"time": "2026-08-10T09:00:00+02:00",
 		"action": "add",
-		"container": {"name": "Sammeltank T-3"},
+		"container": {"name": "Collection tank T-3"},
 		"children": [{"subject": "` + hex.EncodeToString(milk[:]) + `", "quantity": {"value": 1000, "unit": "LTR"}}]
 	}`
 	se, salt, payload = farm.sign(t, core.EntryTypeAssertion, tank, evAggregation, ref(production))
 	aggregation := a.submit(se, salt, payload)
 
-	// 3. Transport und die Messung der Kühlkette dazu.
+	// 3. Transport and the cold chain measurement that goes with it.
 	se, salt, payload = farm.sign(t, core.EntryTypeAssertion, tank, evTransport, ref(aggregation))
 	transport := a.submit(se, salt, payload)
 
 	se, salt, payload = sensor.sign(t, core.EntryTypeSensorReading, tank, evMeasurement, ref(transport))
 	measurement := a.submit(se, salt, payload)
 
-	// 4. Verarbeitung zu Käse.
+	// 4. Processing into cheese.
 	evProcessing := `{
 		"event": "processing",
 		"time": "2026-08-11T08:00:00+02:00",
@@ -221,7 +221,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 	se, salt, payload = dairy.sign(t, core.EntryTypeAssertion, cheese, evProcessing, ref(measurement))
 	processing := a.submit(se, salt, payload)
 
-	// 5. Übergabe an den Großhandel.
+	// 5. Handover to the wholesaler.
 	se, salt, payload = dairy.sign(t, core.EntryTypeAssertion, cheese, evHandover, ref(processing))
 	handover := a.submit(se, salt, payload)
 
@@ -229,7 +229,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		t.Fatalf("after six entries the handover sits at seq %d", handover.Seq)
 	}
 
-	// Historie: Der Tank trägt Zusammenfassung, Transport und Messung.
+	// History: the tank carries aggregation, transport and measurement.
 	var history historyResponse
 	a.mustGet("/owm/v1/subjects/"+tank.String(), &history)
 	if history.Total != 3 {
@@ -250,8 +250,9 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		if got.Event != want {
 			t.Fatalf("history[%d] is %q, expected %q", i, got.Event, want)
 		}
-		// Der Salt kommt mit, sonst wäre das Commitment nicht nachzurechnen —
-		// und die Nutzlast wäre nur das, was der Server gerade behauptet.
+		// The salt comes along, otherwise the commitment could not be
+		// recomputed — and the payload would be no more than what the server
+		// currently claims.
 		var s core.Salt
 		copy(s[:], pr.Salt)
 		want := history.Entries[i].Decoded.Commitment
@@ -260,7 +261,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		}
 	}
 
-	// Ein Eintrag mit Nutzlast, decodierter Sicht und Zustand.
+	// One entry with payload, decoded view and status.
 	var view leafView
 	a.mustGet("/owm/v1/entries/"+production.EntryID.String(), &view)
 	if view.Payload != "present" {
@@ -273,8 +274,8 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		t.Fatal("the issuer in the decoded view does not match")
 	}
 
-	// Beweiskette: STH holen, Inklusionsbeweis prüfen — mit dem Blatt aus der
-	// Antwort, nicht mit dem, was der Server behauptet.
+	// Chain of proof: fetch the STH, check the inclusion proof — with the leaf
+	// from the response, not with what the server claims.
 	var latest sthResponse
 	if code := a.adminPost("/admin/v1/sth", nil, &latest); code != http.StatusOK {
 		t.Fatalf("issue STH: %d", code)
@@ -304,7 +305,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		t.Fatalf("inclusion proof: %v", err)
 	}
 
-	// Konsistenz zwischen frühem und aktuellem Baumzustand.
+	// Consistency between the early and the current tree state.
 	earlySTH, err := early.Signed.STH()
 	if err != nil {
 		t.Fatalf("early STH: %v", err)
@@ -315,7 +316,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		t.Fatalf("consistency proof: %v", err)
 	}
 
-	// Löschung: Die Nutzlast der Erzeugung verschwindet, der Baum bleibt.
+	// Erasure: the payload of the production event disappears, the tree stays.
 	var erased struct {
 		Erased    core.Digest `json:"erased"`
 		Tombstone leafView    `json:"tombstone"`
@@ -335,14 +336,14 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 	if after.Payload != "erased" {
 		t.Fatalf("payload_status = %q, expected erased", after.Payload)
 	}
-	// Der Kniff des ganzen Entwurfs: derselbe Beweis, derselbe STH, weiterhin
-	// gültig. Gelöscht wurde außerhalb des Baums.
+	// The trick of the whole design: the same proof, the same STH, still valid.
+	// What was erased sat outside the tree.
 	if err := proof.Verify(leafHash, sth); err != nil {
 		t.Fatalf("the proof from before the erasure no longer holds: %v", err)
 	}
 
-	// Und die Nutzlast ist auch nicht mehr zu erraten: Ohne Salt trifft kein
-	// Kandidat aus dem Wertebereich das Commitment.
+	// And the payload cannot be guessed any more either: without the salt no
+	// candidate from the range of values hits the commitment.
 	entry, err := after.decodedEntry()
 	if err != nil {
 		t.Fatalf("read entry: %v", err)
@@ -354,7 +355,7 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 	}
 }
 
-// decodedEntry liest den Eintrag aus der Blattsicht.
+// decodedEntry reads the entry out of the leaf view.
 func (v leafView) decodedEntry() (*core.Entry, error) {
 	se, err := core.ParseSignedEntry(v.Entry)
 	if err != nil {
@@ -378,7 +379,7 @@ func TestPublicMetadata(t *testing.T) {
 	if meta.Key.ID != n.Identity().Key.Public().ID() {
 		t.Fatal("the named key is not the node's key")
 	}
-	// Wer ein Löschbegehren stellen will, muss erfahren, an wen.
+	// Whoever wants to file an erasure request has to learn with whom.
 	if meta.Operator.Name == "" || meta.Operator.Contact == "" {
 		t.Fatal("the operator is missing from the metadata")
 	}
@@ -389,16 +390,16 @@ func TestPublicMetadata(t *testing.T) {
 		t.Fatal("the schema hash is missing")
 	}
 
-	// Die Schemadateien sind abrufbar — sonst könnte ein Client nicht prüfen,
-	// wogegen die Node validiert.
+	// The schema files can be fetched — otherwise a client could not check what
+	// the node validates against.
 	code := a.call(http.MethodGet, a.public+"/owm/v1/schema?profile="+food.ID+"&file="+meta.Profiles[0].Files[0], nil, nil)
 	if code != http.StatusOK {
 		t.Fatalf("schema file: %d", code)
 	}
 }
 
-// TestPublicKeyLookup prüft, was ein fremder Client braucht, um überhaupt
-// prüfen zu können: den öffentlichen Schlüssel zu einer Ausstellerkennung.
+// TestPublicKeyLookup checks what a foreign client needs in order to be able to
+// verify anything at all: the public key belonging to an issuer identifier.
 func TestPublicKeyLookup(t *testing.T) {
 	n := newTestNode(t)
 	a := newAPI(t, n)
@@ -414,8 +415,8 @@ func TestPublicKeyLookup(t *testing.T) {
 		t.Fatalf("alg = %q", view.Alg)
 	}
 
-	// Der Client rechnet die Kennung selbst nach. Genau das macht die Auskunft
-	// unabhängig davon, ob die Node die Wahrheit sagt.
+	// The client recomputes the identifier itself. That is exactly what makes
+	// the lookup independent of whether the node tells the truth.
 	pub, err := core.ParsePublicKey(core.SigAlgMLDSA65, view.Public)
 	if err != nil {
 		t.Fatalf("read key: %v", err)
@@ -424,23 +425,23 @@ func TestPublicKeyLookup(t *testing.T) {
 		t.Fatal("the delivered bytes yield a different identifier")
 	}
 
-	// Und er kann damit eine Signatur aus dem Log prüfen.
+	// And it can check a signature from the log with it.
 	se, salt, payload := farm.sign(t, core.EntryTypeAssertion, newSubject(t), evProduction)
 	a.submit(se, salt, payload)
 	if err := se.Verify(pub); err != nil {
 		t.Fatalf("signature with the fetched key: %v", err)
 	}
 
-	// Das Etikett der Betreiberin bleibt drinnen: Es ist Freitext und trägt
-	// oft einen Namen.
+	// The operator's label stays inside: it is free text and often carries a
+	// name.
 	var raw map[string]any
 	a.mustGet("/owm/v1/keys/"+id.String(), &raw)
 	if _, ok := raw["label"]; ok {
 		t.Fatal("the label appears in the public response")
 	}
 
-	// Ein stillgelegter Schlüssel bleibt abrufbar — sonst wäre alles, was er
-	// je unterschrieben hat, nicht mehr prüfbar.
+	// A disabled key stays retrievable — otherwise everything it ever signed
+	// would no longer be verifiable.
 	if code := a.adminPost("/admin/v1/keys/"+id.String()+"/disable", nil, nil); code != http.StatusOK {
 		t.Fatalf("disable: %d", code)
 	}
@@ -453,7 +454,7 @@ func TestPublicKeyLookup(t *testing.T) {
 		t.Fatal("a disabled key returns different bytes")
 	}
 
-	// Eine Liste aller Teilnehmer gibt es öffentlich nicht.
+	// There is no public list of all participants.
 	if code := a.call(http.MethodGet, a.public+"/owm/v1/keys", nil, nil); code != http.StatusNotFound {
 		t.Fatalf("GET /owm/v1/keys: %d, expected 404", code)
 	}
@@ -462,7 +463,7 @@ func TestPublicKeyLookup(t *testing.T) {
 func TestHTTPErrors(t *testing.T) {
 	n := newTestNode(t)
 	a := newAPI(t, n)
-	farm := newParticipant(t, n, core.SigAlgMLDSA65, "hof")
+	farm := newParticipant(t, n, core.SigAlgMLDSA65, "farm")
 
 	cases := []struct {
 		name   string
@@ -471,17 +472,17 @@ func TestHTTPErrors(t *testing.T) {
 		body   any
 		want   int
 	}{
-		{"unknown path", http.MethodGet, "/owm/v1/nichts", nil, http.StatusNotFound},
+		{"unknown path", http.MethodGet, "/owm/v1/nothing", nil, http.StatusNotFound},
 		{"wrong method", http.MethodPost, "/owm/v1/sth", struct{}{}, http.StatusMethodNotAllowed},
-		{"broken identifier", http.MethodGet, "/owm/v1/entries/nichthex", nil, http.StatusBadRequest},
+		{"broken identifier", http.MethodGet, "/owm/v1/entries/nothex", nil, http.StatusBadRequest},
 		{"unknown entry", http.MethodGet, "/owm/v1/entries/" + strings.Repeat("ab", 32), nil, http.StatusNotFound},
 		{"broken sequence number", http.MethodGet, "/owm/v1/leaves/x", nil, http.StatusBadRequest},
 		{"proof without a reference", http.MethodGet, "/owm/v1/proof/inclusion", nil, http.StatusBadRequest},
 		{"unknown profile", http.MethodGet, "/owm/v1/schema?profile=gems.v1&file=x.json", nil, http.StatusNotFound},
-		{"broken key identifier", http.MethodGet, "/owm/v1/keys/nichthex", nil, http.StatusBadRequest},
+		{"broken key identifier", http.MethodGet, "/owm/v1/keys/nothex", nil, http.StatusBadRequest},
 		{"unknown key", http.MethodGet, "/owm/v1/keys/" + strings.Repeat("cd", 32), nil, http.StatusNotFound},
 		{"envelope without an entry", http.MethodPost, "/owm/v1/entries", submitRequest{}, http.StatusBadRequest},
-		{"unknown field in the envelope", http.MethodPost, "/owm/v1/entries", map[string]string{"eintrag": "x"}, http.StatusBadRequest},
+		{"unknown field in the envelope", http.MethodPost, "/owm/v1/entries", map[string]string{"notafield": "x"}, http.StatusBadRequest},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -549,7 +550,7 @@ func TestAdminKeys(t *testing.T) {
 	if code := a.adminGet("/admin/v1/keys", &list); code != http.StatusOK {
 		t.Fatalf("list: %d", code)
 	}
-	// Der eigene Schlüssel der Node und der eben aufgenommene.
+	// The node's own key and the one just admitted.
 	if len(list.Keys) != 2 {
 		t.Fatalf("%d keys, expected 2", len(list.Keys))
 	}
@@ -562,7 +563,7 @@ func TestAdminKeys(t *testing.T) {
 		t.Fatal("disabled_at missing")
 	}
 
-	// Ein Eintrag von einem stillgelegten Schlüssel wird nicht mehr angenommen.
+	// An entry from a disabled key is no longer accepted.
 	p := &participant{key: k}
 	se, salt, payload := p.sign(t, core.EntryTypeSensorReading, newSubject(t), evMeasurement)
 	encoded, err := se.Encode()
@@ -598,7 +599,7 @@ func TestAdminEraseUnknownEntry(t *testing.T) {
 
 func TestRunStopsWithContext(t *testing.T) {
 	n := newTestNode(t)
-	// Freie Ports, damit der Test keine belegte Adresse trifft.
+	// Free ports so that the test does not hit an address already in use.
 	n.cfg.Listen = "127.0.0.1:0"
 	n.cfg.AdminListen = "127.0.0.1:0"
 	n.cfg.STHInterval = Duration(20 * time.Millisecond)

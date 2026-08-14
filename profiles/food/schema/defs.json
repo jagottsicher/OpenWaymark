@@ -1,19 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Gemeinsame Bausteine des Lebensmittelprofils food.v1",
+  "title": "Shared building blocks of the food profile food.v1",
   "$defs": {
     "subject": {
-      "description": "Subjektkennung, 32 Byte hexadezimal — dasselbe Format wie das Feld subj im Eintrag.",
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
     "keyid": {
-      "description": "Schlüsselkennung, 32 Byte hexadezimal.",
+      "description": "Key identifier, 32 bytes hexadecimal.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
     "timestamp": {
-      "description": "Zeitpunkt in der Wirklichkeit, RFC 3339 mit Zeitzone.",
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
       "type": "string",
       "format": "date-time"
     },
@@ -27,7 +27,7 @@
       "maxLength": 200
     },
     "party": {
-      "description": "Beteiligte Stelle. Namen natürlicher Personen gehören hier nicht hinein; das Profil kennt nur Betriebe.",
+      "description": "Party involved. Names of natural persons do not belong in here; the profile knows only operations.",
       "type": "object",
       "properties": {
         "id": { "$ref": "#/$defs/text" },
@@ -44,7 +44,7 @@
         "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
         "name": { "$ref": "#/$defs/text" },
         "country": {
-          "description": "Ländercode nach ISO 3166-1 alpha-2.",
+          "description": "Country code per ISO 3166-1 alpha-2.",
           "type": "string",
           "pattern": "^[A-Z]{2}$"
         },
@@ -62,7 +62,7 @@
       "minProperties": 1
     },
     "quantity": {
-      "description": "Menge mit Einheit nach UN/CEFACT Recommendation 20, etwa KGM, GRM, LTR, H87 (Stück).",
+      "description": "Quantity with a unit per UN/CEFACT Recommendation 20, e.g. KGM, GRM, LTR, H87 (pieces).",
       "type": "object",
       "properties": {
         "value": { "type": "number", "minimum": 0 },
@@ -94,7 +94,7 @@
       "additionalProperties": false
     },
     "item": {
-      "description": "Verweis auf ein anderes Subjekt, wahlweise mit Menge und Warenangabe.",
+      "description": "Reference to another subject, optionally with quantity and goods details.",
       "type": "object",
       "properties": {
         "subject": { "$ref": "#/$defs/subject" },

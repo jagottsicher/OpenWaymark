@@ -24,9 +24,9 @@ type env struct {
 	path  string
 }
 
-// newEnv legt ein Log über einer Datei im Testverzeichnis an. Bewusst keine
-// :memory:-Datenbank: Der Test soll auch beantworten, ob das Log einen
-// Neustart übersteht.
+// newEnv creates a log over a file in the test directory. Deliberately not a
+// :memory: database: the test is also meant to answer whether the log survives
+// a restart.
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	key, err := core.GenerateKey(core.SigAlgMLDSA65)
@@ -64,7 +64,7 @@ func (e *env) open() {
 	e.log = lg
 }
 
-// reopen schließt die Datenbank und öffnet sie erneut.
+// reopen closes the database and opens it again.
 func (e *env) reopen() {
 	e.t.Helper()
 	if err := e.store.Close(); err != nil {
@@ -129,7 +129,7 @@ func TestSurvivesRestart(t *testing.T) {
 	const n = 11
 	leaves := make([]*owmlog.Leaf, 0, n)
 	for i := 0; i < n; i++ {
-		leaf, _ := e.append(ctx, []byte(fmt.Sprintf("nutzlast-%d", i)))
+		leaf, _ := e.append(ctx, []byte(fmt.Sprintf("payload-%d", i)))
 		leaves = append(leaves, leaf)
 	}
 	signed, err := e.log.IssueSTH(ctx)
@@ -165,7 +165,7 @@ func TestSurvivesRestart(t *testing.T) {
 		t.Errorf("STH after the restart: %v", err)
 	}
 
-	// Beweise gegen den vor dem Neustart ausgestellten STH.
+	// Proofs against the STH issued before the restart.
 	for i, leaf := range leaves {
 		hash, err := leaf.Hash()
 		if err != nil {
@@ -180,7 +180,7 @@ func TestSurvivesRestart(t *testing.T) {
 		}
 	}
 
-	// Und der Baum wächst weiter, konsistent zur alten Bezeugung.
+	// And the tree keeps growing, consistent with the old witness.
 	e.append(ctx, []byte("after the restart"))
 	nextSigned, err := e.log.IssueSTH(ctx)
 	if err != nil {
@@ -202,9 +202,9 @@ func TestSurvivesRestart(t *testing.T) {
 func TestErasurePersists(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
-	e.append(ctx, []byte("nachbar"))
-	leaf, entryID := e.append(ctx, []byte("personenbezogen"))
-	e.append(ctx, []byte("nachbar"))
+	e.append(ctx, []byte("neighbour"))
+	leaf, entryID := e.append(ctx, []byte("personal data"))
+	e.append(ctx, []byte("neighbour"))
 
 	signed, err := e.log.IssueSTH(ctx)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestErasurePersists(t *testing.T) {
 	if err := e.store.Put(ctx, entryID, core.Salt{}, []byte("clean again")); !errors.Is(err, owmlog.ErrErased) {
 		t.Errorf("erased payload accepted again: %v", err)
 	}
-	// Die Bezeugung bleibt: gelöscht wurde die Nutzlast, nicht der Beweis.
+	// The witness remains: what was erased is the payload, not the proof.
 	if err := p.Verify(hash, before); err != nil {
 		t.Errorf("inclusion proof after erasure and restart: %v", err)
 	}
@@ -249,10 +249,10 @@ func TestErasurePersists(t *testing.T) {
 func TestAppendConflict(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
-	e.append(ctx, []byte("eins"))
+	e.append(ctx, []byte("one"))
 
 	rec := owmlog.LeafRecord{
-		Seq:      0, // die Position ist längst vergeben
+		Seq:      0, // the position has long been taken
 		Hash:     core.Digest{1},
 		EntryID:  core.Digest{2},
 		Subject:  core.SubjectID{3},
@@ -279,12 +279,12 @@ func TestLookupsAndNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subject: %v", err)
 	}
-	e.append(ctx, []byte("fremd"))
+	e.append(ctx, []byte("unrelated"))
 	var ids []core.Digest
 	for i := 0; i < 3; i++ {
 		_, id := e.appendTo(ctx, subject, []byte(fmt.Sprintf("station-%d", i)))
 		ids = append(ids, id)
-		e.append(ctx, []byte("fremd"))
+		e.append(ctx, []byte("unrelated"))
 	}
 
 	history, err := e.store.LeavesBySubject(ctx, subject)
@@ -332,7 +332,7 @@ func TestSTHsAreKept(t *testing.T) {
 
 	var sths []*owmlog.STH
 	for round := 0; round < 5; round++ {
-		e.append(ctx, []byte(fmt.Sprintf("runde-%d", round)))
+		e.append(ctx, []byte(fmt.Sprintf("round-%d", round)))
 		signed, err := e.log.IssueSTH(ctx)
 		if err != nil {
 			t.Fatalf("STH: %v", err)
@@ -352,9 +352,8 @@ func TestSTHsAreKept(t *testing.T) {
 	if len(sizes) != len(sths) {
 		t.Fatalf("%d STHs retained, expected %d", len(sizes), len(sths))
 	}
-	// Alle aufbewahrten STHs müssen paarweise konsistent sein — die
-	// Eigenschaft, die ein Beobachter überhaupt erst prüfen kann, wenn die Node
-	// alte STHs herausgibt.
+	// All retained STHs must be pairwise consistent — the property an observer
+	// can only check at all if the node hands out old STHs.
 	for i := range sths {
 		for j := i; j < len(sths); j++ {
 			p, err := e.log.ConsistencyProof(ctx, sths[i].Size, sths[j].Size)
@@ -370,7 +369,7 @@ func TestSTHsAreKept(t *testing.T) {
 		}
 	}
 
-	// Ein zweiter STH zur selben Größe darf den vorhandenen nicht verdrängen.
+	// A second STH for the same size must not displace the existing one.
 	last := sths[len(sths)-1]
 	forged := *last
 	forged.Root[0] ^= 0xff

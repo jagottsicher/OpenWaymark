@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Transport",
-  "description": "Abgang oder Ankunft einer Sendung. Entspricht dem EPCIS-ObjectEvent mit action OBSERVE und bizStep shipping bzw. receiving. Abgang und Ankunft sind zwei Einträge, üblicherweise von zwei verschiedenen Stellen ausgestellt — die Übereinstimmung beider Aussagen ist ein Teil des Nachweises.",
+  "description": "Departure or arrival of a consignment. Corresponds to the EPCIS ObjectEvent with action OBSERVE and bizStep shipping or receiving. Departure and arrival are two entries, usually issued by two different parties - the agreement between both statements is part of the evidence.",
   "type": "object",
   "required": ["step"],
   "properties": {
@@ -12,11 +12,11 @@
     "from": { "$ref": "defs.json#/$defs/location" },
     "to": { "$ref": "defs.json#/$defs/location" },
     "consignment": {
-      "description": "Kennung der Sendung, etwa Container- oder Frachtbriefnummer.",
+      "description": "Identifier of the consignment, e.g. container or waybill number.",
       "$ref": "defs.json#/$defs/text"
     },
     "conditions": {
-      "description": "Zugesagte Beförderungsbedingungen. Ob sie eingehalten wurden, sagen die measurement-Einträge — nicht dieses Feld.",
+      "description": "Carriage conditions promised. Whether they were kept is what the measurement entries say - not this field.",
       "type": "object",
       "properties": {
         "temperature_c": {

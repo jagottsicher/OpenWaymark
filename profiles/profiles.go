@@ -1,33 +1,32 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package profiles hält den Profilmechanismus von OpenWaymark: die Zuordnung
-// von einer Profilkennung im Eintrag zu einem Satz JSON-Schemata, gegen den die
-// zugehörige Nutzlast geprüft wird.
+// Package profiles holds the profile mechanism of OpenWaymark: the mapping from
+// a profile identifier in the entry to a set of JSON schemas the accompanying
+// payload is checked against.
 //
-// Der Kern kennt keine Branchensemantik. Ein Eintrag trägt nur eine
-// Profilkennung wie "food.v1"; was ein "processing"-Ereignis bedeutet und
-// welche Felder es braucht, legt allein das Profil fest. Neue Branchen kommen
-// als neues Profil dazu, ohne dass sich am Datenmodell etwas ändert.
+// The core knows no industry semantics. An entry carries only a profile
+// identifier such as "food.v1"; what a "processing" event means and which
+// fields it needs is laid down by the profile alone. New industries arrive as a
+// new profile, without anything changing in the data model.
 //
-// # Was die Schemaprüfung leistet — und was nicht
+// # What schema validation does — and what it does not
 //
-// Sie ist ein Eingangsfilter, keine Wahrheitsaussage. Ein schemakonformer
-// Eintrag kann eine vollständige Lüge sein: Das Schema prüft Form, nicht
-// Wirklichkeit. Es hält Tippfehler, fehlende Pflichtfelder und
-// Formatverwechslungen aus dem Log fern, damit die Kette später überhaupt
-// maschinell auswertbar ist. Die Bindung an den Eintrag leistet nicht das
-// Schema, sondern das Commitment (core.Commit); die Zurechenbarkeit leistet die
-// Signatur. Siehe spec/owm-9-threat-model.md zum Orakelproblem.
+// It is an intake filter, not a statement about truth. An entry that conforms to
+// the schema can be a complete lie: the schema checks form, not reality. It
+// keeps typos, missing mandatory fields and format mix-ups out of the log so
+// that the chain can be evaluated by machine later on at all. What binds the
+// payload to the entry is not the schema but the commitment (core.Commit); what
+// makes it attributable is the signature. See spec/owm-9-threat-model.md on the
+// oracle problem.
 //
-// # Unveränderlichkeit
+// # Immutability
 //
-// Eine Profilversion ist unveränderlich. Ist "food.v1" einmal veröffentlicht,
-// ändert sich sein Schema nie wieder — sonst wäre ein Eintrag von gestern
-// heute ungültig, obwohl niemand ihn angefasst hat, und ein Monitor könnte
-// nicht mehr nachvollziehen, wogegen die Node damals geprüft hat. Änderungen
-// erscheinen als neue Kennung ("food.v2"). SchemaDigest macht die verwendeten
-// Regeln nachprüfbar.
+// A profile version is immutable. Once "food.v1" has been published, its schema
+// never changes again — otherwise an entry from yesterday would be invalid today
+// although nobody touched it, and a monitor could no longer tell what the node
+// checked against back then. Changes appear as a new identifier ("food.v2").
+// SchemaDigest makes the rules in use verifiable.
 package profiles
 
 import (
@@ -49,51 +48,51 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// Fehler dieses Pakets.
+// Errors of this package.
 var (
-	// ErrUnknown meldet eine Profilkennung, die diese Node nicht geladen hat.
+	// ErrUnknown reports a profile identifier this node has not loaded.
 	ErrUnknown = errors.New("owm/profiles: unknown profile")
-	// ErrDuplicate meldet eine bereits belegte Kennung im Register.
+	// ErrDuplicate reports an identifier already taken in the registry.
 	ErrDuplicate = errors.New("owm/profiles: profile already registered")
-	// ErrPayload meldet eine Nutzlast, die kein auswertbares JSON ist.
+	// ErrPayload reports a payload that is not readable JSON.
 	ErrPayload = errors.New("owm/profiles: payload is unreadable")
-	// ErrSchema meldet eine Nutzlast, die dem Profilschema widerspricht.
+	// ErrSchema reports a payload that contradicts the profile schema.
 	ErrSchema = errors.New("owm/profiles: payload does not match the schema")
-	// ErrEntry meldet einen Eintrag, der zur Nutzlast nicht passt.
+	// ErrEntry reports an entry that does not go with the payload.
 	ErrEntry = errors.New("owm/profiles: entry does not match the payload")
 )
 
-// maxDepth begrenzt die Verschachtelung einer Nutzlast.
+// maxDepth limits how deeply a payload may be nested.
 //
-// Der Decoder unten läuft rekursiv, und die Nutzlast kommt von außen. Ohne
-// Grenze genügt eine Kette aus Klammern, um den Stapel wachsen zu lassen, bis
-// der Prozess stirbt. Ein Lieferkettenereignis mit dreißig Ebenen gibt es
-// nicht; die Grenze kostet keinen realen Anwendungsfall.
+// The decoder below runs recursively, and the payload comes from outside.
+// Without a limit a chain of brackets is enough to make the stack grow until the
+// process dies. A supply chain event with thirty levels does not exist; the
+// limit costs no real use case.
 const maxDepth = 32
 
-// schemaBase ist der Namensraum, unter dem Profilschemata beim Compiler
-// registriert werden. Die URL wird nie abgerufen — sie dient nur als
-// Auflösungsbasis für relative $ref.
+// schemaBase is the namespace under which profile schemas are registered with
+// the compiler. The URL is never fetched — it only serves as the resolution base
+// for relative $ref.
 const schemaBase = "https://openwaymark.org/schema/"
 
-// labelSchemaDigest trennt den Schema-Digest von jedem anderen Hashwert im
-// System.
+// labelSchemaDigest separates the schema digest from every other hash value in
+// the system.
 const labelSchemaDigest = "OWM/1 profile-schema"
 
-// Rule prüft profilspezifische Bedingungen, die sich im JSON-Schema nicht
-// ausdrücken lassen, weil sie den Eintrag selbst betreffen — etwa dass eine
-// Messreihe als Sensorlesung und nicht als Behauptung eingetragen wird.
+// Rule checks profile-specific conditions that cannot be expressed in the JSON
+// schema because they concern the entry itself — such as a series of
+// measurements being recorded as a sensor reading and not as an assertion.
 //
-// payload ist bereits schemakonform, wenn die Regel läuft.
+// payload already conforms to the schema when the rule runs.
 type Rule func(e *core.Entry, payload []byte) error
 
-// File ist eine Schemadatei eines Profils, so wie sie ausgeliefert wird.
+// File is one schema file of a profile, as it is shipped.
 type File struct {
 	Name string
 	Data []byte
 }
 
-// Profile ist ein geladenes Schema-Profil.
+// Profile is a loaded schema profile.
 type Profile struct {
 	id     string
 	title  string
@@ -103,24 +102,24 @@ type Profile struct {
 	rule   Rule
 }
 
-// Options beschreibt ein zu ladendes Profil.
+// Options describes a profile to be loaded.
 type Options struct {
-	// ID ist die Profilkennung, wie sie im Eintrag steht, etwa "food.v1".
+	// ID is the profile identifier as it appears in the entry, e.g. "food.v1".
 	ID string
-	// Title ist eine kurze Beschreibung für Menschen.
+	// Title is a short description for humans.
 	Title string
-	// FS enthält die Schemadateien; alle *.json darin werden geladen.
+	// FS holds the schema files; every *.json in it is loaded.
 	FS fs.FS
-	// Root ist der Pfad des Wurzelschemas innerhalb von FS.
+	// Root is the path of the root schema within FS.
 	Root string
-	// Rule ist optional und prüft den Eintrag gegen die Nutzlast.
+	// Rule is optional and checks the entry against the payload.
 	Rule Rule
 }
 
-// Load übersetzt die Schemadateien und baut daraus ein Profil.
+// Load compiles the schema files and builds a profile from them.
 //
-// Fehler hier sind Programmierfehler im Profil selbst, keine Laufzeitfälle:
-// Profile werden beim Start geladen, nicht zur Bearbeitungszeit.
+// Errors here are programming errors in the profile itself, not runtime cases:
+// profiles are loaded at startup, not while processing.
 func Load(opt Options) (*Profile, error) {
 	if err := CheckID(opt.ID); err != nil {
 		return nil, err
@@ -138,13 +137,13 @@ func Load(opt Options) (*Profile, error) {
 
 	c := jsonschema.NewCompiler()
 	c.DefaultDraft(jsonschema.Draft2020)
-	// "format" ist im Standard nur eine Anmerkung. Für ein Profil ist es genau
-	// die Prüfung, die zählt: Ein Zeitstempel, der keiner ist, gehört nicht ins
-	// Log, sondern in die Fehlermeldung an den Einreicher.
+	// In the standard "format" is only an annotation. For a profile it is exactly
+	// the check that counts: a timestamp that is none does not belong in the log
+	// but in the error message to the submitter.
 	c.AssertFormat()
-	// Ein $ref auf eine fremde URL würde beim Übersetzen ins Netz greifen. Das
-	// soll nicht stillschweigend passieren: Ein Profil, dessen Regeln von einem
-	// fremden Server abhängen, ist kein festgeschriebenes Profil mehr.
+	// A $ref to a foreign URL would reach out to the network while compiling.
+	// That must not happen silently: a profile whose rules depend on a foreign
+	// server is no longer a fixed profile.
 	c.UseLoader(offlineLoader{})
 
 	base := schemaBase + opt.ID + "/"
@@ -176,27 +175,27 @@ func Load(opt Options) (*Profile, error) {
 	}, nil
 }
 
-// ID gibt die Profilkennung zurück, wie sie im Eintrag steht.
+// ID returns the profile identifier as it appears in the entry.
 func (p *Profile) ID() string { return p.id }
 
-// Title gibt die Kurzbeschreibung zurück.
+// Title returns the short description.
 func (p *Profile) Title() string { return p.title }
 
-// SchemaDigest bindet die Kennung an genau diesen Satz Schemadateien.
+// SchemaDigest binds the identifier to exactly this set of schema files.
 //
-// Damit lässt sich von außen feststellen, gegen welche Regeln eine Node prüft.
-// Zwei Nodes, die dasselbe Profil nennen, aber verschiedene Digests melden,
-// prüfen verschieden — und das gehört sichtbar gemacht, nicht verborgen.
+// It lets an outsider find out which rules a node checks against. Two nodes that
+// name the same profile but report different digests check differently — and
+// that belongs in plain sight, not hidden.
 func (p *Profile) SchemaDigest() core.Digest { return p.digest }
 
-// Files gibt die Schemadateien zurück, damit eine Node sie ausliefern kann.
+// Files returns the schema files so that a node can serve them.
 func (p *Profile) Files() []File {
 	out := make([]File, len(p.files))
 	copy(out, p.files)
 	return out
 }
 
-// Validate prüft eine Nutzlast gegen das Wurzelschema des Profils.
+// Validate checks a payload against the profile's root schema.
 func (p *Profile) Validate(payload []byte) error {
 	doc, err := decodeStrict(payload)
 	if err != nil {
@@ -208,8 +207,8 @@ func (p *Profile) Validate(payload []byte) error {
 	return nil
 }
 
-// Check prüft Nutzlast und Eintrag zusammen. Das ist die Prüfung, die eine Node
-// vor dem Anhängen ausführt.
+// Check validates payload and entry together. This is the check a node runs
+// before appending.
 func (p *Profile) Check(e *core.Entry, payload []byte) error {
 	if err := p.Validate(payload); err != nil {
 		return err
@@ -223,23 +222,23 @@ func (p *Profile) Check(e *core.Entry, payload []byte) error {
 	return nil
 }
 
-// Registry ordnet Profilkennungen ihren Profilen zu.
+// Registry maps profile identifiers to their profiles.
 //
-// Eine Node nimmt ausschließlich Einträge mit einem Profil an, das sie geladen
-// hat. Ein Profil abzulehnen, das man nicht prüfen kann, ist ehrlicher als es
-// ungeprüft anzunehmen: Die Node behauptet dann nichts, wofür sie nicht
-// einstehen kann. Im föderierten Modell halten andere Nodes andere Profile.
+// A node accepts only entries with a profile it has loaded. Turning away a
+// profile one cannot check is more honest than accepting it unchecked: the node
+// then claims nothing it cannot stand behind. In the federated model other nodes
+// hold other profiles.
 type Registry struct {
 	mu sync.RWMutex
 	by map[string]*Profile
 }
 
-// NewRegistry gibt ein leeres Register zurück.
+// NewRegistry returns an empty registry.
 func NewRegistry() *Registry {
 	return &Registry{by: make(map[string]*Profile)}
 }
 
-// Add nimmt ein Profil auf. Eine Kennung lässt sich nicht überschreiben.
+// Add takes in a profile. An identifier cannot be overwritten.
 func (r *Registry) Add(p *Profile) error {
 	if p == nil {
 		return errors.New("owm/profiles: no profile")
@@ -253,7 +252,7 @@ func (r *Registry) Add(p *Profile) error {
 	return nil
 }
 
-// Get sucht ein Profil.
+// Get looks up a profile.
 func (r *Registry) Get(id string) (*Profile, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -261,10 +260,10 @@ func (r *Registry) Get(id string) (*Profile, bool) {
 	return p, ok
 }
 
-// Check prüft Eintrag und Nutzlast gegen das im Eintrag genannte Profil.
+// Check validates entry and payload against the profile named in the entry.
 //
-// Ein Eintrag ohne Profilkennung ist zulässig — der Kern schreibt keines vor —
-// und wird durchgelassen, weil es nichts zu prüfen gibt.
+// An entry without a profile identifier is admissible — the core prescribes none
+// — and passes through, because there is nothing to check.
 func (r *Registry) Check(e *core.Entry, payload []byte) error {
 	if e == nil {
 		return errors.New("owm/profiles: no entry")
@@ -279,7 +278,7 @@ func (r *Registry) Check(e *core.Entry, payload []byte) error {
 	return p.Check(e, payload)
 }
 
-// IDs gibt die geladenen Kennungen sortiert zurück.
+// IDs returns the loaded identifiers, sorted.
 func (r *Registry) IDs() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -291,7 +290,7 @@ func (r *Registry) IDs() []string {
 	return out
 }
 
-// All gibt alle geladenen Profile nach Kennung sortiert zurück.
+// All returns all loaded profiles, sorted by identifier.
 func (r *Registry) All() []*Profile {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -303,8 +302,8 @@ func (r *Registry) All() []*Profile {
 	return out
 }
 
-// CheckID prüft eine Profilkennung gegen dieselben Regeln, die der Kern für das
-// Feld "prof" im Eintrag anwendet.
+// CheckID validates a profile identifier against the same rules the core
+// applies to the "prof" field in the entry.
 func CheckID(id string) error {
 	if id == "" {
 		return errors.New("owm/profiles: empty identifier")
@@ -323,7 +322,7 @@ func CheckID(id string) error {
 	return nil
 }
 
-// collect liest alle *.json aus fsys, nach Pfad sortiert.
+// collect reads every *.json from fsys, sorted by path.
 func collect(fsys fs.FS) ([]File, error) {
 	var files []File
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
@@ -347,8 +346,8 @@ func collect(fsys fs.FS) ([]File, error) {
 	return files, nil
 }
 
-// schemaDigest hasht Kennung und Dateien längenpräfigiert, damit sich Namen und
-// Inhalte nicht ineinander schieben lassen.
+// schemaDigest hashes identifier and files with length prefixes so that names
+// and contents cannot be slid into one another.
 func schemaDigest(id string, files []File) core.Digest {
 	h := sha256.New()
 	h.Write([]byte{byte(len(labelSchemaDigest))})
@@ -369,17 +368,17 @@ func schemaDigest(id string, files []File) core.Digest {
 	return d
 }
 
-// decodeStrict liest die Nutzlast als JSON-Objekt.
+// decodeStrict reads the payload as a JSON object.
 //
-// Strenger als encoding/json in drei Punkten, die alle denselben Grund haben:
-// Die Bytes der Nutzlast sind durch das Commitment festgeschrieben, also muss
-// jede Implementierung sie gleich lesen.
+// Stricter than encoding/json in three points that all have the same reason: the
+// bytes of the payload are pinned down by the commitment, so every
+// implementation has to read them the same way.
 //
-//   - Doppelte Schlüssel gelten als Fehler. encoding/json nimmt den letzten
-//     Wert, andere Sprachen den ersten — dieselben Bytes bedeuteten dann
-//     Verschiedenes.
-//   - Text hinter dem obersten Wert gilt als Fehler.
-//   - Die Verschachtelung ist begrenzt (maxDepth).
+//   - Duplicate keys count as an error. encoding/json takes the last value,
+//     other languages the first — the same bytes would then mean different
+//     things.
+//   - Text after the top-level value counts as an error.
+//   - Nesting is limited (maxDepth).
 func decodeStrict(payload []byte) (any, error) {
 	dec := json.NewDecoder(bytes.NewReader(payload))
 	dec.UseNumber()
@@ -450,15 +449,15 @@ func decodeValue(dec *json.Decoder, depth int) (any, error) {
 	return nil, fmt.Errorf("%w: unexpected character %q", ErrPayload, d)
 }
 
-// offlineLoader lehnt jeden Abruf ab, den ein $ref auslösen würde.
+// offlineLoader refuses every fetch a $ref would trigger.
 type offlineLoader struct{}
 
 func (offlineLoader) Load(url string) (any, error) {
 	return nil, fmt.Errorf("owm/profiles: a reference to the foreign schema source %q is not allowed", url)
 }
 
-// oneLine macht aus der mehrzeiligen Fehlerausgabe des Validators eine Zeile,
-// damit sie in eine HTTP-Antwort und in eine Logzeile passt.
+// oneLine turns the validator's multi-line error output into a single line so
+// that it fits into an HTTP response and into a log line.
 func oneLine(err error) string {
 	s := strings.TrimSpace(err.Error())
 	s = strings.ReplaceAll(s, "\n", "; ")

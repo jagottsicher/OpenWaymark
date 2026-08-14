@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Übergabe",
-  "description": "Wechsel der Verantwortung oder des Eigentums. Entspricht dem EPCIS-TransactionEvent. Die Übergabe ist die Stelle, an der eine Kette üblicherweise reißt — deshalb ist sie ein eigenes Ereignis und kein Nebenfeld des Transports.",
+  "title": "Handover",
+  "description": "Change of responsibility or ownership. Corresponds to the EPCIS TransactionEvent. The handover is the place where a chain usually breaks - which is why it is an event of its own and not a side field of transport.",
   "type": "object",
   "required": ["to"],
   "properties": {
@@ -11,7 +11,7 @@
       "type": "object",
       "properties": {
         "type": {
-          "description": "Belegart: Bestellung, Lieferavis, Rechnung, Frachtbrief, sonstiges.",
+          "description": "Kind of document: purchase order, despatch advice, invoice, bill of lading, other.",
           "enum": ["po", "desadv", "inv", "bol", "other"]
         },
         "id": { "$ref": "defs.json#/$defs/text" }
@@ -20,7 +20,7 @@
       "additionalProperties": false
     },
     "items": {
-      "description": "Die übergebenen Einheiten, falls es mehr als das Subjekt des Eintrags sind.",
+      "description": "The units handed over, if they are more than the subject of the entry.",
       "type": "array",
       "minItems": 1,
       "maxItems": 1024,

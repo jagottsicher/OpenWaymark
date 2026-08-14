@@ -14,10 +14,10 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// MemStorage hält das Log im Arbeitsspeicher.
+// MemStorage keeps the log in memory.
 //
-// Gedacht für Tests und für Beobachter, die ohnehin nichts dauerhaft aufheben.
-// Eine Node braucht die SQLite-Anbindung aus dem Unterpaket sqlite.
+// Intended for tests and for observers that keep nothing permanently anyway. A
+// node needs the SQLite backend from the sqlite subpackage.
 type MemStorage struct {
 	mu     sync.RWMutex
 	size   uint64
@@ -28,7 +28,7 @@ type MemStorage struct {
 	hasSTH bool
 }
 
-// NewMemStorage legt einen leeren Speicher an.
+// NewMemStorage creates an empty storage.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		nodes: make(map[compact.NodeID]core.Digest),
@@ -139,8 +139,8 @@ func (m *MemStorage) STHBySize(_ context.Context, size uint64) (*SignedSTH, erro
 	return s, nil
 }
 
-// STHSizes liefert die Größen aller abgelegten STHs, aufsteigend. Nützlich für
-// Tests und Beobachter, die alle Paare durchprüfen wollen.
+// STHSizes returns the sizes of all stored STHs, ascending. Useful for tests
+// and for observers that want to check every pair.
 func (m *MemStorage) STHSizes() []uint64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -158,7 +158,7 @@ func copyRecord(r *LeafRecord) *LeafRecord {
 	return &out
 }
 
-// MemBlobStore hält Nutzlasten im Arbeitsspeicher.
+// MemBlobStore keeps payloads in memory.
 type MemBlobStore struct {
 	mu    sync.RWMutex
 	blobs map[core.Digest]*memBlob
@@ -170,7 +170,7 @@ type memBlob struct {
 	erased  bool
 }
 
-// NewMemBlobStore legt einen leeren Nutzlastspeicher an.
+// NewMemBlobStore creates an empty payload store.
 func NewMemBlobStore() *MemBlobStore {
 	return &MemBlobStore{blobs: make(map[core.Digest]*memBlob)}
 }
@@ -181,9 +181,9 @@ func (m *MemBlobStore) Put(_ context.Context, entryID core.Digest, salt core.Sal
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if b, ok := m.blobs[entryID]; ok && b.erased {
-		// Eine gelöschte Nutzlast wieder hereinzulassen würde die Löschung
-		// rückgängig machen. Wer das täte, hätte das Recht auf Löschung
-		// technisch umgangen.
+		// Letting an erased payload back in would undo the erasure. Whoever
+		// did that would have circumvented the right to erasure by technical
+		// means.
 		return fmt.Errorf("%w: %s", ErrErased, entryID)
 	}
 	m.blobs[entryID] = &memBlob{salt: salt, payload: append([]byte(nil), payload...)}
@@ -208,8 +208,8 @@ func (m *MemBlobStore) Erase(_ context.Context, entryID core.Digest) error {
 	defer m.mu.Unlock()
 	b, ok := m.blobs[entryID]
 	if !ok {
-		// Der Grabstein soll auch dann gesetzt werden können, wenn hier nie
-		// etwas lag: Die Löschung ist dann bereits vollzogen.
+		// The tombstone must be settable even if nothing was ever stored here:
+		// the erasure is then already complete.
 		m.blobs[entryID] = &memBlob{erased: true}
 		return nil
 	}

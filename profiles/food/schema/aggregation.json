@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Aggregation",
-  "description": "Zusammenfassen oder Auflösen einer Einheit — Eier in Zehnerpackungen, Kartons auf eine Palette. Entspricht dem EPCIS-AggregationEvent (action ADD bzw. DELETE). Das Subjekt des Eintrags ist die übergeordnete Einheit; die Bestandteile stehen in children.",
+  "description": "Combining or dissolving a unit - eggs into ten-packs, cartons onto a pallet. Corresponds to the EPCIS AggregationEvent (action ADD or DELETE). The subject of the entry is the parent unit; the components are listed in children.",
   "type": "object",
   "required": ["action", "children"],
   "properties": {
@@ -9,11 +9,11 @@
       "enum": ["add", "delete"]
     },
     "container": {
-      "description": "Das Gebinde selbst, etwa der Karton oder die Palette.",
+      "description": "The container itself, e.g. the carton or the pallet.",
       "$ref": "defs.json#/$defs/product"
     },
     "children": {
-      "description": "Die enthaltenen Einheiten. Die Obergrenze entspricht core.MaxParents: mehr als tausend Bestandteile in einem Schritt sind kein reales Ereignis mehr.",
+      "description": "The units contained. The upper limit matches core.MaxParents: more than a thousand components in one step is no longer a real event.",
       "type": "array",
       "minItems": 1,
       "maxItems": 1024,

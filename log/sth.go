@@ -18,31 +18,29 @@ var (
 	ErrAlgMismatch    = errors.New("owm/log: signature algorithm does not match the key")
 )
 
-// STH ist ein Signed Tree Head: die Bezeugung einer Node, dass ihr Baum zu
-// einem bestimmten Zeitpunkt eine bestimmte Größe und eine bestimmte Wurzel
-// hatte.
+// STH is a Signed Tree Head: a node's witness that its tree had a particular
+// size and a particular root at a particular point in time.
 //
-// Das ist die einzige Aussage, die eine Node über ihr Log überhaupt macht — und
-// die einzige, an der sie sich festhalten lässt. Zwei STHs derselben Node zur
-// selben Größe mit verschiedenen Wurzeln sind ein von ihr selbst
-// unterschriebener Beweis für Fehlverhalten.
+// This is the only statement a node makes about its log at all — and the only
+// one it can be held to. Two STHs from the same node for the same size but with
+// different roots are proof of misbehaviour, signed by the node itself.
 type STH struct {
 	Version uint16     `json:"v"`
 	Log     core.LogID `json:"log"`
 	Size    uint64     `json:"size"`
 
-	// IssuedAt ist der Ausstellungszeitpunkt in Millisekunden seit der
-	// Unix-Epoche, UTC.
+	// IssuedAt is the issuance timestamp in milliseconds since the Unix epoch,
+	// UTC.
 	IssuedAt int64 `json:"ts"`
 
 	Root core.Digest `json:"root"`
 
-	// Key ist die Kennung des unterzeichnenden Schlüssels.
+	// Key is the identifier of the signing key.
 	//
-	// Sie steht innerhalb der signierten Struktur und nicht im Umschlag. Sonst
-	// ließe sich die Angabe, wer unterschrieben hat, unbemerkt austauschen — was
-	// während einer Schlüsselrotation die Frage unbeantwortbar machte, ob der
-	// Unterzeichner überhaupt autorisiert war.
+	// It sits inside the signed structure and not in the envelope. Otherwise
+	// the statement of who signed could be swapped out unnoticed — which during
+	// a key rotation would make it impossible to answer whether the signer was
+	// authorised at all.
 	Key core.KeyID `json:"key"`
 }
 
@@ -61,14 +59,14 @@ type signedSTHWire struct {
 	Sig []byte `cbor:"3,keyasint"`
 }
 
-// IssuedAtTime liefert den Ausstellungszeitpunkt als time.Time in UTC.
+// IssuedAtTime returns the issuance timestamp as a time.Time in UTC.
 func (s *STH) IssuedAtTime() time.Time { return time.UnixMilli(s.IssuedAt).UTC() }
 
-// Validate prüft die strukturellen Regeln aus OWM-2 §4.
+// Validate checks the structural rules from OWM-2 §4.
 //
-// Size darf 0 sein: Ein STH über den leeren Baum ist gültig und dient als
-// Gründungsbezeugung. Root darf auch dann nicht leer sein — der leere Baum hat
-// den Wurzelhash SHA-256("").
+// Size may be 0: an STH over the empty tree is valid and serves as a founding
+// witness. Root must not be empty even then — the empty tree has the root hash
+// SHA-256("").
 func (s *STH) Validate() error {
 	if s.Version != FormatVersion {
 		return fmt.Errorf("%w: %d", ErrSTHVersion, s.Version)
@@ -88,7 +86,7 @@ func (s *STH) Validate() error {
 	return nil
 }
 
-// Encode liefert die kanonische CBOR-Kodierung des STH.
+// Encode returns the canonical CBOR encoding of the STH.
 func (s *STH) Encode() ([]byte, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -107,8 +105,8 @@ func (s *STH) Encode() ([]byte, error) {
 	return b, nil
 }
 
-// ParseSTH liest einen STH und prüft dabei, dass die Eingabe seine kanonische
-// Kodierung ist.
+// ParseSTH reads an STH, checking along the way that the input is its canonical
+// encoding.
 func ParseSTH(b []byte) (*STH, error) {
 	var w sthWire
 	if err := core.UnmarshalCanonical(b, &w); err != nil {
@@ -140,18 +138,18 @@ func ParseSTH(b []byte) (*STH, error) {
 	return s, nil
 }
 
-// SignedSTH ist ein STH mit Signatur.
+// SignedSTH is an STH together with its signature.
 //
-// STHBytes hält die kanonische Kodierung als opaken Bytestring. Signiert und
-// geprüft werden immer genau diese Bytes, nie eine neu erzeugte Kodierung —
-// dieselbe Regel wie beim signierten Eintrag, aus demselben Grund.
+// STHBytes holds the canonical encoding as an opaque byte string. What is
+// signed and verified are always exactly those bytes, never a freshly produced
+// encoding — the same rule as for the signed entry, for the same reason.
 type SignedSTH struct {
 	STHBytes  []byte      `json:"sth"`
 	Alg       core.SigAlg `json:"alg"`
 	Signature []byte      `json:"sig"`
 }
 
-// SignSTH kodiert den STH kanonisch und signiert ihn.
+// SignSTH encodes the STH canonically and signs it.
 func SignSTH(k *core.PrivateKey, s *STH) (*SignedSTH, error) {
 	if k == nil {
 		return nil, fmt.Errorf("%w: private key", ErrMissingField)
@@ -170,15 +168,15 @@ func SignSTH(k *core.PrivateKey, s *STH) (*SignedSTH, error) {
 	return &SignedSTH{STHBytes: b, Alg: k.Alg(), Signature: sig}, nil
 }
 
-// STH dekodiert den eingebetteten STH.
+// STH decodes the embedded STH.
 //
-// Die Signatur wird dabei NICHT geprüft. Wer einem so gewonnenen STH etwas
-// glaubt, ohne vorher Verify aufzurufen, hat nichts als die Behauptung eines
-// Servers in der Hand.
+// The signature is NOT checked in the process. Anyone who believes an STH
+// obtained this way without calling Verify first holds nothing but a server's
+// assertion.
 func (s *SignedSTH) STH() (*STH, error) { return ParseSTH(s.STHBytes) }
 
-// Verify prüft die Signatur gegen den angegebenen öffentlichen Schlüssel und
-// dass der STH genau diesen Schlüssel als Unterzeichner nennt.
+// Verify checks the signature against the given public key, and that the STH
+// names exactly this key as its signer.
 func (s *SignedSTH) Verify(pub *core.PublicKey) error {
 	if pub == nil {
 		return fmt.Errorf("%w: public key", ErrMissingField)
@@ -199,7 +197,7 @@ func (s *SignedSTH) Verify(pub *core.PublicKey) error {
 	return nil
 }
 
-// Encode liefert die kanonische CBOR-Kodierung des signierten STH.
+// Encode returns the canonical CBOR encoding of the signed STH.
 func (s *SignedSTH) Encode() ([]byte, error) {
 	return core.MarshalCanonical(&signedSTHWire{
 		STH: s.STHBytes,
@@ -208,8 +206,7 @@ func (s *SignedSTH) Encode() ([]byte, error) {
 	})
 }
 
-// ParseSignedSTH liest einen signierten STH und prüft dabei die Kanonizität
-// beider Ebenen.
+// ParseSignedSTH reads a signed STH, checking canonicity at both levels.
 func ParseSignedSTH(b []byte) (*SignedSTH, error) {
 	var w signedSTHWire
 	if err := core.UnmarshalCanonical(b, &w); err != nil {

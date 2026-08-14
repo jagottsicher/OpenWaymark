@@ -40,7 +40,7 @@ func TestCommitIsDeterministic(t *testing.T) {
 	for i := range salt {
 		salt[i] = byte(i)
 	}
-	payload := []byte("stabil")
+	payload := []byte("stable")
 	first := Commit(salt, payload)
 	for range 8 {
 		if Commit(salt, payload) != first {
@@ -49,20 +49,20 @@ func TestCommitIsDeterministic(t *testing.T) {
 	}
 }
 
-// TestCommitHidesSmallDomain ist die Eigenschaft, wegen der das Commitment
-// gesalzen ist: Ein ungesalzener Hash über eine Postleitzahl oder eine
-// GPS-Koordinate ließe sich schlicht durchprobieren, und die DSGVO-Löschung
-// wäre wirkungslos. Der Test bildet den Angriff nach — er darf nicht aufgehen.
+// TestCommitHidesSmallDomain covers the property the commitment is salted for:
+// an unsalted hash over a postcode or a GPS coordinate could simply be
+// enumerated, and GDPR erasure would have no effect. The test reproduces the
+// attack — it must not succeed.
 func TestCommitHidesSmallDomain(t *testing.T) {
 	salt, err := NewSalt()
 	if err != nil {
 		t.Fatalf("NewSalt: %v", err)
 	}
-	secret := []byte("53175") // eine von 100000 Postleitzahlen
+	secret := []byte("53175") // one of 100000 postcodes
 	c := Commit(salt, secret)
 
-	// Der Angreifer kennt den Wertebereich, aber nicht den Salt. Ohne ihn ist
-	// jeder Kandidat gleich plausibel.
+	// The attacker knows the value range but not the salt. Without it every
+	// candidate is equally plausible.
 	for i := range 20000 {
 		guess := fmt.Appendf(nil, "%05d", i)
 		if VerifyCommitment(c, Salt{}, guess) {
@@ -70,8 +70,8 @@ func TestCommitHidesSmallDomain(t *testing.T) {
 		}
 	}
 
-	// Mit dem Salt geht es sofort — das ist der Unterschied zwischen
-	// „gelöscht" und „noch da".
+	// With the salt it works right away — that is the difference between
+	// "erased" and "still there".
 	if !VerifyCommitment(c, salt, secret) {
 		t.Error("check fails with the correct salt")
 	}
@@ -91,10 +91,9 @@ func TestNewSaltIsRandom(t *testing.T) {
 	}
 }
 
-// TestSaltReuseLeaksEquality hält fest, warum jede Nutzlast einen eigenen Salt
-// braucht: Bei Wiederverwendung wird sichtbar, dass zwei Einträge dieselbe
-// Nutzlast tragen — und die Löschung des einen ist im anderen nachweisbar
-// rückgängig zu machen.
+// TestSaltReuseLeaksEquality records why every payload needs a salt of its own:
+// on reuse it becomes visible that two entries carry the same payload — and the
+// erasure of one can be provably undone from the other.
 func TestSaltReuseLeaksEquality(t *testing.T) {
 	salt, err := NewSalt()
 	if err != nil {
@@ -102,8 +101,8 @@ func TestSaltReuseLeaksEquality(t *testing.T) {
 	}
 	payload := []byte("the same statement")
 
-	// Zwei Einträge, ein wiederverwendeter Salt: Die Commitments sind gleich,
-	// und damit ist von außen sichtbar, dass beide dieselbe Nutzlast tragen.
+	// Two entries, one reused salt: the commitments are equal, which makes it
+	// visible from the outside that both carry the same payload.
 	inFirstEntry := Commit(salt, payload)
 	inSecondEntry := Commit(salt, payload)
 	if inFirstEntry != inSecondEntry {

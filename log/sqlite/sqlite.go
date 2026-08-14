@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package sqlite hält ein OpenWaymark-Log dauerhaft in einer SQLite-Datei.
+// Package sqlite keeps an OpenWaymark log permanently in a SQLite file.
 //
-// Der Treiber ist modernc.org/sqlite, eine reine Go-Übersetzung ohne cgo. Das
-// ist keine Geschmacksfrage: Nur so lassen sich Node-Binaries für ARM bauen,
-// ohne eine Cross-Toolchain aufzusetzen — und ohne Node auf Raspberry-Pi-Klasse
-// bricht das föderierte Modell aus OWM-0 §3.1 in sich zusammen.
+// The driver is modernc.org/sqlite, a pure Go translation without cgo. That is
+// not a matter of taste: it is the only way to build node binaries for ARM
+// without setting up a cross toolchain — and without a node on Raspberry Pi
+// class hardware the federated model of OWM-0 §3.1 collapses.
 //
-// Das Paket ist bewusst vom Paket log getrennt: log soll auch nach WASM
-// übersetzbar bleiben (OWM-9 A10), und ein eingebettetes SQLite hat im Browser
-// des Verbrauchers nichts verloren.
+// The package is deliberately separate from package log: log is meant to stay
+// compilable to WASM (OWM-9 A11), and an embedded SQLite has no business in a
+// consumer's browser.
 package sqlite
 
 import (
@@ -22,19 +22,18 @@ import (
 	"strings"
 
 	"github.com/transparency-dev/merkle/compact"
-	_ "modernc.org/sqlite" // Treiber "sqlite"
+	_ "modernc.org/sqlite" // driver "sqlite"
 
 	"openwaymark.org/owm/core"
 	owmlog "openwaymark.org/owm/log"
 )
 
-// schema ist bewusst schmal gehalten.
+// schema is deliberately kept narrow.
 //
-// Knoten stehen in einer eigenen Tabelle und werden nie geändert: Gespeichert
-// wird nur, was einen vollständigen Teilbaum abschließt, und das steht für alle
-// Zeit fest. Genau deshalb genügt ein einziger Knotenbestand für Beweise über
-// jede vergangene Baumgröße — ohne diese Eigenschaft bräuchte man pro
-// Baumgröße eine eigene Kopie.
+// Nodes live in a table of their own and are never modified: only what
+// completes a full subtree is stored, and that is settled for all time. Exactly
+// that is why a single set of nodes suffices for proofs over every past tree
+// size — without this property one would need a separate copy per tree size.
 const schema = `
 CREATE TABLE IF NOT EXISTS leaves (
 	seq       INTEGER PRIMARY KEY,
@@ -69,12 +68,12 @@ CREATE TABLE IF NOT EXISTS blobs (
 ) WITHOUT ROWID;
 `
 
-// pragmas werden beim Verbinden gesetzt.
+// pragmas are set when connecting.
 //
-// secure_delete ist der wichtigste Eintrag: Ohne ihn markiert SQLite gelöschte
-// Seiten nur als frei und lässt den alten Inhalt in der Datei stehen. Eine
-// Löschung nach Art. 17 DSGVO wäre dann keine. Zu den verbleibenden Grenzen
-// siehe die Anmerkung bei BlobStore.Erase.
+// secure_delete is the most important entry: without it SQLite merely marks
+// freed pages as available and leaves the old content sitting in the file. An
+// erasure under Art. 17 GDPR would then be none. For the limits that remain,
+// see the note on BlobStore.Erase.
 var pragmas = []string{
 	"journal_mode(WAL)",
 	"synchronous(NORMAL)",
@@ -83,7 +82,7 @@ var pragmas = []string{
 	"foreign_keys(ON)",
 }
 
-// Store implementiert log.Storage und log.BlobStore über eine SQLite-Datei.
+// Store implements log.Storage and log.BlobStore on top of a SQLite file.
 type Store struct {
 	db *sql.DB
 }
@@ -93,17 +92,17 @@ var (
 	_ owmlog.BlobStore = (*Store)(nil)
 )
 
-// Open öffnet oder erzeugt die Datenbank unter path und legt das Schema an.
+// Open opens or creates the database at path and installs the schema.
 //
-// Für eine reine Testdatenbank im Arbeitsspeicher genügt ":memory:".
+// For a pure in-memory test database, ":memory:" suffices.
 func Open(ctx context.Context, path string) (*Store, error) {
 	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		return nil, fmt.Errorf("owm/log/sqlite: open: %w", err)
 	}
-	// SQLite serialisiert Schreibvorgänge ohnehin. Eine einzige Verbindung
-	// erspart das Aufeinanderwarten und hält ":memory:" über die Lebensdauer
-	// des Stores am Leben — sonst verschwände die Datenbank mit der Verbindung.
+	// SQLite serialises writes anyway. A single connection saves the waiting
+	// on one another and keeps ":memory:" alive for the lifetime of the store
+	// — otherwise the database would vanish with the connection.
 	db.SetMaxOpenConns(1)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
@@ -116,11 +115,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-// dsn baut den Verbindungsstring samt Pragmas.
+// dsn builds the connection string including pragmas.
 //
-// _txlock=immediate lässt jede Transaktion die Schreibsperre sofort nehmen.
-// Ohne das beginnt Append lesend und muss später hochstufen — und genau dabei
-// entsteht der klassische SQLITE_BUSY-Deadlock zwischen zwei Schreibern.
+// _txlock=immediate makes every transaction take the write lock straight away.
+// Without it Append starts out reading and has to upgrade later — and that is
+// precisely where the classic SQLITE_BUSY deadlock between two writers arises.
 func dsn(path string) string {
 	if path == ":memory:" {
 		path = "file::memory:"
@@ -139,16 +138,16 @@ func dsn(path string) string {
 	return path + sep + q.Encode()
 }
 
-// DB gibt die zugrundeliegende Verbindung heraus, etwa für Sicherungen.
+// DB hands out the underlying connection, for backups for instance.
 func (s *Store) DB() *sql.DB { return s.db }
 
-// Close schließt die Datenbank.
+// Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
-// Size liefert die Zahl der Blätter.
+// Size returns the number of leaves.
 //
-// Die Positionen sind lückenlos ab 0, deshalb ist die größte Position plus eins
-// die Größe — und die steht dank Primärschlüsselindex sofort bereit.
+// Positions run without gaps from 0, so the largest position plus one is the
+// size — and thanks to the primary key index it is available immediately.
 func (s *Store) Size(ctx context.Context) (uint64, error) {
 	var size int64
 	err := s.db.QueryRowContext(ctx,
@@ -159,7 +158,7 @@ func (s *Store) Size(ctx context.Context) (uint64, error) {
 	return uint64(size), nil
 }
 
-// Append fügt Blatt und Knoten in einer Transaktion hinzu.
+// Append adds leaf and nodes in one transaction.
 func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafRecord, nodes []owmlog.Node) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -193,9 +192,9 @@ func (s *Store) Append(ctx context.Context, oldSize uint64, leaf owmlog.LeafReco
 		return fmt.Errorf("owm/log/sqlite: write leaf: %w", err)
 	}
 
-	// Knoten werden ohne OR REPLACE eingefügt. Ein Konflikt hieße, dass ein
-	// vollständiger Teilbaum ein zweites Mal berechnet wurde und dabei anders
-	// ausfiel — das wäre kein Randfall, sondern ein defekter Baum.
+	// Nodes are inserted without OR REPLACE. A conflict would mean a complete
+	// subtree was computed a second time and came out different — that would
+	// not be an edge case but a broken tree.
 	for _, n := range nodes {
 		if _, err = tx.ExecContext(ctx,
 			`INSERT INTO nodes (level, idx, hash) VALUES (?, ?, ?)`,
@@ -307,12 +306,11 @@ func (s *Store) Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest,
 	return out, nil
 }
 
-// PutSTH legt einen STH ab.
+// PutSTH stores an STH.
 //
-// Ein bereits vorhandener STH derselben Größe wird NICHT überschrieben. Zwei
-// verschiedene STHs zur selben Größe sind der Split-View-Befund schlechthin
-// (OWM-2 §9) — die eigene Datenbank ist der letzte Ort, an dem er stillschweigend
-// verschwinden sollte.
+// An STH already present for the same size is NOT overwritten. Two different
+// STHs for the same size are the split-view finding par excellence (OWM-2 §9)
+// — one's own database is the last place where it should quietly disappear.
 func (s *Store) PutSTH(ctx context.Context, size uint64, sth *owmlog.SignedSTH) error {
 	blob, err := sth.Encode()
 	if err != nil {
@@ -358,7 +356,7 @@ func (s *Store) STHBySize(ctx context.Context, size uint64) (*owmlog.SignedSTH, 
 	return owmlog.ParseSignedSTH(blob)
 }
 
-// STHSizes liefert die Größen aller abgelegten STHs, aufsteigend.
+// STHSizes returns the sizes of all stored STHs, ascending.
 func (s *Store) STHSizes(ctx context.Context) ([]uint64, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT size FROM sths ORDER BY size`)
 	if err != nil {
@@ -376,15 +374,15 @@ func (s *Store) STHSizes(ctx context.Context) ([]uint64, error) {
 	return out, rows.Err()
 }
 
-// Put hinterlegt Nutzlast und Salt.
+// Put stores payload and salt.
 func (s *Store) Put(ctx context.Context, entryID core.Digest, salt core.Salt, payload []byte) error {
 	var erased int64
 	err := s.db.QueryRowContext(ctx,
 		`SELECT erased FROM blobs WHERE entry_id = ?`, entryID[:]).Scan(&erased)
 	switch {
 	case err == nil && erased != 0:
-		// Siehe log.MemBlobStore.Put: Eine gelöschte Nutzlast wieder
-		// anzunehmen hieße, die Löschung zurückzunehmen.
+		// See log.MemBlobStore.Put: accepting an erased payload again would
+		// mean taking the erasure back.
 		return fmt.Errorf("%w: %s", owmlog.ErrErased, entryID)
 	case err != nil && !errors.Is(err, sql.ErrNoRows):
 		return fmt.Errorf("owm/log/sqlite: check payload: %w", err)
@@ -425,14 +423,14 @@ func (s *Store) Get(ctx context.Context, entryID core.Digest) (core.Salt, []byte
 	return out, payload, nil
 }
 
-// Erase löscht Nutzlast und Salt und vermerkt die Löschung.
+// Erase deletes payload and salt and records the erasure.
 //
-// Ehrlich zu den Grenzen: secure_delete (siehe pragmas) überschreibt die
-// freigegebenen Seiten in der Datenbankdatei. Was es NICHT erreicht, sind
-// Kopien außerhalb: WAL-Dateien früherer Sitzungen, Dateisystem-Snapshots,
-// Sicherungen und die Blockremanenz von SSDs. Eine vollständige Löschung
-// verlangt zusätzlich eine Aufbewahrungsfrist für Sicherungen — das ist eine
-// Betriebs-, keine Codefrage, und OWM-2 §7.7 sagt es deshalb auch dort.
+// Honest about the limits: secure_delete (see pragmas) overwrites the freed
+// pages in the database file. What it does NOT reach are copies outside of it:
+// WAL files from earlier sessions, file system snapshots, backups, and the
+// block remanence of SSDs. A complete erasure additionally requires a retention
+// policy for backups — that is an operational question, not a code one, and
+// OWM-2 §7.7 therefore says so there as well.
 func (s *Store) Erase(ctx context.Context, entryID core.Digest) error {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE blobs SET salt = NULL, payload = NULL, erased = 1,
@@ -448,8 +446,8 @@ func (s *Store) Erase(ctx context.Context, entryID core.Digest) error {
 	if n > 0 {
 		return nil
 	}
-	// Nichts hinterlegt: Der Grabstein wird trotzdem gesetzt, damit später
-	// nichts mehr nachgereicht werden kann.
+	// Nothing stored: the tombstone is set all the same, so that nothing can
+	// be supplied after the fact.
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO blobs (entry_id, salt, payload, erased, erased_at)
 		 VALUES (?, NULL, NULL, 1, unixepoch('subsec') * 1000)

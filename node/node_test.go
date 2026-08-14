@@ -20,7 +20,7 @@ import (
 	"openwaymark.org/owm/profiles/food"
 )
 
-// testConfig legt eine Node in einem Wegwerfverzeichnis an.
+// testConfig sets up a node in a throwaway directory.
 func testConfig(t *testing.T) Config {
 	t.Helper()
 	dir := t.TempDir()
@@ -29,9 +29,9 @@ func testConfig(t *testing.T) Config {
 	cfg.Identity = filepath.Join(dir, "identity.json")
 	cfg.Listen = "127.0.0.1:0"
 	cfg.AdminListen = "127.0.0.1:0"
-	// Kein Ticker im Test: STHs werden ausgestellt, wenn der Test es will.
+	// No ticker in the test: STHs are issued when the test wants them.
 	cfg.STHInterval = 0
-	cfg.Operator = Operator{Name: "Testbetrieb", Contact: "mailto:test@example.org"}
+	cfg.Operator = Operator{Name: "Test operator", Contact: "mailto:test@example.org"}
 	return cfg
 }
 
@@ -45,7 +45,7 @@ func newTestNode(t *testing.T) *Node {
 	return n
 }
 
-// participant ist ein Teilnehmer mit Schlüssel, den die Node kennt.
+// participant is a participant with a key the node knows.
 type participant struct {
 	key *core.PrivateKey
 }
@@ -62,7 +62,7 @@ func newParticipant(t *testing.T, n *Node, alg core.SigAlg, label string) *parti
 	return &participant{key: k}
 }
 
-// sign baut einen signierten Eintrag samt Salt über einer Nutzlast.
+// sign builds a signed entry together with a salt over a payload.
 func (p *participant) sign(t *testing.T, typ core.EntryType, subject core.SubjectID, payload string, parents ...core.EntryRef) (*core.SignedEntry, core.Salt, []byte) {
 	t.Helper()
 	salt, err := core.NewSalt()
@@ -100,14 +100,14 @@ const productionPayload = `{
 	"event": "production",
 	"time": "2026-08-10T06:30:00+02:00",
 	"party": {"name": "Hof Sonnenblick", "gln": "4012345000009"},
-	"product": {"gtin": "04012345678901", "name": "Eier Freiland", "lot": "L-2026-0810"},
+	"product": {"gtin": "04012345678901", "name": "Free-range eggs", "lot": "L-2026-0810"},
 	"quantity": {"value": 1000, "unit": "H87"}
 }`
 
 func TestOpenRegistersOwnKey(t *testing.T) {
 	n := newTestNode(t)
-	// Ohne den eigenen Schlüssel im Verzeichnis könnte die Node keine
-	// Löschbezeugung anhängen — die läuft durch dieselbe Einlasskontrolle.
+	// Without its own key in the directory the node could not append an erasure
+	// witness — that one passes through the same admission control.
 	info, err := n.Keys().Info(context.Background(), n.Identity().Key.Public().ID())
 	if err != nil {
 		t.Fatalf("own key missing from the directory: %v", err)
@@ -120,7 +120,7 @@ func TestOpenRegistersOwnKey(t *testing.T) {
 func TestSubmitAndErase(t *testing.T) {
 	ctx := context.Background()
 	n := newTestNode(t)
-	farm := newParticipant(t, n, core.SigAlgMLDSA65, "hof")
+	farm := newParticipant(t, n, core.SigAlgMLDSA65, "farm")
 	subject := newSubject(t)
 
 	se, salt, payload := farm.sign(t, core.EntryTypeAssertion, subject, productionPayload)
@@ -138,7 +138,7 @@ func TestSubmitAndErase(t *testing.T) {
 		t.Fatal("payload came back modified")
 	}
 
-	// Der Beweis vor der Löschung — er muss sie überleben.
+	// The proof from before the erasure — it has to survive it.
 	if _, err := n.IssueSTH(ctx); err != nil {
 		t.Fatalf("issue STH: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestSubmitAndErase(t *testing.T) {
 func TestSubmitRejects(t *testing.T) {
 	ctx := context.Background()
 	n := newTestNode(t)
-	farm := newParticipant(t, n, core.SigAlgMLDSA65, "hof")
+	farm := newParticipant(t, n, core.SigAlgMLDSA65, "farm")
 	subject := newSubject(t)
 
 	t.Run("unknown issuer", func(t *testing.T) {
@@ -194,8 +194,8 @@ func TestSubmitRejects(t *testing.T) {
 	})
 
 	t.Run("erasure attestation from outside", func(t *testing.T) {
-		// Wohlgeformt bis ins letzte Feld — und trotzdem abzuweisen: Eine
-		// Löschbezeugung ist eine Aussage über den Speicher dieser Node.
+		// Well formed down to the last field — and still to be turned away: an
+		// erasure witness is a statement about this node's storage.
 		e := &core.Entry{
 			Version: 1,
 			Type:    core.EntryTypeErasure,
@@ -244,14 +244,14 @@ func mustKey(t *testing.T, alg core.SigAlg) *core.PrivateKey {
 func TestKeyRotation(t *testing.T) {
 	ctx := context.Background()
 	n := newTestNode(t)
-	old := newParticipant(t, n, core.SigAlgMLDSA65, "hof")
+	old := newParticipant(t, n, core.SigAlgMLDSA65, "farm")
 	next := mustKey(t, core.SigAlgMLDSA65)
 
 	announce := func(subject core.SubjectID, pub *core.PublicKey) error {
 		body, err := json.Marshal(RotationPayload{
 			Alg:    pub.Alg().String(),
 			Public: hex.EncodeToString(pub.Bytes()),
-			Label:  "hof (neu)",
+			Label:  "farm (new)",
 		})
 		if err != nil {
 			return err
@@ -286,7 +286,7 @@ func TestKeyRotation(t *testing.T) {
 	if info.Parent == nil || *info.Parent != old.key.Public().ID() {
 		t.Fatal("the successor does not point at the predecessor")
 	}
-	// Der Vorgänger bleibt gültig; sonst bräche jede Rotation den Betrieb.
+	// The predecessor stays valid; otherwise every rotation would break operation.
 	if _, err := n.Keys().PublicKey(ctx, old.key.Public().ID()); err != nil {
 		t.Fatalf("predecessor no longer valid: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestKeyDirectory(t *testing.T) {
 	if err := n.Keys().Register(ctx, k.Public(), "sensor", nil); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	// Wiederholtes Aufnehmen derselben Bytes ist kein Fehler.
+	// Admitting the same bytes again is not an error.
 	if err := n.Keys().Register(ctx, k.Public(), "sensor", nil); err != nil {
 		t.Fatalf("admit again: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestKeyDirectory(t *testing.T) {
 	if _, err := n.Keys().PublicKey(ctx, k.Public().ID()); !errors.Is(err, ErrKeyDisabled) {
 		t.Fatalf("%v, expected ErrKeyDisabled", err)
 	}
-	// Ein stillgelegter Schlüssel wird nicht nebenbei wieder scharf geschaltet.
+	// A disabled key is not quietly armed again on the side.
 	if err := n.Keys().Register(ctx, k.Public(), "sensor", nil); !errors.Is(err, ErrKeyDisabled) {
 		t.Fatalf("%v, expected ErrKeyDisabled", err)
 	}
@@ -363,7 +363,7 @@ func TestIdentityRoundTrip(t *testing.T) {
 		t.Fatalf("%v, expected ErrIdentityExists - an existing identity must never be overwritten", err)
 	}
 
-	// Die Datei enthält den Saatwert. Weltlesbar wäre das ein stiller Totalverlust.
+	// The file contains the seed. World-readable, that would be a silent total loss.
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatalf("chmod: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestIdentityRoundTrip(t *testing.T) {
 
 func TestLoadConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	body := `{"listen":"127.0.0.1:9000","sth_interval":"10s","operator":{"name":"Hof"}}`
+	body := `{"listen":"127.0.0.1:9000","sth_interval":"10s","operator":{"name":"Farm"}}`
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.STHInterval.Duration() != 10*time.Second {
 		t.Fatalf("sth_interval = %v", cfg.STHInterval.Duration())
 	}
-	// Nicht genannte Felder behalten die Voreinstellung.
+	// Fields that are not named keep the default.
 	if cfg.Database != DefaultDatabase {
 		t.Fatalf("database = %q", cfg.Database)
 	}

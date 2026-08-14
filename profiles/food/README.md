@@ -3,59 +3,58 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# `profiles/food/` — Lebensmittelprofil `food.v1` · Apache-2.0
+# `profiles/food/` — Food profile `food.v1` · Apache-2.0
 
-Das erste Schema-Profil von OpenWaymark. Die Ereignisse sind an **GS1 EPCIS 2.0** angelehnt statt
-neu erfunden: EPCIS ist die Sprache, in der Handel und Logistik Lieferkettenereignisse ohnehin
-beschreiben.
+OpenWaymark's first schema profile. The events follow **GS1 EPCIS 2.0** rather than being invented
+anew: EPCIS is the language in which trade and logistics describe supply chain events anyway.
 
-| Ereignis (`event`) | EPCIS 2.0 | Bedeutung |
+| Event (`event`) | EPCIS 2.0 | Meaning |
 |---|---|---|
-| `production` | ObjectEvent, ADD, `commissioning` | Ein Gut entsteht und bekommt seine Kennung |
-| `aggregation` | AggregationEvent, ADD/DELETE | Zusammenfassen und Auflösen — Eier in Zehnerpackungen |
-| `transport` | ObjectEvent, OBSERVE, `shipping`/`receiving` | Abgang und Ankunft, zwei getrennte Einträge |
-| `processing` | TransformationEvent | Aus Eingängen werden andere Güter — Milch wird Käse |
-| `handover` | TransactionEvent | Wechsel von Verantwortung oder Eigentum |
-| `measurement` | `sensorElementList` | Messreihe eines Geräts, etwa die Kühlkette |
+| `production` | ObjectEvent, ADD, `commissioning` | An item comes into being and receives its ID |
+| `aggregation` | AggregationEvent, ADD/DELETE | Packing and unpacking — eggs into cartons of ten |
+| `transport` | ObjectEvent, OBSERVE, `shipping`/`receiving` | Departure and arrival, two separate entries |
+| `processing` | TransformationEvent | Inputs become other goods — milk becomes cheese |
+| `handover` | TransactionEvent | A change of responsibility or ownership |
+| `measurement` | `sensorElementList` | A series of readings from a device, the cold chain for instance |
 
-## Eine Kennung, sechs Ereignisse
+## One ID, six events
 
-Der Ereignistyp steht **in der Nutzlast**, nicht in der Profilkennung. Stünde er im Feld `prof`
-des Eintrags, bliebe nach einer Löschung sichtbar, welche Art Ereignis es war. So bleibt nur
-stehen: Es gab zu einem Zeitpunkt ein Lebensmittelereignis zu einem Subjekt.
+The event type sits **in the payload**, not in the profile ID. If it sat in the entry's `prof`
+field, it would stay visible after an erasure what kind of event it had been. As it is, all that
+remains is: at some point there was a food event concerning a subject.
 
-## Aggregation und Verarbeitung
+## Aggregation and processing
 
-Der Unterschied ist der Kern jeder realen Lebensmittelkette:
+The difference is at the heart of every real food chain:
 
-- **Aggregation** ist umkehrbar. Die Bestandteile bleiben, was sie sind; das Subjekt des Eintrags
-  ist die übergeordnete Einheit, die Bestandteile stehen in `children`.
-- **Verarbeitung** ist nicht umkehrbar. Die Eingänge gehen unter. Verfolgbar bleibt die Herkunft
-  trotzdem, weil die Eingangseinträge im Feld `par` des Eintrags stehen — dort und nur dort
-  entsteht der Herkunftsgraph.
+- **Aggregation** is reversible. The components stay what they are; the subject of the entry is
+  the enclosing unit, and the components are listed in `children`.
+- **Processing** is not reversible. The inputs cease to be. Provenance stays traceable all the
+  same, because the input entries are named in the entry's `par` field — there, and only there,
+  is where the provenance graph comes from.
 
-## Messungen
+## Measurements
 
-`measurement` muss als Eintragstyp `sensor_reading` eingereicht werden, alles andere als
-`assertion`. Das prüft nicht das JSON-Schema, sondern eine Profilregel — das Schema sieht den
-Eintrag nicht. Ohne diese Bindung ließe sich eine von Hand geschriebene Kühlkette später als
-Gerätebeleg ausgeben. Der Wert automatisch erfasster Werte liegt gerade darin, dass sie einer
-menschlichen Selbstauskunft **widersprechen** können; siehe
-[Angreifermodell](../../spec/owm-9-threat-model.md).
+`measurement` must be submitted with entry type `sensor_reading`, everything else with
+`assertion`. That is not checked by the JSON schema but by a profile rule — the schema does not
+see the entry. Without that binding, a hand-written cold chain could later be passed off as a
+device record. The value of automatically captured readings lies precisely in their being able to
+**contradict** a human self-declaration; see the
+[threat model](../../spec/owm-9-threat-model.md).
 
-## Personenbezug
+## Personal data
 
-Das Profil kennt Betriebe, keine natürlichen Personen: `party` hat Felder für Name, GLN und
-Schlüsselkennung eines Unternehmens. Wer dort einen Personennamen einträgt, erzeugt einen
-Löschanspruch, wo keiner nötig war. Auch die Subjektkennung darf nicht aus Personendaten
-abgeleitet werden — sie ist ein Nachschlageschlüssel und absichtlich erratbar.
+The profile knows businesses, not natural persons: `party` has fields for a company's name, GLN
+and key ID. Whoever enters a person's name there creates a right to erasure where none was
+needed. The subject ID must not be derived from personal data either — it is a lookup key and
+deliberately guessable.
 
-## Einheiten und Kennungen
+## Units and identifiers
 
-- Mengen: UN/CEFACT Recommendation 20 (`KGM`, `GRM`, `LTR`, `H87` für Stück, `CEL` für °C)
-- Waren: GTIN, 8 bis 14 Ziffern
-- Orte und Betriebe: GLN, 13 Ziffern
-- Länder: ISO 3166-1 alpha-2, Großbuchstaben
-- Zeitpunkte: RFC 3339 **mit Zeitzone**
+- Quantities: UN/CEFACT Recommendation 20 (`KGM`, `GRM`, `LTR`, `H87` for pieces, `CEL` for °C)
+- Trade items: GTIN, 8 to 14 digits
+- Locations and businesses: GLN, 13 digits
+- Countries: ISO 3166-1 alpha-2, uppercase
+- Timestamps: RFC 3339 **with time zone**
 
-Beispielnutzlasten für jedes Ereignis stehen in [`food_test.go`](food_test.go).
+Example payloads for every event are in [`food_test.go`](food_test.go).

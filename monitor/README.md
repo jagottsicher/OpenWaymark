@@ -3,23 +3,23 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: AGPL-3.0-only
 -->
 
-# `monitor/` — Unabhängiger Log-Monitor · AGPL-3.0-only
+# `monitor/` — Independent log monitor · AGPL-3.0-only
 
-**Geplant (Etappe E4). Noch kein Code.**
+**Planned (stage E4). No code yet.**
 
-Sammelt STHs von Nodes, prüft sie paarweise auf Konsistenz und schlägt bei Divergenz Alarm.
-Bewusst klein und eigenständig, damit ihn jemand anders betreiben kann als die beobachtete Node
-— das ist der ganze Punkt.
+Collects STHs from nodes, checks them pairwise for consistency and raises the alarm on divergence.
+Deliberately small and self-contained, so that someone other than the observed node can run it —
+that is the whole point.
 
-Der Monitor gehört zum Kern des Projekts, nicht zum Zubehör. Der zentrale Angriff auf ein
-CT-artiges Log ist der **Split-View**: Eine Node zeigt zwei Beobachtern zwei verschiedene, jeweils
-in sich stimmige Bäume. Beide Historien sind korrekt signiert, beide Inklusionsbeweise gehen auf.
-Lokal ist das prinzipiell nicht erkennbar. Ohne unabhängige Beobachtung bleibt der Angriff offen —
-und mit ihm auch die nachträgliche Änderung des Logs, denn eine Node, die ihre Historie allein
-verwahrt, kann sie samt aller STHs neu schreiben.
+The monitor belongs to the core of the project, not to its accessories. The central attack on a
+CT-style log is the **split view**: a node shows two observers two different trees, each
+internally consistent. Both histories are correctly signed, both inclusion proofs check out.
+Locally this cannot be detected in principle. Without independent observation the attack stays
+open — and with it the after-the-fact alteration of the log, because a node that keeps its history
+by itself alone can rewrite it along with every STH.
 
-Zwei STHs derselben Node zur selben Baumgröße mit verschiedenen Wurzelhashes sind ein signierter,
-nicht abstreitbarer Beweis für Fehlverhalten. Die Node hat ihn selbst unterschrieben.
+Two STHs from the same node for the same tree size with different root hashes are signed,
+undeniable proof of misbehaviour. The node signed it itself.
 
-Siehe [OWM-9 A1 und A2](../spec/owm-9-threat-model.md). Der Split-View-Test ist der wichtigste
-Test des Projekts.
+See [OWM-9 A1 and A2](../spec/owm-9-threat-model.md). The split-view test is the most important
+test in the project.

@@ -3,296 +3,350 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OWM-2 — Log, Merkle-Baum, Signed Tree Heads, Beweise, Löschpfad
+# OWM-2 — Log, Merkle tree, signed tree heads, proofs, erasure path
 
-**Stand:** Entwurf · **Voraussetzung:** [OWM-0](owm-0-overview.md) · **Angreifermodell:**
+**Status:** draft · **Prerequisite:** [OWM-0](owm-0-overview.md) · **Threat model:**
 [OWM-9](owm-9-threat-model.md)
 
-Die Schlüsselwörter MUSS, DARF NICHT, SOLLTE und KANN sind wie in RFC 2119 zu verstehen.
+The key words MUST, MUST NOT, SHOULD and MAY are to be understood as in RFC 2119.
 
-## 1. Zweck und Abgrenzung
+## 1. Purpose and scope
 
-Jede Node führt genau ein append-only Log ihrer Einträge. Das Log ist **lokal**: Es gibt keinen
-globalen Zustand, auf den sich alle Nodes einigen müssten, und keinen Konsensmechanismus. Die
-Manipulationssicherheit entsteht nicht daraus, dass viele Parteien dieselben Daten halten, sondern
-daraus, dass eine Node ihre eigene Historie nicht unbemerkt umschreiben kann, sobald sie sie
-gegenüber mehr als einem Beobachter bezeugt hat.
+Every node keeps exactly one append-only log of its entries. The log is **local**: there is no
+global state all nodes would have to agree on, and no consensus mechanism. Tamper evidence does
+not arise from many parties holding the same data, but from a node being unable to rewrite its own
+history unnoticed once it has witnessed that history to more than one observer.
 
-Die Baumkonstruktion ist die aus **RFC 6962** (Certificate Transparency) unverändert übernommene.
-Abweichungen gäbe es nur um den Preis, die Referenzimplementierung und zwei Jahrzehnte Analyse
-aufzugeben; OpenWaymark weicht deshalb nur dort ab, wo es einen Grund gibt — und der eine Grund
-ist die Löschbarkeit (§7), die CT nicht kennt, weil CT nie löscht.
+The tree construction is the one from **RFC 6962** (Certificate Transparency), adopted unchanged.
+Deviations would only be available at the price of giving up the reference implementation and two
+decades of analysis; OpenWaymark therefore deviates only where there is a reason — and the one
+reason is erasability (§7), which CT does not know because CT never erases.
 
-**Was dieses Dokument nicht regelt:** Wie Beweise über HTTP übertragen werden (OWM-7), wie
-Nachfolgeschlüssel autorisiert werden (OWM-3), wie STHs zwischen Nodes ausgetauscht werden
-(OWM-5). Dieses Dokument definiert die Datenstrukturen und die Regeln, nach denen sie geprüft
-werden.
+**What this document does not govern:** how proofs are transported over HTTP (OWM-7), how
+successor keys are authorised (OWM-3), how STHs are exchanged between nodes (OWM-5). This document
+defines the data structures and the rules by which they are checked.
 
-## 2. Log-Identität
+## 2. Log identity
 
 ```
 LogID = H("OWM/1 log-id", u16be(alg), genesis_pubkey)
 ```
 
-32 Byte, abgeleitet vom **Gründungsschlüssel** des Logs, nicht vom jeweils aktuellen. Ein
-mitwechselnder Bezeichner würde bei jeder Schlüsselrotation sämtliche je ausgestellten Verweise
-auf dieses Log entwerten. Der Gründungsschlüssel wechselt nie.
+32 bytes, derived from the **genesis key** of the log, not from whichever key is current. An
+identifier that changed along would devalue every reference to this log ever issued at each key
+rotation. The genesis key never changes.
 
-Die Ableitung macht die Kennung selbstzertifizierend: Wer den Gründungsschlüssel hat, rechnet sie
-nach, ohne ein Verzeichnis zu befragen. Welche **Nachfolge**schlüssel für dieses Log signieren
-dürfen, beantwortet die Rotationskette im Log selbst ([OWM-3](owm-3-keys.md)) — nicht die Kennung.
+The derivation makes the identifier self-certifying: whoever has the genesis key recomputes it
+without consulting a directory. Which **successor** keys may sign for this log is answered by the
+rotation chain in the log itself ([OWM-3](owm-3-keys.md)) — not by the identifier.
 
-## 3. Blatt
+## 3. Leaf
 
-Ein Blatt ist eine CBOR-Map mit Ganzzahlschlüsseln, kodiert nach RFC 8949 §4.2.1 (Core
-Deterministic), wie in OWM-0 §6.
+A leaf is a CBOR map with integer keys, encoded per RFC 8949 §4.2.1 (Core Deterministic), as in
+OWM-0 §6.
 
-| Schlüssel | Name | Typ | Pflicht | Bedeutung |
+| Key | Name | Type | Mandatory | Meaning |
 |---|---|---|---|---|
-| 1 | `v` | uint | ja | Formatversion, derzeit `1` |
-| 2 | `log` | bstr(32) | ja | LogID, siehe §2 |
-| 3 | `seq` | uint | ja | Blattindex, beginnend bei 0 |
-| 4 | `ts` | int | ja | Aufnahmezeit, Millisekunden seit Unix-Epoche, UTC |
-| 5 | `ent` | bstr | ja | kanonische Kodierung des signierten Eintrags (OWM-0 §6.3) |
+| 1 | `v` | uint | yes | format version, currently `1` |
+| 2 | `log` | bstr(32) | yes | LogID, see §2 |
+| 3 | `seq` | uint | yes | leaf index, starting at 0 |
+| 4 | `ts` | int | yes | time of intake, milliseconds since the Unix epoch, UTC |
+| 5 | `ent` | bstr | yes | canonical encoding of the signed entry (OWM-0 §6.3) |
 
-Ein Blatt MUSS ≤ 128 KiB sein. Der signierte Eintrag steht als **opaker Bytestring** darin und
-wird zur Blattbildung nicht neu kodiert — dieselbe Regel und derselbe Grund wie in OWM-0 §6.3.
+A leaf MUST be ≤ 128 KiB. The signed entry sits in it as an **opaque byte string** and is not
+re-encoded when the leaf is formed — the same rule and the same reason as in OWM-0 §6.3.
 
-### 3.1 Warum das Blatt mehr enthält als den Eintrag
+### 3.1 Why the leaf contains more than the entry
 
-**`ent` und nicht nur die Eintragskennung.** Die Eintragskennung deckt die Signatur nicht ab
-(OWM-0 §4.3, damit sie unter randomisiertem ML-DSA stabil bleibt). Stünde nur sie im Blatt, wäre
-die Signatur nicht Teil des Baums: Eine Node könnte nachträglich eine andere gültige Signatur
-desselben Ausstellers unterschieben, oder die Signatur ganz verlieren, ohne dass ein
-Inklusionsbeweis das bemerkt. Der Baum MUSS den Eintrag **samt Signatur** binden.
+**`ent` and not just the entry identifier.** The entry identifier does not cover the signature
+(OWM-0 §4.3, so that it stays stable under randomised ML-DSA). Were only the identifier in the
+leaf, the signature would not be part of the tree: a node could later substitute a different valid
+signature by the same issuer, or lose the signature entirely, without any inclusion proof noticing.
+The tree MUST bind the entry **together with its signature**.
 
-**`seq` und `ts`.** Der Zeitpunkt in `ent` ist die Behauptung des Ausstellers, wann er die Aussage
-gemacht hat. `ts` ist die Bezeugung der Node, wann sie sie aufgenommen hat. Die beiden dürfen
-auseinanderfallen, und dass sie es dürfen, ist der Punkt: Ein rückdatierter Eintrag lässt sich an
-seinem Aufnahmezeitpunkt erkennen. Zusammen mit `seq` und `log` ist ein Blatt eine
-nicht abstreitbare Aussage der Node über sich selbst — *dies ist Eintrag Nummer N in Log L,
-aufgenommen zum Zeitpunkt T*.
+**`seq` and `ts`.** The point in time in `ent` is the issuer's claim about when they made the
+statement. `ts` is the node's witness of when it took the statement in. The two are allowed to
+diverge, and that they are allowed to is the point: a backdated entry can be recognised by its
+intake time. Together with `seq` and `log`, a leaf is a non-repudiable statement by the node about
+itself — *this is entry number N in log L, taken in at time T*.
 
-**`log`.** Ohne die Log-Kennung wäre ein Blatt zwischen Logs verschiebbar. Die Kennung kostet
-32 Byte und macht jedes Blatt für sich zuordenbar, auch ohne den zugehörigen STH.
+**`log`.** Without the log identifier a leaf would be movable between logs. The identifier costs
+32 bytes and makes every leaf attributable on its own, even without the accompanying STH.
 
-Der Preis dieser Entscheidungen: Zwei identische Einträge ergeben zwei verschiedene Blätter, und
-das Blatt lässt sich erst nach Vergabe der Sequenznummer bilden. Beides ist gewollt.
+The price of these decisions: two identical entries yield two different leaves, and the leaf can
+only be formed once the sequence number has been assigned. Both are intended.
 
-### 3.2 Blatthash
+### 3.2 Leaf hash
 
 ```
 LeafHash = SHA-256( 0x00 ‖ leaf_bytes )
 MTH(l,r) = SHA-256( 0x01 ‖ l ‖ r )
 ```
 
-Unverändert RFC 6962 §2.1. Die Präfixe `0x00` und `0x01` trennen Blätter von inneren Knoten und
-verhindern damit die sicherheitskritische Verwechslung der beiden; das ist eine **andere**
-Domänentrennung als die aus OWM-0 §3.3 und ersetzt sie hier bewusst, weil die Kompatibilität zur
-CT-Baumkonstruktion höher wiegt. Eine Verwechslung mit CT-Blättern ist ausgeschlossen, weil
-`leaf_bytes` in OpenWaymark stets eine CBOR-Map mit den Feldern aus §3 ist.
+RFC 6962 §2.1 unchanged. The prefixes `0x00` and `0x01` separate leaves from interior nodes and
+thereby prevent the security-critical confusion of the two; that is a **different** domain
+separation from the one in OWM-0 §3.3 and deliberately replaces it here, because compatibility
+with the CT tree construction weighs more. Confusion with CT leaves is ruled out because
+`leaf_bytes` in OpenWaymark is always a CBOR map with the fields from §3.
 
-Der Hash des leeren Baums ist `SHA-256("")`, ebenfalls nach RFC 6962.
+The hash of the empty tree is `SHA-256("")`, likewise per RFC 6962.
 
-## 4. Signed Tree Head
+## 4. Signed tree head
 
-| Schlüssel | Name | Typ | Pflicht | Bedeutung |
+| Key | Name | Type | Mandatory | Meaning |
 |---|---|---|---|---|
-| 1 | `v` | uint | ja | Formatversion, derzeit `1` |
-| 2 | `log` | bstr(32) | ja | LogID |
-| 3 | `size` | uint | ja | Baumgröße, Anzahl Blätter |
-| 4 | `ts` | int | ja | Ausstellungszeit, Millisekunden seit Unix-Epoche, UTC |
-| 5 | `root` | bstr(32) | ja | Wurzelhash über `size` Blätter |
-| 6 | `key` | bstr(32) | ja | Schlüsselkennung des Unterzeichners |
+| 1 | `v` | uint | yes | format version, currently `1` |
+| 2 | `log` | bstr(32) | yes | LogID |
+| 3 | `size` | uint | yes | tree size, number of leaves |
+| 4 | `ts` | int | yes | time of issue, milliseconds since the Unix epoch, UTC |
+| 5 | `root` | bstr(32) | yes | root hash over `size` leaves |
+| 6 | `key` | bstr(32) | yes | key identifier of the signer |
 
-Signiert wird mit dem Kontext `OWM/1 sth` (OWM-0 §3.3). Der Umschlag hat dieselbe Gestalt wie der
-signierte Eintrag:
+Signing uses the context `OWM/1 sth` (OWM-0 §3.3). The envelope has the same shape as the signed
+entry:
 
 ```
 SignedSTH = { 1: sth : bstr, 2: alg : uint, 3: sig : bstr }
 ```
 
-`key` steht **innerhalb** der signierten Struktur und nicht im Umschlag. Sonst ließe sich die
-Angabe, welcher Schlüssel unterschrieben hat, unbemerkt austauschen — was gerade während einer
-Schlüsselrotation die Frage unbeantwortbar machte, ob der Unterzeichner autorisiert war.
+`key` sits **inside** the signed structure and not in the envelope. Otherwise the statement of
+which key signed could be swapped unnoticed — which during a key rotation in particular would make
+the question unanswerable whether the signer was authorised.
 
-Ein STH über den leeren Baum (`size = 0`) ist gültig und dient als Gründungsbezeugung.
+An STH over the empty tree (`size = 0`) is valid and serves as a founding witness.
 
-Eine Node SOLLTE STHs in festen Abständen ausstellen, auch wenn nichts angehängt wurde. Ein
-schweigendes Log ist von einem angehaltenen Log sonst nicht zu unterscheiden (OWM-9 A3).
+A node SHOULD issue STHs at fixed intervals, even when nothing has been appended. A silent log is
+otherwise indistinguishable from a halted one (OWM-9 A3).
 
-## 5. Beweise
+## 5. Proofs
 
-### 5.1 Inklusionsbeweis
+### 5.1 Inclusion proof
 
-Belegt, dass ein bestimmtes Blatt an Position `i` in einem Baum der Größe `n` enthalten ist.
-Bestandteile: `i`, `n`, der Blatthash und ein Pfad aus ⌈log₂(n)⌉ Knotenhashes. Für eine Million
-Blätter sind das 20 Knoten, also 640 Byte — vernachlässigbar neben den 3309 Byte der
-ML-DSA-65-Signatur im Blatt selbst.
+Shows that a particular leaf is contained at position `i` in a tree of size `n`. Components: `i`,
+`n`, the leaf hash and a path of ⌈log₂(n)⌉ node hashes. For a million leaves that is 20 nodes,
+i.e. 640 bytes — negligible next to the 3309 bytes of the ML-DSA-65 signature in the leaf itself.
 
-Ein Prüfer MUSS ihn gegen den Wurzelhash **eines konkreten STH** rechnen und dabei prüfen, dass
-`n` die Baumgröße dieses STH ist. Ein Inklusionsbeweis für sich allein sagt nichts aus — er
-rechnet nur eine Wurzel aus, und der Angreifer könnte sie mitgeliefert haben.
+A verifier MUST compute it against the root hash of **a concrete STH** and check that `n` is the
+tree size of that STH. An inclusion proof on its own says nothing — it merely computes a root, and
+the attacker could have supplied it.
 
-### 5.2 Konsistenzbeweis
+### 5.2 Consistency proof
 
-Belegt, dass ein Baum der Größe `n₁` ein Präfix eines Baums der Größe `n₂ ≥ n₁` ist: dass also
-zwischen beiden nur angehängt und nichts geändert oder entfernt wurde. Das ist die eigentliche
-Zusage des Logs.
+Shows that a tree of size `n₁` is a prefix of a tree of size `n₂ ≥ n₁`: that between the two only
+appending took place and nothing was changed or removed. That is the actual promise of the log.
 
-### 5.3 Beweise werden nicht signiert
+### 5.3 Proofs are not signed
 
-Und brauchen deshalb **kein kanonisches Format**. Ihre Integrität ergibt sich vollständig daraus,
-dass sie gegen einen signierten Wurzelhash aufgehen oder eben nicht. Ein manipulierter Beweis
-schlägt fehl; ein Beweis in abweichender Kodierung, der aufgeht, ist ein gültiger Beweis.
-Die Übertragung regelt [OWM-7](owm-7-node-api.md).
+And therefore need **no canonical format**. Their integrity follows entirely from whether they
+come out against a signed root hash or not. A tampered proof fails; a proof in a deviating
+encoding that comes out is a valid proof. Transport is governed by [OWM-7](owm-7-node-api.md).
 
-## 6. Anhängen
+## 6. Appending
 
-1. Die Node prüft den signierten Eintrag: Kanonizität, Signatur, Aussteller, Struktur (OWM-0 §6.4).
-2. Sie vergibt `seq = aktuelle Baumgröße` und setzt `ts` auf die aktuelle Zeit.
-3. Sie bildet das Blatt, berechnet seinen Hash und hängt ihn an den Baum an.
-4. Beim nächsten STH ist der Eintrag abgedeckt.
+1. The node checks the signed entry: canonicality, signature, issuer, structure (OWM-0 §6.4).
+2. It assigns `seq = current tree size` and sets `ts` to the current time.
+3. It forms the leaf, computes its hash and appends the hash to the tree.
+4. With the next STH the entry is covered.
 
-Ein Eintrag KANN mehrfach angehängt werden und ergibt dann mehrere Blätter mit derselben
-Eintragskennung. Das Log DARF Duplikate ablehnen, MUSS aber nicht — die Eintragskennung bleibt
-für die Zuordnung maßgeblich.
+An entry MAY be appended several times and then yields several leaves with the same entry
+identifier. The log MAY reject duplicates but need not — the entry identifier remains decisive for
+attribution.
 
-## 7. Löschpfad
+## 7. Erasure path
 
-Der Teil, den Certificate Transparency nicht hat und nicht braucht.
+The part Certificate Transparency does not have and does not need.
 
-### 7.1 Was gelöscht wird
+### 7.1 What is erased
 
-**Nutzlast und Salt.** Beide liegen off-chain bei der Node, die sie hält, nie im Log.
+**Payload and salt.** Both live off-chain at the node that holds them, never in the log.
 
-**Nicht gelöscht** werden Blatt, Eintrag, Signatur und Baum. Das Log bleibt Byte für Byte, wie es
-war.
+**Not erased** are leaf, entry, signature and tree. The log stays byte for byte as it was.
 
-### 7.2 Ablauf
+### 7.2 Procedure
 
-1. Nutzlast und Salt werden unwiederbringlich gelöscht.
-2. Die Node hängt einen `erasure`-Eintrag an (OWM-0 §6.1), signiert mit ihrem eigenen Schlüssel,
-   dessen `tgt` den betroffenen Eintrag benennt.
-3. Der nächste STH deckt ihn ab.
+1. Payload and salt are erased irrecoverably.
+2. The node appends an `erasure` entry (OWM-0 §6.1), signed with its own key, whose `tgt` names
+   the entry affected.
+3. The next STH covers it.
 
-### 7.3 Warum das trägt
+### 7.3 Why this holds
 
-Der Baum bleibt unverändert. Daraus folgt unmittelbar:
+The tree stays unchanged. From that it follows immediately:
 
-- **Alle je ausgestellten STHs bleiben gültig.** Kein Beobachter muss etwas neu bewerten.
-- **Alle Inklusionsbeweise bleiben gültig**, auch der des gelöschten Eintrags.
-- **Alle Konsistenzbeweise bleiben gültig.** Eine Löschung ist von außen ein gewöhnliches Anhängen.
+- **Every STH ever issued stays valid.** No observer has to re-evaluate anything.
+- **Every inclusion proof stays valid**, including that of the erased entry.
+- **Every consistency proof stays valid.** From outside, an erasure is an ordinary append.
 
-Und die Nutzlast ist trotzdem weg. Das Commitment ist `HMAC-SHA-256(salt, label ‖ payload)` mit
-einem 256-Bit-Salt (OWM-0 §5). Ohne den Salt ist der Wert über den Schlüsselraum gleichverteilt:
-Selbst wenn der gesamte Wertebereich aus zwei Möglichkeiten besteht — „bio" oder „nicht bio" —
-lässt sich nicht sagen, welche es war. Ein ungesalzener Hash würde hier sofort brechen; das ist
-der Grund, warum OpenWaymark salzt und CT nicht.
+And the payload is gone all the same. The commitment is `HMAC-SHA-256(salt, label ‖ payload)` with
+a 256-bit salt (OWM-0 §5). Without the salt the value is uniformly distributed over the key space:
+even if the entire value range consists of two possibilities — "organic" or "not organic" — it
+cannot be said which one it was. An unsalted hash would break here immediately; that is why
+OpenWaymark salts and CT does not.
 
-### 7.4 Was bleibt und was das bedeutet
+### 7.4 What remains, and what that means
 
-Nach der Löschung stehen weiterhin dauerhaft im Log: Subjekt-ID, Schlüsselkennung des Ausstellers,
-Ausstellungs- und Aufnahmezeit, Profilkennung, Eintragstyp und die Vorgängerverweise. Das ist
-Verkehrsdatum und lässt sich nicht entfernen, ohne den Baum zu brechen.
+After the erasure the following stay in the log permanently: subject ID, key identifier of the
+issuer, time of issue and time of intake, profile identifier, entry type and the predecessor
+references. That is traffic data and cannot be removed without breaking the tree.
 
-Daraus folgt die harte Regel aus OWM-0 §6, hier wiederholt, weil sie hier ihre Konsequenz hat:
+From this follows the hard rule from OWM-0 §6, repeated here because this is where it has its
+consequence:
 
-> Kein Feld eines Eintrags DARF Klartext-Personendaten enthalten. Auch die Subjekt-ID nicht — sie
-> ist ein opaker Bezeichner und kein Name, keine Anschrift, keine Koordinate.
+> No field of an entry MUST contain personal data in the clear. The subject ID included — it is an
+> opaque identifier and not a name, not an address, not a coordinate.
 
-Wer ableitbare Subjekt-IDs verwendet (OWM-0 §4.2), macht sie durchprobierbar. Wo Verknüpfbarkeit
-schadet, MUSS die Subjekt-ID zufällig sein. Verkettung über Verkehrsdaten bleibt möglich und ist
-in OWM-9 A9 als hingenommenes Restrisiko geführt.
+Whoever uses derived subject IDs (OWM-0 §4.2) makes them enumerable. Where linkability does harm,
+the subject ID MUST be random. Linking through traffic data remains possible and is carried in
+OWM-9 A9 as an accepted residual risk.
 
-### 7.5 Grenze im föderierten Netz
+### 7.5 Limit in a federated network
 
-Eine Löschung wirkt dort, wo die Daten liegen. Wurde die Nutzlast im Rahmen der Lieferkette an
-Partner weitergegeben, erreicht die Löschung deren Kopien **nicht**. Der `erasure`-Eintrag ist für
-sie ein Signal, keine Durchsetzung; ob sie folgen, ist eine rechtliche und keine technische Frage.
+An erasure takes effect where the data lies. If the payload was passed on to partners in the course
+of the supply chain, the erasure does **not** reach their copies. For them the `erasure` entry is a
+signal, not enforcement; whether they follow is a legal and not a technical question.
 
-Das ist keine Eigenheit von OpenWaymark, sondern die Lage in jedem verteilten System, und es wird
-hier ausdrücklich festgehalten, statt es zu verschweigen. Die technische Gegenmaßnahme ist
-Datensparsamkeit vor der Weitergabe, nicht Löschung danach.
+That is not a peculiarity of OpenWaymark but the situation in every distributed system, and it is
+recorded here expressly rather than passed over. The technical countermeasure is data minimisation
+before passing data on, not erasure afterwards.
 
-### 7.6 Was nicht löschbar ist
+### 7.6 What is not erasable
 
-`key_rotation`-Einträge. Ihre Nutzlast ist der Nachfolgeschlüssel; ohne sie ist die Rotationskette
-unterbrochen und alle späteren Signaturen sind nicht mehr zuzuordnen. Ein öffentlicher Schlüssel
-ist zudem kein personenbezogenes Datum in dem Sinn, dass er durch etwas anderes ersetzt werden
-könnte. Eine Node MUSS die Löschung eines `key_rotation`-Eintrags ablehnen.
+`key_rotation` entries. Their payload is the successor key; without it the rotation chain is
+broken and all later signatures can no longer be attributed. A public key is moreover not personal
+data in the sense that it could be replaced by something else. A node MUST refuse the erasure of a
+`key_rotation` entry.
 
-### 7.7 Grenze im Speicher
+### 7.7 Limit in storage
 
-Das Protokoll kann garantieren, dass der Baum eine Löschung überlebt. Ob die Bytes tatsächlich vom
-Datenträger verschwinden, entscheidet die Betreiberin, nicht das Protokoll.
+The protocol can guarantee that the tree survives an erasure. Whether the bytes actually disappear
+from the storage medium is decided by the operator, not by the protocol.
 
-Eine Node MUSS ihren Nutzlastspeicher so betreiben, dass gelöschte Daten überschrieben und nicht
-nur als frei markiert werden — bei SQLite bedeutet das `PRAGMA secure_delete=ON`, bei einem
-Dateispeicher das Überschreiben vor dem Entfernen des Verzeichniseintrags. Nicht erreichbar bleiben
-damit: Sicherungen, Dateisystem-Snapshots, Journal-/WAL-Dateien früherer Sitzungen und die
-Blockremanenz von SSDs.
+A node MUST operate its payload store such that erased data is overwritten and not merely marked
+free — with SQLite that means `PRAGMA secure_delete=ON`, with a file store overwriting before
+removing the directory entry. What remains out of reach: backups, file system snapshots,
+journal/WAL files of earlier sessions and the block remanence of SSDs.
 
-Für diese Kopien gibt es keine technische Lösung im Log, sondern nur eine Aufbewahrungsfrist: Eine
-Node SOLLTE Sicherungen so kurz vorhalten, dass eine Löschung sie innerhalb der zugesagten Frist
-einholt, und die Frist veröffentlichen. Wer 90 Tage Sicherungen hält, löscht faktisch mit 90 Tagen
-Verzögerung; das ist vertretbar, aber es ist eine Zusage, die eine Node machen muss, und keine, die
-das Protokoll für sie machen kann.
+For those copies there is no technical solution in the log, only a retention period: a node SHOULD
+keep backups for a period short enough that an erasure catches up with them within the period
+promised, and SHOULD publish that period. Whoever keeps 90 days of backups erases, in effect, with
+90 days of delay; that is defensible, but it is a promise a node has to make, and not one the
+protocol can make on its behalf.
 
-## 8. Batch-Signierung
+## 8. Batch signing
 
-Der Plan führt die Größe von PQ-Signaturen als offenen Punkt: Eine Million Einträge sind rund
-3,3 GB allein an ML-DSA-65-Signaturen. Hier die Auflösung.
+The plan carries the size of PQ signatures as an open point: a million entries are roughly 3.3 GB
+in ML-DSA-65 signatures alone. Here is the resolution.
 
-**Für die Signatur des Logs ist Batch-Signierung bereits das Entwurfsprinzip.** Die Node signiert
-STHs, nicht einzelne Blätter. Ein STH deckt beliebig viele Einträge ab, der einzelne Eintrag ist
-über seinen Inklusionsbeweis erfasst. Bei stündlichen STHs kostet ein Jahr Logbetrieb rund
-29 MB an Node-Signaturen, unabhängig von der Zahl der Einträge. Hier ist nichts hinzuzufügen.
+**For the log's own signature, batch signing is already the design principle.** The node signs
+STHs, not individual leaves. One STH covers arbitrarily many entries; the individual entry is
+captured through its inclusion proof. With hourly STHs, a year of log operation costs about 29 MB
+in node signatures, independently of the number of entries. Nothing needs to be added here.
 
-**Die 3,3 GB sind Aussteller-Signaturen, und die lassen sich nicht wegbündeln.** Jeder Eintrag muss
-seinem Aussteller einzeln zurechenbar sein, und die Aussteller sind verschiedene Parteien, die
-keinen gemeinsamen Batch unterschreiben können. Es bleiben zwei Hebel:
+**The 3.3 GB are issuer signatures, and those cannot be batched away.** Every entry has to be
+attributable to its issuer individually, and the issuers are different parties who cannot sign a
+common batch. Two levers remain:
 
-1. **ML-DSA-44 für Sensoren und Masseneinträge** (OWM-0 §3.2): 2420 statt 3309 Byte, rund 27 %
-   weniger. Vorgesehen und umgesetzt.
-2. **Bündelung beim Aussteller.** Wer viele gleichartige Messwerte erzeugt, baut aus ihnen selbst
-   einen Merkle-Baum, legt dessen Wurzel in **eine** Nutzlast und schreibt **einen** Eintrag mit
-   **einer** Signatur. Der einzelne Messwert wird über einen Inklusionsbeweis in diesem Unterbaum
-   belegt, der off-chain neben der Nutzlast liegt. Aus 8640 Messwerten eines Tagesintervalls wird
-   so ein Eintrag statt 8640.
+1. **ML-DSA-44 for sensors and bulk entries** (OWM-0 §3.2): 2420 instead of 3309 bytes, about 27 %
+   less. Planned and implemented.
+2. **Bundling at the issuer.** Whoever produces many readings of the same kind builds a Merkle tree
+   from them themselves, puts its root into **one** payload and writes **one** entry with **one**
+   signature. The individual reading is shown through an inclusion proof in that subtree, which
+   lies off-chain next to the payload. 8640 readings of a daily interval thus become one entry
+   instead of 8640.
 
-Der zweite Hebel ist der wirksame, und er gehört **nicht in das Log**, sondern in die Profilebene:
-Ob und wie gebündelt wird, hängt daran, was gemessen wird und wie fein es einzeln belegbar sein
-muss. Das Log sieht in beiden Fällen nur einen Eintrag. Ausgeführt wird das im Lebensmittelprofil
-([OWM-4 §12](owm-4-profiles.md#12-messreihen)).
+The second lever is the effective one, and it belongs **not in the log** but at the profile level:
+whether and how bundling happens depends on what is measured and how finely it has to be
+individually provable. In both cases the log sees only one entry. This is worked out in the food
+profile ([OWM-4 §12](owm-4-profiles.md#12-series-of-readings)).
 
-## 9. Erkennung von Fehlverhalten
+## 9. Detection of misbehaviour
 
-Das Log kann sich nicht selbst überwachen. Was es liefert, sind die Primitive, mit denen ein
-unabhängiger Beobachter (OWM-5, `monitor/`) Fehlverhalten **beweisen** kann.
+The log cannot monitor itself. What it supplies are the primitives with which an independent
+observer (OWM-5, `monitor/`) can **prove** misbehaviour.
 
-| Beobachtung | Bedeutung |
+| Observation | Meaning |
 |---|---|
-| Zwei STHs, gleiches Log, gleiche `size`, verschiedene `root` | Split-View. Beweis. |
-| Zwei STHs, `size₁ < size₂`, Konsistenzbeweis geht nicht auf | Historie geändert. Beweis. |
-| STH mit `size₂ < size₁` bei späterem `ts` | Baum geschrumpft. Beweis. |
-| Eintrag ist nicht im Baum, obwohl quittiert | Zurückhalten. Erst mit Quittung beweisbar. |
+| Two STHs, same log, same `size`, different `root` | split view. Proof. |
+| Two STHs, `size₁ < size₂`, consistency proof does not come out | history changed. Proof. |
+| STH with `size₂ < size₁` at a later `ts` | tree shrank. Proof. |
+| Entry is not in the tree although receipted | withholding. Provable only with a receipt. |
 
-Die ersten drei sind **nicht abstreitbar**: Die Node hat beide Aussagen selbst unterschrieben. Es
-braucht keine Mehrheit, keine Abstimmung und keine vertrauenswürdige dritte Instanz, um sie zu
-werten — nur zwei Beobachter, die ihre Sicht vergleichen.
+The first three are **non-repudiable**: the node signed both statements itself. No majority, no
+vote and no trusted third party is needed to judge them — only two observers who compare their
+views.
 
-Und genau das ist die Bedingung: **Ein einzelner Beobachter kann einen Split-View prinzipiell
-nicht erkennen.** Beide Historien sind in sich stimmig und korrekt signiert. Ohne Austausch
-zwischen Beobachtern ist der Angriff offen, und mit ihm die nachträgliche Änderung des Logs. Die
-Erkennung ist zudem nachträglich: Sie verhindert den Angriff nicht, sie macht ihn nachweisbar und
-damit teuer. Siehe OWM-9 A1 und A2.
+And that is exactly the condition: **a single observer cannot detect a split view in principle.**
+Both histories are internally consistent and correctly signed. Without exchange between observers
+the attack is open, and with it the retroactive alteration of the log. Detection is moreover after
+the fact: it does not prevent the attack, it makes it provable and thereby expensive. See OWM-9 A1
+and A2.
 
-## 10. Offene Punkte
+## 10. Retention and pruning
 
-- Aufbewahrungsfristen für STHs: Ein Beobachter braucht alte STHs, um überhaupt vergleichen zu
-  können. Wie lange eine Node sie vorhalten MUSS, ist noch nicht festgelegt.
-- Quittungen beim Anhängen (analog zum SCT in CT), damit das Zurückhalten eines Eintrags beweisbar
-  wird und nicht nur behauptbar. Gehört zur Node-API, [OWM-7 §9](owm-7-node-api.md#9-offene-punkte).
-- Verhalten bei Erreichen der Blattgrenze von 128 KiB durch sehr breite Aggregationen
-  (`par` bis MaxParents = 1024).
+Erasure under Article 17 (§7) is the case driven by a data subject. Independently of it, a node
+needs a rule for what it keeps **by default** and for how long — otherwise the log grows without
+bound, and a community node with many small participants pays for all of them.
+
+Three storage tiers per entry:
+
+| Tier | What is held | Size per entry |
+|---|---|---|
+| hot | signed entry + payload + salt | ~3900 B |
+| warm | signed entry, payload and salt gone | ~3400 B |
+| cold | **leaf hash only** | **32 B** |
+
+### 10.1 Payload retention
+
+A node SHOULD lay down a retention period per profile after which payload and salt are erased even
+without a request, and SHOULD publish it in its metadata (OWM-7). The period follows from the
+purpose, not from the protocol: for food it is oriented on shelf life plus the statutory
+traceability period, for a certification on its period of validity.
+
+The mechanism is exactly the one from §7 — erase payload and salt, append an `erasure` entry. A
+retention erasure is indistinguishable from an erasure on request, and that is intended: otherwise
+the type of an erasure would say something about the data subject.
+
+### 10.2 Signature pruning
+
+The tree needs **leaf hashes and nothing else**. Inclusion and consistency proofs are computed
+entirely from them; the signed entry itself is never needed for that.
+
+A node MAY therefore, after a pruning period, discard the signed entry as well and keep only the
+leaf hash. Consequences:
+
+- **Every STH ever issued stays valid**, the root hash does not change.
+- **Every inclusion and consistency proof stays computable**, for every leaf, indefinitely.
+- **Lost** is the ability to hand out the entry itself and to check its signature. Whoever archived
+  the entry earlier — the supply chain partner, the certifier, a monitor — can still prove its
+  inclusion against every STH.
+
+This makes the log's storage requirement **independent of the signature size**: a million pruned
+entries are 32 MB instead of 3.3 GB. That is the structural answer to §8, which can only dampen
+the per-entry cost.
+
+A node MUST NOT prune before the retention period of the profile has expired, MUST publish the
+pruning period, and MUST answer a request for a pruned entry with a distinguishable status
+(OWM-7) — "pruned" is not "unknown" and not "erased".
+
+### 10.3 What must not be pruned
+
+`key_rotation` entries, for the reason from §7.6: without them the rotation chain breaks. A node
+MUST keep them in full permanently.
+
+### 10.4 STH retention
+
+An observer needs old STHs in order to be able to compare at all. A node MUST keep every STH it
+has issued for at least the pruning period and SHOULD keep all of them permanently — an STH is
+about 3400 bytes, hourly issue costs 29 MB per year, and it is the only structure through which
+past misbehaviour can still be proven.
+
+## 11. Open points
+
+- Receipts on appending (analogous to the SCT in CT), so that withholding an entry becomes
+  provable and not merely assertable. Belongs to the node API,
+  [OWM-7 §10](owm-7-node-api.md#10-open-points).
+- Behaviour on reaching the leaf limit of 128 KiB through very wide aggregations (`par` up to
+  MaxParents = 1024).
+- Whether a pruned entry SHOULD be re-supplied by a third party who archived it (a "resurrection"
+  path), and how such a copy is authenticated — the leaf hash decides it, but the transport for it
+  is not specified.

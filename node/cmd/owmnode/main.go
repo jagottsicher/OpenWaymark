@@ -1,18 +1,17 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Befehl owmnode betreibt eine OpenWaymark-Node.
+// Command owmnode runs an OpenWaymark node.
 //
-//	owmnode init  [-config owm.json]   Konfiguration und Identität anlegen
-//	owmnode serve [-config owm.json]   Node starten
-//	owmnode show  [-config owm.json]   Identität und Log-Kennung anzeigen
-//	owmnode version                    Version ausgeben
+//	owmnode init  [-config owm.json]   create configuration and identity
+//	owmnode serve [-config owm.json]   start the node
+//	owmnode show  [-config owm.json]   print identity and log ID
+//	owmnode version                    print version
 //
-// Der laufende Betrieb — Schlüssel aufnehmen, Nutzlasten löschen, STHs
-// ausstellen — geht über die Verwaltungsschnittstelle der laufenden Node und
-// nicht über weitere Unterbefehle. Zwei Prozesse auf derselben SQLite-Datei
-// wären ein Weg, sich die Datenbank zu zerlegen, und der Umweg über HTTP
-// kostet nichts.
+// Day-to-day operation — admitting keys, erasing payloads, issuing STHs — goes
+// through the admin interface of the running node and not through further
+// subcommands. Two processes on the same SQLite file would be a way to wreck
+// the database, and the detour through HTTP costs nothing.
 package main
 
 import (
@@ -75,8 +74,8 @@ func usage() {
 `)
 }
 
-// loadConfig liest die Konfiguration; fehlt die Datei, gelten die
-// Voreinstellungen.
+// loadConfig reads the configuration; if the file is missing, the defaults
+// apply.
 func loadConfig(path string) (node.Config, error) {
 	cfg, err := node.LoadConfig(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -98,7 +97,7 @@ func cmdInit(args []string) error {
 
 	cfg := node.DefaultConfig()
 	if _, err := os.Stat(*path); err == nil {
-		// Eine bestehende Konfiguration wird gelesen, nicht überschrieben.
+		// An existing configuration is read, not overwritten.
 		cfg, err = node.LoadConfig(*path)
 		if err != nil {
 			return err
@@ -107,8 +106,8 @@ func cmdInit(args []string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	} else {
-		// Neue Konfiguration: Pfade relativ zur Konfigurationsdatei, damit sich
-		// das Verzeichnis als Ganzes verschieben lässt.
+		// New configuration: paths relative to the configuration file so that
+		// the directory can be moved as a whole.
 		dir := filepath.Dir(*path)
 		cfg.Database = filepath.Join(dir, node.DefaultDatabase)
 		cfg.Identity = filepath.Join(dir, node.DefaultIdentity)
@@ -120,9 +119,9 @@ func cmdInit(args []string) error {
 		fmt.Printf("configuration created: %s\n", *path)
 	}
 
-	// Die Identität wird nur angelegt, wenn sie fehlt. Eine bestehende zu
-	// überschreiben hieße, das Log unter neuer Kennung fortzuführen — alle
-	// bisherigen STHs wären dann von einem Schlüssel, den niemand mehr kennt.
+	// The identity is created only if it is missing. Overwriting an existing one
+	// would mean continuing the log under a new identifier — every STH so far
+	// would then be from a key nobody knows any more.
 	id, err := node.LoadOrCreateIdentity(cfg.Identity, core.SigAlgMLDSA65)
 	if err != nil {
 		return err
@@ -204,8 +203,8 @@ func cmdServe(args []string) error {
 		cfg.AdminListen = *admin
 	}
 
-	// SIGINT und SIGTERM beenden geordnet: Der letzte Baumzustand wird noch
-	// unterschrieben, bevor der Prozess geht.
+	// SIGINT and SIGTERM shut down in order: the last tree state is still signed
+	// before the process leaves.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

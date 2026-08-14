@@ -13,26 +13,27 @@ import (
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 )
 
-// Kontextstrings nach FIPS 204. Sie binden eine Signatur an ihren
-// Verwendungszweck, ohne die Nachricht selbst anzufassen — eine Eintragssignatur
-// ist damit niemals als STH-Signatur verwendbar.
+// Context strings per FIPS 204. They bind a signature to its purpose without
+// touching the message itself — an entry signature can therefore never be used
+// as an STH signature.
 const (
 	SigContextEntry = "OWM/1 entry"
 	SigContextSTH   = "OWM/1 sth"
 )
 
-// maxSigContext ist die von FIPS 204 vorgegebene Obergrenze für ctx.
+// maxSigContext is the upper bound on ctx mandated by FIPS 204.
 const maxSigContext = 255
 
-// SigAlg benennt ein Signaturverfahren. Nur Post-Quantum-Verfahren; kein RSA,
-// kein ECC, kein Hybridmodell.
+// SigAlg names a signature scheme. Post-quantum schemes only; no RSA, no ECC,
+// no hybrid model.
 type SigAlg uint16
 
 const (
-	// SigAlgMLDSA44 ist für Sensoren und Masseneinträge vorgesehen: 2420 Byte
-	// Signatur statt 3309, was bei hoher Eintragszahl den Ausschlag gibt.
+	// SigAlgMLDSA44 is meant for sensors and bulk entries: 2420 bytes of
+	// signature instead of 3309, which is what tips the scales at high entry
+	// counts.
 	SigAlgMLDSA44 SigAlg = 1
-	// SigAlgMLDSA65 ist der Standard für Node- und Entitätsschlüssel.
+	// SigAlgMLDSA65 is the default for node and entity keys.
 	SigAlgMLDSA65 SigAlg = 2
 )
 
@@ -54,10 +55,10 @@ func (a SigAlg) String() string {
 	}
 }
 
-// Valid meldet, ob der Algorithmus von dieser Formatversion unterstützt wird.
+// Valid reports whether this format version supports the algorithm.
 func (a SigAlg) Valid() bool { return a == SigAlgMLDSA44 || a == SigAlgMLDSA65 }
 
-// PublicKeySize ist die Länge eines gepackten öffentlichen Schlüssels in Byte.
+// PublicKeySize is the length of a packed public key in bytes.
 func (a SigAlg) PublicKeySize() int {
 	switch a {
 	case SigAlgMLDSA44:
@@ -69,7 +70,7 @@ func (a SigAlg) PublicKeySize() int {
 	}
 }
 
-// SignatureSize ist die Länge einer Signatur in Byte.
+// SignatureSize is the length of a signature in bytes.
 func (a SigAlg) SignatureSize() int {
 	switch a {
 	case SigAlgMLDSA44:
@@ -81,7 +82,7 @@ func (a SigAlg) SignatureSize() int {
 	}
 }
 
-// SeedSize ist die Länge des Saatwerts für NewKeyFromSeed in Byte.
+// SeedSize is the length of the seed for NewKeyFromSeed in bytes.
 func (a SigAlg) SeedSize() int {
 	switch a {
 	case SigAlgMLDSA44:
@@ -93,22 +94,22 @@ func (a SigAlg) SeedSize() int {
 	}
 }
 
-// PublicKey ist ein öffentlicher ML-DSA-Schlüssel samt seiner Kennung.
+// PublicKey is an ML-DSA public key together with its identifier.
 type PublicKey struct {
 	alg SigAlg
 	raw []byte
 	id  KeyID
-	pk  any // *mldsa44.PublicKey oder *mldsa65.PublicKey, durch die Konstruktoren garantiert
+	pk  any // *mldsa44.PublicKey or *mldsa65.PublicKey, guaranteed by the constructors
 }
 
-// PrivateKey ist ein privater ML-DSA-Schlüssel.
+// PrivateKey is an ML-DSA private key.
 type PrivateKey struct {
 	alg SigAlg
-	sk  any // *mldsa44.PrivateKey oder *mldsa65.PrivateKey
+	sk  any // *mldsa44.PrivateKey or *mldsa65.PrivateKey
 	pub *PublicKey
 }
 
-// GenerateKey erzeugt ein neues Schlüsselpaar aus dem Systemzufallsgenerator.
+// GenerateKey creates a new key pair from the system random number generator.
 func GenerateKey(alg SigAlg) (*PrivateKey, error) {
 	if !alg.Valid() {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(alg))
@@ -120,9 +121,9 @@ func GenerateKey(alg SigAlg) (*PrivateKey, error) {
 	return NewKeyFromSeed(alg, seed)
 }
 
-// NewKeyFromSeed leitet ein Schlüsselpaar deterministisch aus einem Saatwert ab.
-// Für Testvektoren gedacht und für Verfahren, die den Saatwert selbst sicher
-// verwahren — nicht dafür, einen Saatwert aus einem Passwort zu bilden.
+// NewKeyFromSeed derives a key pair deterministically from a seed. Intended for
+// test vectors and for schemes that keep the seed safe themselves — not for
+// turning a password into a seed.
 func NewKeyFromSeed(alg SigAlg, seed []byte) (*PrivateKey, error) {
 	if !alg.Valid() {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(alg))
@@ -155,7 +156,7 @@ func newPrivateKey(alg SigAlg, sk, pk any, raw []byte) *PrivateKey {
 	}
 }
 
-// ParsePublicKey liest einen gepackten öffentlichen Schlüssel.
+// ParsePublicKey reads a packed public key.
 func ParsePublicKey(alg SigAlg, raw []byte) (*PublicKey, error) {
 	if !alg.Valid() {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownAlg, uint16(alg))
@@ -164,8 +165,8 @@ func ParsePublicKey(alg SigAlg, raw []byte) (*PublicKey, error) {
 		return nil, fmt.Errorf("%w: %s expected %d bytes, got %d", ErrKeySize, alg, alg.PublicKeySize(), len(raw))
 	}
 
-	// Kopieren, damit der Aufrufer den Puffer danach weiterverwenden darf, ohne
-	// den Schlüssel unter uns zu verändern.
+	// Copy, so that the caller may keep using the buffer afterwards without
+	// changing the key under us.
 	buf := make([]byte, len(raw))
 	copy(buf, raw)
 
@@ -187,26 +188,26 @@ func ParsePublicKey(alg SigAlg, raw []byte) (*PublicKey, error) {
 	return &PublicKey{alg: alg, raw: buf, id: computeKeyID(alg, buf), pk: pk}, nil
 }
 
-// computeKeyID berechnet KeyID = H("OWM/1 key-id", u16be(alg), pubkey).
+// computeKeyID computes KeyID = H("OWM/1 key-id", u16be(alg), pubkey).
 //
-// Der Algorithmus geht mit ein, damit derselbe Bytestring unter zwei Verfahren
-// nicht dieselbe Kennung ergibt.
+// The algorithm goes into the hash so that the same byte string under two
+// schemes does not yield the same identifier.
 func computeKeyID(alg SigAlg, raw []byte) KeyID {
 	var a [2]byte
 	binary.BigEndian.PutUint16(a[:], uint16(alg))
 	return KeyID(hashLabeled(labelKeyID, a[:], raw))
 }
 
-// DeriveLogID leitet die Kennung eines Logs aus seinem Gründungsschlüssel ab.
+// DeriveLogID derives the identifier of a log from its genesis key.
 //
-// Nicht aus dem jeweils aktuellen Schlüssel: Der wechselt bei einer Rotation,
-// und eine mitwechselnde Log-Kennung würde jeden je ausgestellten Verweis auf
-// dieses Log ungültig machen. Der Gründungsschlüssel wechselt nie, und die
-// Ableitung macht die Kennung selbstzertifizierend — wer den Schlüssel hat,
-// kann sie nachrechnen, ohne ein Verzeichnis zu befragen.
+// Not from the key currently in use: that one changes on rotation, and a log ID
+// changing along with it would invalidate every reference to this log ever
+// issued. The genesis key never changes, and deriving from it makes the
+// identifier self-certifying — anyone holding the key can recompute it without
+// consulting a directory.
 //
-// Welche Nachfolgeschlüssel für dieses Log signieren dürfen, beantwortet die
-// Rotationskette im Log selbst (OWM-3), nicht die Kennung.
+// Which successor keys may sign for this log is answered by the rotation chain
+// in the log itself (OWM-3), not by the identifier.
 func DeriveLogID(genesis *PublicKey) (LogID, error) {
 	if genesis == nil {
 		return LogID{}, fmt.Errorf("%w: genesis key", ErrMissingField)
@@ -216,20 +217,20 @@ func DeriveLogID(genesis *PublicKey) (LogID, error) {
 	return LogID(hashLabeled(labelLogID, a[:], genesis.raw)), nil
 }
 
-// Alg liefert das Signaturverfahren des Schlüssels.
+// Alg returns the signature scheme of the key.
 func (p *PublicKey) Alg() SigAlg { return p.alg }
 
-// ID liefert die Schlüsselkennung.
+// ID returns the key identifier.
 func (p *PublicKey) ID() KeyID { return p.id }
 
-// Bytes liefert eine Kopie des gepackten öffentlichen Schlüssels.
+// Bytes returns a copy of the packed public key.
 func (p *PublicKey) Bytes() []byte {
 	out := make([]byte, len(p.raw))
 	copy(out, p.raw)
 	return out
 }
 
-// Verify prüft eine Signatur gegen Nachricht und Kontext.
+// Verify checks a signature against a message and a context.
 func (p *PublicKey) Verify(sigContext string, msg, sig []byte) bool {
 	if p == nil || len(sig) != p.alg.SignatureSize() || len(sigContext) > maxSigContext {
 		return false
@@ -245,22 +246,22 @@ func (p *PublicKey) Verify(sigContext string, msg, sig []byte) bool {
 	}
 }
 
-// Alg liefert das Signaturverfahren des Schlüssels.
+// Alg returns the signature scheme of the key.
 func (k *PrivateKey) Alg() SigAlg { return k.alg }
 
-// Public liefert den zugehörigen öffentlichen Schlüssel.
+// Public returns the matching public key.
 func (k *PrivateKey) Public() *PublicKey { return k.pub }
 
-// Sign signiert eine Nachricht randomisiert ("hedged"), wie es FIPS 204 als
-// Voreinstellung vorsieht. Das ist der Normalfall: Randomisierung erschwert
-// Seitenkanal- und Fehlerangriffe.
+// Sign signs a message in randomised ("hedged") mode, which is what FIPS 204
+// prescribes by default. This is the normal case: randomisation makes side
+// channel and fault attacks harder.
 func (k *PrivateKey) Sign(sigContext string, msg []byte) ([]byte, error) {
 	return k.sign(sigContext, msg, true)
 }
 
-// SignDeterministic signiert ohne Zufall und liefert damit zu gleicher Eingabe
-// stets dieselbe Signatur. Ausschließlich für reproduzierbare Testvektoren
-// gedacht — im Betrieb ist Sign zu verwenden.
+// SignDeterministic signs without randomness and therefore returns the same
+// signature for the same input every time. Intended solely for reproducible
+// test vectors — in production use Sign.
 func (k *PrivateKey) SignDeterministic(sigContext string, msg []byte) ([]byte, error) {
 	return k.sign(sigContext, msg, false)
 }

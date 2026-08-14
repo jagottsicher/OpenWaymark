@@ -3,35 +3,34 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# `profiles/` — Schema-Profile · Apache-2.0
+# `profiles/` — Schema profiles · Apache-2.0
 
-Der Kern kennt kein Branchenschema. Was in einer Nutzlast stehen darf, legt ein Profil fest, das
-über die Profilkennung im Eintrag (`prof`) referenziert wird.
+The core knows no industry schema. What may appear in a payload is laid down by a profile, which
+is referenced through the profile ID in the entry (`prof`).
 
-| Profil | Kennung | Stand |
+| Profile | ID | Status |
 |---|---|---|
-| [Lebensmittel](food/) | `food.v1` | vorhanden |
-| EU-Batteriepass | noch offen | Profil Nr. 2, Pflicht ab Februar 2027 |
+| [Food](food/) | `food.v1` | available |
+| EU battery passport | still open | profile no. 2, mandatory from February 2027 |
 
-Vollständige Beschreibung: [OWM-4](../spec/owm-4-profiles.md).
+Full description: [OWM-4](../spec/owm-4-profiles.md).
 
-## Was die Schemaprüfung leistet
+## What schema validation achieves
 
-Sie ist ein **Eingangsfilter, keine Wahrheitsaussage**. Ein schemakonformer Eintrag kann eine
-vollständige Lüge sein — das Schema prüft die Form, nicht die Wirklichkeit. Es hält Tippfehler,
-fehlende Pflichtfelder und Formatverwechslungen aus dem Log fern, damit eine Kette später
-überhaupt maschinell auswertbar ist. Die Bindung an den Eintrag leistet das Commitment, die
-Zurechenbarkeit die Signatur.
+It is an **input filter, not a statement of truth**. A schema-conformant entry can be a complete
+lie — the schema checks the form, not reality. It keeps typos, missing required fields and
+confused formats out of the log so that a chain can be evaluated by machine at all later on.
+Binding to the entry is the commitment's job, attributability the signature's.
 
-## Unveränderlichkeit
+## Immutability
 
-Eine Profilversion ändert sich nie. Wäre `food.v1` heute anders als gestern, wäre ein Eintrag von
-gestern heute ungültig, ohne dass ihn jemand angefasst hätte — und ein Monitor könnte nicht mehr
-nachvollziehen, wogegen eine Node damals geprüft hat. Änderungen erscheinen als `food.v2`.
-`Profile.SchemaDigest()` bindet die Kennung an genau den ausgelieferten Satz Schemadateien;
-zwei Nodes mit demselben Profilnamen, aber verschiedenen Digests prüfen verschieden.
+A profile version never changes. If `food.v1` were different today from yesterday, an entry from
+yesterday would be invalid today without anyone having touched it — and a monitor could no longer
+reconstruct what a node validated against at the time. Changes appear as `food.v2`.
+`Profile.SchemaDigest()` binds the ID to exactly the set of schema files that was shipped;
+two nodes with the same profile name but different digests validate differently.
 
-## Eigenes Profil
+## Your own profile
 
 ```go
 //go:embed schema/*.json
@@ -39,25 +38,24 @@ var schemaFS embed.FS
 
 sub, _ := fs.Sub(schemaFS, "schema")
 p, err := profiles.Load(profiles.Options{
-    ID:    "eu/battery.v1",   // Zeichenvorrat wie im Feld prof: a–z 0–9 . / - _
-    Title: "EU-Batteriepass",
+    ID:    "eu/battery.v1",   // character set as in the prof field: a–z 0–9 . / - _
+    Title: "EU battery passport",
     FS:    sub,
     Root:  "event.json",
-    Rule:  bindEntryType,     // optional: Prüfungen, die den Eintrag betreffen
+    Rule:  bindEntryType,     // optional: checks that concern the entry
 })
 ```
 
-Schemata werden nach JSON Schema 2020-12 übersetzt, `format` wird geprüft. Verweise auf fremde
-URLs lehnt der Compiler ab: Ein Profil, dessen Regeln von einem fremden Server abhängen, ist kein
-festgeschriebenes Profil.
+Schemas are compiled according to JSON Schema 2020-12, and `format` is validated. The compiler
+rejects references to foreign URLs: a profile whose rules depend on somebody else's server is not
+a fixed profile.
 
-## Strenge beim Lesen der Nutzlast
+## Strictness when reading the payload
 
-`Validate` liest strenger als `encoding/json`, und zwar aus einem einzigen Grund — die Bytes der
-Nutzlast sind durch das Commitment festgeschrieben, also muss jede Implementierung sie gleich
-lesen:
+`Validate` reads more strictly than `encoding/json`, and for exactly one reason — the bytes of the
+payload are pinned by the commitment, so every implementation has to read them the same way:
 
-- **doppelte Objektschlüssel** sind ein Fehler (Go nimmt den letzten Wert, andere Sprachen den
-  ersten — dieselben Bytes bedeuteten dann Verschiedenes),
-- Text hinter dem obersten Wert ist ein Fehler,
-- die Verschachtelung ist auf 32 Ebenen begrenzt.
+- **duplicate object keys** are an error (Go takes the last value, other languages the first —
+  the same bytes would then mean different things),
+- text after the top-level value is an error,
+- nesting is capped at 32 levels.

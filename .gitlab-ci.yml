@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 # SPDX-License-Identifier: Apache-2.0
 
-# CIRCL verlangt Go 1.25 oder neuer, siehe go.mod.
+# CIRCL requires Go 1.25 or newer, see go.mod.
 image: golang:1.25
 
 stages:
@@ -35,8 +35,8 @@ format:
   extends: .go-base
   stage: check
   script:
-    # gofmt meldet Abweichungen auf stdout und nicht über den Rückgabewert.
-    - test -z "$(gofmt -l .)" || { gofmt -d .; echo 'gofmt-Abweichungen, siehe oben'; exit 1; }
+    # gofmt reports deviations on stdout and not via the exit code.
+    - test -z "$(gofmt -l .)" || { gofmt -d .; echo 'gofmt deviations, see above'; exit 1; }
 
 vet:
   extends: .go-base
@@ -63,17 +63,17 @@ test:
       - coverage.out
     expire_in: 1 week
 
-# Kurzer Fuzz-Lauf pro Pipeline. Die Deserialisierung ist die einzige Stelle,
-# an der fremde Bytes ins System kommen — dort lohnt sich das Suchen nach
-# Eingaben, die niemand von Hand erfindet.
+# Short fuzz run per pipeline. Deserialization is the only place where
+# foreign bytes enter the system — that is where it pays off to look for
+# inputs nobody would come up with by hand.
 fuzz-smoke:
   extends: .go-base
   stage: test
   script:
     - go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 60s
     - go test ./core/ -run '^$' -fuzz FuzzParseSignedEntry -fuzztime 60s
-    # Blätter und STHs kommen von fremden Nodes und sind damit dieselbe Art
-    # Eingabe wie ein Eintrag.
+    # Leaves and STHs come from foreign nodes and are therefore the same
+    # kind of input as an entry.
     - go test ./log/ -run '^$' -fuzz FuzzParseLeaf -fuzztime 30s
     - go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 30s
     - go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 30s

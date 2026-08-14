@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package food ist das Lebensmittelprofil food.v1 — das erste Schema-Profil
-// von OpenWaymark.
+// Package food is the food profile food.v1 — the first schema profile of
+// OpenWaymark.
 //
-// Die Ereignisse sind an GS1 EPCIS 2.0 angelehnt statt neu erfunden. Das ist
-// keine Bequemlichkeit: EPCIS ist die Sprache, in der Handel und Logistik
-// Lieferkettenereignisse ohnehin schon beschreiben. Wer daran anknüpft, braucht
-// keine Übersetzungsschicht; wer sich eine eigene Semantik ausdenkt, hat sie
-// für immer.
+// The events follow GS1 EPCIS 2.0 instead of being invented anew. That is not
+// convenience: EPCIS is the language in which trade and logistics already
+// describe supply chain events. Whoever builds on it needs no translation layer;
+// whoever thinks up their own semantics is stuck with them forever.
 //
 //	OpenWaymark       EPCIS 2.0
 //	production        ObjectEvent, action ADD, bizStep commissioning
@@ -16,13 +15,12 @@
 //	transport         ObjectEvent, action OBSERVE, bizStep shipping/receiving
 //	processing        TransformationEvent
 //	handover          TransactionEvent
-//	measurement       Sensorwerte (in EPCIS: sensorElementList)
+//	measurement       sensor values (in EPCIS: sensorElementList)
 //
-// Alle sechs Ereignisse teilen sich eine einzige Profilkennung. Das ist
-// Absicht: Stünde der Ereignistyp im Feld prof des Eintrags, wäre nach einer
-// Löschung immer noch sichtbar, welche Art Ereignis es war. So bleibt nur
-// stehen, dass es zu einem Zeitpunkt ein Lebensmittelereignis zu einem Subjekt
-// gab.
+// All six events share a single profile identifier. That is deliberate: were the
+// event type to sit in the entry's prof field, it would still be visible after
+// an erasure what kind of event it had been. This way all that remains is that
+// at some point there was a food event about a subject.
 package food
 
 import (
@@ -38,13 +36,13 @@ import (
 //go:embed schema/*.json
 var schemaFS embed.FS
 
-// ID ist die Profilkennung, wie sie im Feld prof eines Eintrags steht.
+// ID is the profile identifier as it appears in an entry's prof field.
 //
-// Die Version gehört in die Kennung, weil eine Profilversion unveränderlich
-// ist: Änderungen am Schema erscheinen als food.v2, nicht als neues food.v1.
+// The version belongs in the identifier because a profile version is immutable:
+// changes to the schema appear as food.v2, not as a new food.v1.
 const ID = "food.v1"
 
-// Die Ereignistypen des Profils, wie sie im Feld event der Nutzlast stehen.
+// The profile's event types, as they appear in the payload's event field.
 const (
 	EventProduction  = "production"
 	EventAggregation = "aggregation"
@@ -54,7 +52,7 @@ const (
 	EventMeasurement = "measurement"
 )
 
-// New lädt das Profil.
+// New loads the profile.
 func New() (*profiles.Profile, error) {
 	sub, err := fs.Sub(schemaFS, "schema")
 	if err != nil {
@@ -69,10 +67,10 @@ func New() (*profiles.Profile, error) {
 	})
 }
 
-// MustNew lädt das Profil und bricht bei Fehlern ab.
+// MustNew loads the profile and aborts on error.
 //
-// Vertretbar, weil die Schemata einkompiliert sind: Ein Fehler hier heißt, dass
-// das Binary kaputt gebaut wurde, und nicht, dass zur Laufzeit etwas schiefging.
+// Defensible because the schemas are compiled in: an error here means the binary
+// was built broken, not that something went wrong at runtime.
 func MustNew() *profiles.Profile {
 	p, err := New()
 	if err != nil {
@@ -81,13 +79,12 @@ func MustNew() *profiles.Profile {
 	return p
 }
 
-// checkEntryType bindet den Ereignistyp an den Eintragstyp.
+// checkEntryType binds the event type to the entry type.
 //
-// Eine Messung ist keine Selbstauskunft. Sie kommt von einem Gerät, wird von
-// einem Geräteschlüssel signiert und muss deshalb als sensor_reading eingereicht
-// werden — sonst ließe sich eine von Hand geschriebene Kühlkette später als
-// Sensorbeleg ausgeben. Das JSON-Schema kann das nicht prüfen, weil es den
-// Eintrag nicht sieht.
+// A measurement is not a self-declaration. It comes from a device, is signed by
+// a device key and therefore has to be submitted as sensor_reading — otherwise a
+// hand-written cold chain could later be passed off as sensor evidence. The JSON
+// schema cannot check this because it does not see the entry.
 func checkEntryType(e *core.Entry, payload []byte) error {
 	var head struct {
 		Event string `json:"event"`

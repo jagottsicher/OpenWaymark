@@ -3,18 +3,18 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# `log/` — Append-only Log · Apache-2.0
+# `log/` — Append-only log · Apache-2.0
 
-**Geplant (Etappe E2). Noch kein Code.**
+**Planned (stage E2). No code yet.**
 
-Das Herzstück des Protokolls: der Merkle-Baum nach RFC 6962 über
-[`transparency-dev/merkle`](https://github.com/transparency-dev/merkle), Inklusions- und
-Konsistenzbeweise, Signed Tree Heads — und der Löschpfad.
+The heart of the protocol: the Merkle tree per RFC 6962 on top of
+[`transparency-dev/merkle`](https://github.com/transparency-dev/merkle), inclusion and
+consistency proofs, signed tree heads — and the erasure path.
 
-Der Kniff, um den es hier geht: Gelöscht werden Blob und Salt, nicht das Blatt. Der Baum bleibt
-unverändert, deshalb bleiben **alle je ausgegebenen STHs gültig**. Genau das macht
-DSGVO-Löschbarkeit und Manipulationssicherheit vereinbar — Certificate Transparency braucht es
-nicht, weil CT nie löscht.
+The trick it all turns on: what gets erased is the blob and the salt, not the leaf. The tree stays
+unchanged, which is why **every STH ever issued remains valid**. That is exactly what reconciles
+GDPR erasure with tamper evidence — Certificate Transparency does not need it, because CT never
+erases.
 
-Spezifikation: OWM-2 (noch zu schreiben). Angreifermodell:
+Specification: OWM-2 (still to be written). Threat model:
 [OWM-9 A2, A5](../spec/owm-9-threat-model.md).

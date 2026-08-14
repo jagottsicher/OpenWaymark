@@ -9,7 +9,7 @@ import (
 )
 
 func TestDigestTextRoundTrip(t *testing.T) {
-	d := hashLabeled("test", []byte("hallo"))
+	d := hashLabeled("test", []byte("hello"))
 	text, err := d.MarshalText()
 	if err != nil {
 		t.Fatalf("MarshalText: %v", err)
@@ -51,9 +51,9 @@ func TestDigestFromBytesLength(t *testing.T) {
 	}
 }
 
-// TestHashLabeledIsPrefixFree ist der eigentliche Sinn der Längenpräfixe: Ohne
-// sie ließe sich ein Teil des Namensraums in den Wert verschieben, ohne den
-// Hash zu ändern. Der Test hält genau das fest.
+// TestHashLabeledIsPrefixFree covers the actual point of the length prefixes:
+// without them part of the namespace could be shifted into the value without
+// changing the hash. The test pins exactly that down.
 func TestHashLabeledIsPrefixFree(t *testing.T) {
 	a := hashLabeled("l", []byte("ab"), []byte("c"))
 	b := hashLabeled("l", []byte("a"), []byte("bc"))
@@ -61,7 +61,7 @@ func TestHashLabeledIsPrefixFree(t *testing.T) {
 		t.Error("different argument splits produce the same hash")
 	}
 
-	// Auch die Bezeichnung selbst muss trennen.
+	// The label itself has to separate too.
 	c := hashLabeled("la", []byte("bc"))
 	if c == a || c == b {
 		t.Error("the label does not separate from the first argument")

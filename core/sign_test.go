@@ -11,7 +11,7 @@ import (
 
 var testAlgs = []SigAlg{SigAlgMLDSA44, SigAlgMLDSA65}
 
-// keyFromSeedByte erzeugt einen reproduzierbaren Testschlüssel.
+// keyFromSeedByte creates a reproducible test key.
 func keyFromSeedByte(t *testing.T, alg SigAlg, b byte) *PrivateKey {
 	t.Helper()
 	k, err := NewKeyFromSeed(alg, bytes.Repeat([]byte{b}, alg.SeedSize()))
@@ -22,8 +22,8 @@ func keyFromSeedByte(t *testing.T, alg SigAlg, b byte) *PrivateKey {
 }
 
 func TestSigAlgSizes(t *testing.T) {
-	// Die Größen stehen in der Spezifikation und sind der Grund für die zwei
-	// Stufen — wenn sie sich ändern, muss OWM-0 §3 mitgeändert werden.
+	// The sizes are given in the specification and are the reason for the two
+	// levels — if they change, OWM-0 §3 has to change with them.
 	cases := []struct {
 		alg      SigAlg
 		pub, sig int
@@ -77,8 +77,8 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSignatureContextSeparation ist der Grund für die FIPS-204-Kontextstrings:
-// Eine Eintragssignatur darf niemals als STH-Signatur durchgehen.
+// TestSignatureContextSeparation covers the reason for the FIPS 204 context
+// strings: an entry signature must never pass as an STH signature.
 func TestSignatureContextSeparation(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x01)
 	msg := []byte("the same message")
@@ -162,9 +162,8 @@ func TestNewKeyFromSeedRejectsWrongLength(t *testing.T) {
 	}
 }
 
-// TestKeyIDBindsAlgorithm hält fest, warum der Algorithmus in die
-// Schlüsselkennung eingeht: Derselbe Bytestring darf unter zwei Verfahren nicht
-// dieselbe Kennung ergeben.
+// TestKeyIDBindsAlgorithm records why the algorithm enters the key identifier:
+// the same byte string must not yield the same identifier under two schemes.
 func TestKeyIDBindsAlgorithm(t *testing.T) {
 	raw := bytes.Repeat([]byte{0xAB}, 64)
 	if computeKeyID(SigAlgMLDSA44, raw) == computeKeyID(SigAlgMLDSA65, raw) {
@@ -206,8 +205,8 @@ func TestParsePublicKeyRejectsWrongLength(t *testing.T) {
 	}
 }
 
-// TestPublicKeyBytesIsCopy stellt sicher, dass der Aufrufer den Schlüssel nicht
-// unter uns verändern kann.
+// TestPublicKeyBytesIsCopy makes sure the caller cannot change the key under
+// us.
 func TestPublicKeyBytesIsCopy(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x08)
 	raw := k.Public().Bytes()
@@ -247,8 +246,8 @@ func TestSignDeterministicIsStable(t *testing.T) {
 			t.Errorf("%s: deterministic signature does not verify", alg)
 		}
 
-		// Der Normalfall ist randomisiert; identische Signaturen wären hier
-		// ein Hinweis darauf, dass die Randomisierung nicht greift.
+		// The normal case is randomised; identical signatures here would be a
+		// sign that the randomisation is not taking effect.
 		r1, err := k.Sign(SigContextEntry, msg)
 		if err != nil {
 			t.Fatalf("%s: Sign: %v", alg, err)

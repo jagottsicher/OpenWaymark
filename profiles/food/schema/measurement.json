@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Messung",
-  "description": "Automatisch erfasste Messreihe, etwa die Kühlkette einer Sendung. Muss als Eintragstyp sensor_reading eingereicht werden und von einem Geräteschlüssel stammen. Der Wert dieser Einträge liegt darin, dass sie einer menschlichen Selbstauskunft widersprechen können (OWM-9, Orakelproblem).",
+  "title": "Measurement",
+  "description": "Automatically recorded series of measurements, e.g. the cold chain of a consignment. Has to be submitted with entry type sensor_reading and to come from a device key. The value of these entries lies in their being able to contradict a human self-declaration (OWM-9, oracle problem).",
   "type": "object",
   "required": ["sensor", "quantity_kind", "unit", "readings"],
   "properties": {
@@ -10,7 +10,7 @@
       "properties": {
         "id": { "$ref": "defs.json#/$defs/text" },
         "key": {
-          "description": "Schlüsselkennung des Geräts. Der Vertrauensgrad eines Sensors ist nach oben durch den seines Betreibers begrenzt.",
+          "description": "Key identifier of the device. A sensor's trust level is capped by that of its operator.",
           "$ref": "defs.json#/$defs/keyid"
         },
         "model": { "$ref": "defs.json#/$defs/text" }
@@ -22,7 +22,7 @@
       "enum": ["temperature", "humidity", "shock", "pressure", "light"]
     },
     "unit": {
-      "description": "Einheit nach UN/CEFACT Recommendation 20, etwa CEL für Grad Celsius oder P1 für Prozent.",
+      "description": "Unit per UN/CEFACT Recommendation 20, e.g. CEL for degrees Celsius or P1 for percent.",
       "type": "string",
       "minLength": 1,
       "maxLength": 8

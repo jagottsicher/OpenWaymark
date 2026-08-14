@@ -3,24 +3,24 @@ SPDX-PackageName = "OpenWaymark"
 SPDX-PackageSupplier = "OpenWaymark contributors"
 SPDX-PackageDownloadLocation = "https://openwaymark.org/"
 
-# Standardlizenz des Repositorys. Bereiche mit abweichender Lizenz werden weiter
-# unten überschrieben; die spätere Regel gewinnt.
+# Default license of the repository. Sections with a different license are
+# overridden further down; the later rule wins.
 [[annotations]]
 path = "**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 OpenWaymark contributors"
 SPDX-License-Identifier = "Apache-2.0"
 
-# Serverkomponenten stehen unter AGPL-3.0, damit Betreiber ihre Änderungen
-# an das Netz zurückgeben, in dem sie sie einsetzen.
+# Server components are licensed under AGPL-3.0 so that operators give their
+# changes back to the network they run them in.
 [[annotations]]
 path = ["node/**", "monitor/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 OpenWaymark contributors"
 SPDX-License-Identifier = "AGPL-3.0-only"
 
-# Testvektoren sind Teil der Spezifikation und sollen von Fremdimplementierungen
-# ohne Auflagen übernommen werden können.
+# Test vectors are part of the specification and are meant to be reusable by
+# third-party implementations without conditions.
 [[annotations]]
 path = "testdata/**"
 precedence = "aggregate"

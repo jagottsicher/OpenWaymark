@@ -1,20 +1,20 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Vorführung einer laufenden OpenWaymark-Node.
+// Demonstration of a running OpenWaymark node.
 //
-// Eine Lebensmittelkette vom Hof bis zum Händler: acht Ereignisse, ein
-// widersprechender Kühlkettensensor, eine DSGVO-Löschung und vier
-// Manipulationsversuche — alles gegen eine echte Node über HTTP.
+// A food chain from the farm to the retailer: eight events, a cold chain sensor
+// that contradicts, an erasure under the GDPR and four tampering attempts — all
+// against a real node over HTTP.
 //
-// Das Programm bindet nur core/ und log/ ein (Apache-2.0). Die Node selbst
-// (AGPL-3.0-only) läuft als eigener Prozess und wird ausschließlich über die
-// HTTP-Schnittstelle angesprochen, so wie es ein fremder Client täte. Damit ist
-// die Vorführung zugleich die Probe aufs Exempel: Was sie nicht über die
-// öffentliche API bekommt, bekommt auch sonst niemand.
+// The program imports only core/ and log/ (Apache-2.0). The node itself
+// (AGPL-3.0-only) runs as a process of its own and is addressed exclusively
+// through the HTTP interface, the way a third-party client would. That makes the
+// demonstration the acid test at the same time: what it cannot get through the
+// public API, nobody else gets either.
 //
-// Angelegt wird alles in einem Wegwerf-Verzeichnis, das am Ende wieder
-// verschwindet; die Node hört nur auf 127.0.0.1 und auf freie Ports.
+// Everything is created in a throwaway directory that disappears again at the
+// end; the node listens on 127.0.0.1 only, on free ports.
 package main
 
 import (
@@ -50,12 +50,12 @@ func main() {
 	}
 }
 
-// ---------------------------------------------------------------- Ausgabe
+// ---------------------------------------------------------------- Output
 //
-// Klartext ohne Farben und Sonderzeichen: Die Ausgabe soll sich unverändert in
-// eine Datei, ein Ticket oder eine Mail kopieren lassen, und sie soll in jedem
-// Terminal gleich aussehen. Die Marken links sagen, worum es in der Zeile geht:
-// ok = geprüft und in Ordnung, blocked = abgewiesen (so gewollt), note = Hinweis.
+// Plain text without colours and special characters: the output should be
+// copyable unchanged into a file, a ticket or a mail, and it should look the
+// same in every terminal. The marks on the left say what a line is about:
+// ok = checked and in order, blocked = turned away (as intended), note = remark.
 
 var stepNo int
 
@@ -128,7 +128,7 @@ func (a api) post(path string, body, out any, want int) {
 	}
 }
 
-// ---------------------------------------------------------------- Antworttypen
+// ---------------------------------------------------------------- Response types
 
 type obj = map[string]any
 
@@ -201,7 +201,7 @@ type errResp struct {
 	Detail string `json:"detail"`
 }
 
-// ---------------------------------------------------------------- Zustand
+// ---------------------------------------------------------------- State
 
 type party struct {
 	label string
@@ -229,7 +229,7 @@ type demo struct {
 	admin   api
 	meta    metaResp
 	nodePub *core.PublicKey
-	local   map[core.KeyID]*core.PublicKey // was der Client von sich aus kennt
+	local   map[core.KeyID]*core.PublicKey // what the client knows on its own
 	records []*record
 	byID    map[core.Digest]*record
 }
@@ -268,7 +268,7 @@ func run() (err error) {
 	return nil
 }
 
-// ---------------------------------------------------------------- 1 Node starten
+// ---------------------------------------------------------------- 1 Start the node
 
 func freePort() int {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -277,9 +277,9 @@ func freePort() int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// repoRoot bestimmt, wo owmnode gebaut wird. Ohne Angabe fragt es die
-// Go-Werkzeugkette nach dem Modul, zu dem das aktuelle Verzeichnis gehört —
-// dann läuft die Vorführung aus jedem Unterverzeichnis des Repositorys.
+// repoRoot determines where owmnode is built. Without an argument it asks the Go
+// toolchain for the module the current directory belongs to — then the
+// demonstration runs from any subdirectory of the repository.
 func repoRoot() string {
 	if *repoFlag != "" {
 		abs, err := filepath.Abs(*repoFlag)
@@ -325,10 +325,10 @@ func (d *demo) startNode() {
 		"base_url":     "https://owm.molkerei-alpenrand.example",
 		"operator": obj{
 			"name":    "Molkerei Alpenrand GmbH",
-			"contact": "datenschutz@alpenrand.example",
+			"contact": "privacy@alpenrand.example",
 		},
-		// Null schaltet die selbsttätige Ausgabe ab: In der Vorführung wird
-		// jeder STH an einer nachvollziehbaren Stelle ausgestellt.
+		// Zero switches off automatic issuance: in the demonstration every STH is
+		// issued at a point one can follow.
 		"sth_interval": "0s",
 	}
 	buf, err := json.MarshalIndent(cfg, "", "  ")
@@ -375,7 +375,7 @@ func (d *demo) startNode() {
 	linef("protocol %s, operator %q", d.meta.Protocol, d.meta.Operator.Name)
 	linef("log ID %s", d.meta.Log)
 
-	// Der Client prüft, was die Node über sich sagt, statt es zu glauben.
+	// The client checks what the node says about itself instead of believing it.
 	raw, err := hex.DecodeString(d.meta.Key.Public)
 	must(err)
 	d.nodePub, err = core.ParsePublicKey(algByName(d.meta.Key.Alg), raw)
@@ -433,7 +433,7 @@ func (d *demo) stop() {
 	}
 }
 
-// ---------------------------------------------------------------- 2 Teilnehmer
+// ---------------------------------------------------------------- 2 Participants
 
 func (d *demo) enroll(label string, alg core.SigAlg) *party {
 	k, err := core.GenerateKey(alg)
@@ -451,21 +451,21 @@ func (d *demo) enroll(label string, alg core.SigAlg) *party {
 }
 
 var (
-	hofA, hofB, spedition, sensor, molkerei *party
+	farmA, farmB, carrier, sensor, dairy *party
 )
 
 func (d *demo) enrollParties() {
 	section("Enrolling the participants in the key directory")
-	hofA = d.enroll("Hof Sonnenblick", core.SigAlgMLDSA65)
-	hofB = d.enroll("Hof Talblick", core.SigAlgMLDSA65)
-	spedition = d.enroll("Spedition Kühlfracht", core.SigAlgMLDSA65)
-	molkerei = d.enroll("Molkerei Alpenrand", core.SigAlgMLDSA65)
+	farmA = d.enroll("Hof Sonnenblick", core.SigAlgMLDSA65)
+	farmB = d.enroll("Hof Talblick", core.SigAlgMLDSA65)
+	carrier = d.enroll("Spedition Kühlfracht", core.SigAlgMLDSA65)
+	dairy = d.enroll("Molkerei Alpenrand", core.SigAlgMLDSA65)
 	sensor = d.enroll("Data logger TW-7", core.SigAlgMLDSA44)
 	linef("sensors sign with ML-DSA-44: 2420 instead of 3309 bytes per signature.")
 
-	// Ein Schlüssel, der nicht im Verzeichnis steht, gehört zu einer anderen
-	// Node — seine Einträge nimmt diese hier nicht an.
-	fremd, err := core.GenerateKey(core.SigAlgMLDSA65)
+	// A key that is not in the directory belongs to another node — this one does
+	// not accept its entries.
+	outsider, err := core.GenerateKey(core.SigAlgMLDSA65)
 	must(err)
 	raw, err := json.Marshal(obj{
 		"event":   "production",
@@ -479,12 +479,12 @@ func (d *demo) enrollParties() {
 		Version:    core.FormatVersion,
 		Type:       core.EntryTypeAssertion,
 		Profile:    "food.v1",
-		Subject:    core.DeriveSubjectID("demo", []byte("fremd")),
-		Issuer:     fremd.Public().ID(),
+		Subject:    core.DeriveSubjectID("demo", []byte("outsider")),
+		Issuer:     outsider.Public().ID(),
 		Commitment: core.Commit(salt, raw),
 	}
 	e.SetIssuedAt(time.Now())
-	se, err := core.SignEntry(fremd, e)
+	se, err := core.SignEntry(outsider, e)
 	must(err)
 	enc, err := se.Encode()
 	must(err)
@@ -496,7 +496,7 @@ func (d *demo) enrollParties() {
 	linef("%s", er.Detail)
 }
 
-// ---------------------------------------------------------------- 3 Kette schreiben
+// ---------------------------------------------------------------- 3 Write the chain
 
 func (d *demo) submit(name string, p *party, typ core.EntryType, subj core.SubjectID, payload obj, parents ...core.Digest) *record {
 	raw, err := json.Marshal(payload)
@@ -540,24 +540,24 @@ func (d *demo) submit(name string, p *party, typ core.EntryType, subj core.Subje
 }
 
 var (
-	subjMilchA = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.09876.M-2408-17-A"))
-	subjMilchB = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.09876.M-2408-17-B"))
+	subjMilkA  = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.09876.M-2408-17-A"))
+	subjMilkB  = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.09876.M-2408-17-B"))
 	subjTank   = core.DeriveSubjectID("gs1:sscc", []byte("340123450000001234"))
-	subjKaese  = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.05001.K-2408-31"))
+	subjCheese = core.DeriveSubjectID("gs1:lgtin", []byte("4012345.05001.K-2408-31"))
 )
 
 var chain struct {
-	milchA, milchB, aggregation, abfahrt, messung, ankunft, verarbeitung, uebergabe *record
+	milkA, milkB, aggregation, departure, measurement, arrival, processing, handover *record
 }
 
 func (d *demo) writeChain() {
 	section("Writing the supply chain: eight events, food.v1")
 
-	chain.milchA = d.submit("production", hofA, core.EntryTypeAssertion, subjMilchA, obj{
+	chain.milkA = d.submit("production", farmA, core.EntryTypeAssertion, subjMilkA, obj{
 		"event": "production",
 		"time":  "2026-08-10T05:12:00+02:00",
-		"party": obj{"name": "Hof Sonnenblick", "gln": "4012345000009", "key": hofA.id().String()},
-		"location": obj{"name": "Melkstand Nord", "country": "DE",
+		"party": obj{"name": "Hof Sonnenblick", "gln": "4012345000009", "key": farmA.id().String()},
+		"location": obj{"name": "Milking parlour North", "country": "DE",
 			"geo": obj{"lat": 47.8021, "lon": 11.0129}},
 		"product": obj{"gtin": "04012345098769", "name": "Raw milk",
 			"lot": "M-2408-17-A", "best_before": "2026-08-14"},
@@ -567,11 +567,11 @@ func (d *demo) writeChain() {
 		}},
 	})
 
-	chain.milchB = d.submit("production", hofB, core.EntryTypeAssertion, subjMilchB, obj{
+	chain.milkB = d.submit("production", farmB, core.EntryTypeAssertion, subjMilkB, obj{
 		"event": "production",
 		"time":  "2026-08-10T05:40:00+02:00",
-		"party": obj{"name": "Hof Talblick", "gln": "4012345000016", "key": hofB.id().String()},
-		"location": obj{"name": "Melkstand Tal", "country": "DE",
+		"party": obj{"name": "Hof Talblick", "gln": "4012345000016", "key": farmB.id().String()},
+		"location": obj{"name": "Milking parlour Valley", "country": "DE",
 			"geo": obj{"lat": 47.7654, "lon": 11.0873}},
 		"product": obj{"gtin": "04012345098769", "name": "Raw milk",
 			"lot": "M-2408-17-B", "best_before": "2026-08-14"},
@@ -581,26 +581,26 @@ func (d *demo) writeChain() {
 		}},
 	})
 
-	chain.aggregation = d.submit("aggregation", spedition, core.EntryTypeAssertion, subjTank, obj{
+	chain.aggregation = d.submit("aggregation", carrier, core.EntryTypeAssertion, subjTank, obj{
 		"event":     "aggregation",
 		"time":      "2026-08-10T07:40:00+02:00",
 		"party":     obj{"name": "Spedition Kühlfracht", "gln": "4033445000004"},
-		"location":  obj{"name": "Sammelstelle Süd", "country": "DE"},
+		"location":  obj{"name": "Collection point South", "country": "DE"},
 		"action":    "add",
 		"container": obj{"name": "Tanker TW-7", "lot": "TW-7/2026-08-10"},
 		"children": []any{
-			obj{"subject": subjMilchA.String(), "quantity": obj{"value": 1200, "unit": "LTR"}},
-			obj{"subject": subjMilchB.String(), "quantity": obj{"value": 900, "unit": "LTR"}},
+			obj{"subject": subjMilkA.String(), "quantity": obj{"value": 1200, "unit": "LTR"}},
+			obj{"subject": subjMilkB.String(), "quantity": obj{"value": 900, "unit": "LTR"}},
 		},
-	}, chain.milchA.entryID, chain.milchB.entryID)
+	}, chain.milkA.entryID, chain.milkB.entryID)
 
-	chain.abfahrt = d.submit("transport/departure", spedition, core.EntryTypeAssertion, subjTank, obj{
+	chain.departure = d.submit("transport/departure", carrier, core.EntryTypeAssertion, subjTank, obj{
 		"event":       "transport",
 		"time":        "2026-08-10T08:05:00+02:00",
 		"party":       obj{"name": "Spedition Kühlfracht", "gln": "4033445000004"},
 		"step":        "departure",
 		"carrier":     obj{"name": "Spedition Kühlfracht", "gln": "4033445000004"},
-		"from":        obj{"name": "Sammelstelle Süd", "country": "DE"},
+		"from":        obj{"name": "Collection point South", "country": "DE"},
 		"to":          obj{"name": "Molkerei Alpenrand", "gln": "4055667000002", "country": "DE"},
 		"consignment": "FB-2026-08-10-441",
 		"conditions":  obj{"temperature_c": obj{"min": 2, "max": 6}},
@@ -616,7 +616,7 @@ func (d *demo) writeChain() {
 	} {
 		readings = append(readings, obj{"t": "2026-08-10T" + r.t + ":00+02:00", "v": r.v})
 	}
-	chain.messung = d.submit("measurement", sensor, core.EntryTypeSensorReading, subjTank, obj{
+	chain.measurement = d.submit("measurement", sensor, core.EntryTypeSensorReading, subjTank, obj{
 		"event": "measurement",
 		"time":  "2026-08-10T11:05:00+02:00",
 		"sensor": obj{"id": "TW-7-TEMP-1", "key": sensor.id().String(),
@@ -624,37 +624,37 @@ func (d *demo) writeChain() {
 		"quantity_kind": "temperature",
 		"unit":          "CEL",
 		"readings":      readings,
-	}, chain.abfahrt.entryID)
+	}, chain.departure.entryID)
 
-	chain.ankunft = d.submit("transport/arrival", molkerei, core.EntryTypeAssertion, subjTank, obj{
+	chain.arrival = d.submit("transport/arrival", dairy, core.EntryTypeAssertion, subjTank, obj{
 		"event":       "transport",
 		"time":        "2026-08-10T11:20:00+02:00",
 		"party":       obj{"name": "Molkerei Alpenrand", "gln": "4055667000002"},
 		"step":        "arrival",
 		"carrier":     obj{"name": "Spedition Kühlfracht", "gln": "4033445000004"},
-		"from":        obj{"name": "Sammelstelle Süd", "country": "DE"},
+		"from":        obj{"name": "Collection point South", "country": "DE"},
 		"to":          obj{"name": "Molkerei Alpenrand", "gln": "4055667000002", "country": "DE"},
 		"consignment": "FB-2026-08-10-441",
 		"note":        "Goods receipt: the data logger reports a temperature deviation, lot blocked until QA release.",
-	}, chain.abfahrt.entryID, chain.messung.entryID)
+	}, chain.departure.entryID, chain.measurement.entryID)
 
-	chain.verarbeitung = d.submit("processing", molkerei, core.EntryTypeAssertion, subjKaese, obj{
+	chain.processing = d.submit("processing", dairy, core.EntryTypeAssertion, subjCheese, obj{
 		"event":    "processing",
 		"time":     "2026-08-11T06:30:00+02:00",
 		"party":    obj{"name": "Molkerei Alpenrand", "gln": "4055667000002"},
-		"location": obj{"name": "Käserei Halle 2", "country": "DE"},
+		"location": obj{"name": "Cheese dairy hall 2", "country": "DE"},
 		"process":  "pasteurise and add rennet",
 		"inputs": []any{
 			obj{"subject": subjTank.String(), "quantity": obj{"value": 2100, "unit": "LTR"}},
 		},
 		"outputs": []any{
-			obj{"subject": subjKaese.String(),
+			obj{"subject": subjCheese.String(),
 				"product":  obj{"gtin": "04012345050015", "name": "Mountain cheese, 12 months", "lot": "K-2408-31"},
 				"quantity": obj{"value": 205, "unit": "KGM"}},
 		},
-	}, chain.ankunft.entryID)
+	}, chain.arrival.entryID)
 
-	chain.uebergabe = d.submit("handover", molkerei, core.EntryTypeAssertion, subjKaese, obj{
+	chain.handover = d.submit("handover", dairy, core.EntryTypeAssertion, subjCheese, obj{
 		"event":       "handover",
 		"time":        "2026-08-11T09:15:00+02:00",
 		"party":       obj{"name": "Molkerei Alpenrand", "gln": "4055667000002"},
@@ -662,11 +662,11 @@ func (d *demo) writeChain() {
 		"to":          obj{"name": "Feinkost Brunner e.K.", "gln": "4066778000005"},
 		"transaction": obj{"type": "desadv", "id": "DA-2026-08-11-0093"},
 		"items": []any{
-			obj{"subject": subjKaese.String(), "quantity": obj{"value": 205, "unit": "KGM"}},
+			obj{"subject": subjCheese.String(), "quantity": obj{"value": 205, "unit": "KGM"}},
 		},
-	}, chain.verarbeitung.entryID)
+	}, chain.processing.entryID)
 
-	// Was die Node nicht annimmt: eine Messung als Selbstauskunft.
+	// What the node does not accept: a measurement as a self-declaration.
 	salt, err := core.NewSalt()
 	must(err)
 	raw, err := json.Marshal(obj{
@@ -677,10 +677,10 @@ func (d *demo) writeChain() {
 	must(err)
 	e := &core.Entry{
 		Version: core.FormatVersion, Type: core.EntryTypeAssertion, Profile: "food.v1",
-		Subject: subjTank, Issuer: molkerei.id(), Commitment: core.Commit(salt, raw),
+		Subject: subjTank, Issuer: dairy.id(), Commitment: core.Commit(salt, raw),
 	}
 	e.SetIssuedAt(time.Now())
-	se, err := core.SignEntry(molkerei.key, e)
+	se, err := core.SignEntry(dairy.key, e)
 	must(err)
 	enc, err := se.Encode()
 	must(err)
@@ -702,7 +702,7 @@ func (d *demo) issueAndCheckSTH() {
 	var resp sthResp
 	d.admin.post("/admin/v1/sth", nil, &resp, http.StatusOK)
 
-	// Geprüft wird die Unterschrift, nicht die mitgelieferte Lesefassung.
+	// What gets checked is the signature, not the readable version supplied with it.
 	must(resp.Signed.Verify(d.nodePub))
 	s, err := resp.Signed.STH()
 	must(err)
@@ -717,11 +717,11 @@ func (d *demo) issueAndCheckSTH() {
 	okf("log ID in the STH matches the node")
 }
 
-// ---------------------------------------------------------------- 5 Kette zurücklesen
+// ---------------------------------------------------------------- 5 Read the chain back
 
-// publicKeyFor besorgt den öffentlichen Schlüssel eines Ausstellers so, wie es
-// ein fremder Client täte: über die öffentliche API. Fehlt der Endpunkt, greift
-// die Vorführung auf ihre eigenen Schlüssel zurück — und sagt es.
+// publicKeyFor obtains an issuer's public key the way a third-party client
+// would: over the public API. If the endpoint is missing, the demonstration
+// falls back on its own keys — and says so.
 func (d *demo) publicKeyFor(id core.KeyID) (*core.PublicKey, bool) {
 	st, raw := d.public.call("GET", "/owm/v1/keys/"+id.String(), nil)
 	if st == http.StatusOK {
@@ -735,8 +735,8 @@ func (d *demo) publicKeyFor(id core.KeyID) (*core.PublicKey, bool) {
 			must(err)
 			pub, err := core.ParsePublicKey(algByName(kv.Alg), b)
 			must(err)
-			// Die Kennung wird nachgerechnet: Eine Node, die andere Bytes
-			// liefert, ist damit überführt und nicht bloß verdächtig.
+			// The identifier is recomputed: a node that delivers different
+			// bytes is thereby convicted and not merely suspect.
 			if pub.ID() != id || kv.ID != id {
 				must(fmt.Errorf("the node returns a different key for %s", id))
 			}
@@ -749,7 +749,7 @@ func (d *demo) publicKeyFor(id core.KeyID) (*core.PublicKey, bool) {
 func (d *demo) replayChain() {
 	section("Reading the chain back: the client checks everything itself")
 
-	// Der Beweis wird gegen den unterschriebenen Baumzustand geführt.
+	// The proof is made against the signed tree state.
 	fromAPI := true
 	var checked int
 
@@ -764,7 +764,7 @@ func (d *demo) replayChain() {
 		var lv leafView
 		d.public.get("/owm/v1/entries/"+id.String(), &lv)
 
-		// 1. Blatt selbst dekodieren, nicht der Lesefassung glauben.
+		// 1. Decode the leaf ourselves instead of believing the readable version.
 		leaf, err := owmlog.ParseLeaf(lv.Leaf)
 		must(err)
 		se, err := core.ParseSignedEntry(leaf.Entry)
@@ -772,7 +772,7 @@ func (d *demo) replayChain() {
 		e, err := se.Entry()
 		must(err)
 
-		// 2. Signatur gegen den Schlüssel des Ausstellers.
+		// 2. Signature against the issuer's key.
 		pub, viaAPI := d.publicKeyFor(e.Issuer)
 		if !viaAPI {
 			fromAPI = false
@@ -782,7 +782,7 @@ func (d *demo) replayChain() {
 		}
 		must(se.Verify(pub))
 
-		// 3. Nutzlast gegen das Commitment im Eintrag.
+		// 3. Payload against the commitment in the entry.
 		var ev obj
 		state := ""
 		st, raw := d.public.call("GET", "/owm/v1/entries/"+id.String()+"/payload", nil)
@@ -804,7 +804,7 @@ func (d *demo) replayChain() {
 			must(fmt.Errorf("unexpected answer for the payload of %s: HTTP %d %s", id, st, raw))
 		}
 
-		// 4. Inklusionsbeweis gegen die Wurzel des STH.
+		// 4. Inclusion proof against the root of the STH.
 		var p owmlog.InclusionProof
 		d.public.get(fmt.Sprintf("/owm/v1/proof/inclusion?entry=%s&size=%d", id, sth1.Size), &p)
 		must(p.Verify(owmlog.LeafHashFromBytes(lv.Leaf), sth1))
@@ -820,7 +820,7 @@ func (d *demo) replayChain() {
 		}
 	}
 
-	walk(chain.uebergabe.entryID, 0)
+	walk(chain.handover.entryID, 0)
 
 	okf("%d entries: signature, commitment and inclusion proof verified", checked)
 	if fromAPI {
@@ -831,7 +831,7 @@ func (d *demo) replayChain() {
 		linef("could not verify anything here.")
 	}
 
-	// Historie eines Subjekts.
+	// History of a subject.
 	var hist struct {
 		Total   int        `json:"total"`
 		Entries []leafView `json:"entries"`
@@ -853,7 +853,7 @@ func countIssuers(ls []leafView) int {
 	return len(set)
 }
 
-// describe fasst ein Ereignis in einer Zeile zusammen.
+// describe sums up an event in one line.
 func describe(e *core.Entry, ev obj) string {
 	if ev == nil {
 		return "(content erased)"
@@ -912,13 +912,13 @@ func num(v any, path ...string) any {
 	return x
 }
 
-// ---------------------------------------------------------------- 6 Kühlkette
+// ---------------------------------------------------------------- 6 Cold chain
 
 func (d *demo) coldChain() {
 	section("Cold chain: what the sensor says against what was promised")
 
-	promise := d.payloadOf(chain.abfahrt.entryID)
-	measured := d.payloadOf(chain.messung.entryID)
+	promise := d.payloadOf(chain.departure.entryID)
+	measured := d.payloadOf(chain.measurement.entryID)
 
 	lower, _ := dig(promise, "conditions", "temperature_c", "min").(float64)
 	upper, _ := dig(promise, "conditions", "temperature_c", "max").(float64)
@@ -953,16 +953,16 @@ func (d *demo) payloadOf(id core.Digest) obj {
 	return out
 }
 
-// ---------------------------------------------------------------- 7 Löschung
+// ---------------------------------------------------------------- 7 Erasure
 
 func (d *demo) erase() {
 	section("Erasure under Art. 17 GDPR")
 
-	target := chain.uebergabe
+	target := chain.handover
 	linef("Feinkost Brunner e.K. asks for erasure: the name of a natural")
 	linef("person sits in the payload of handover entry #%d.", target.seq)
 
-	// Vorher: Beweis sichern, gegen den nachher geprüft wird.
+	// Beforehand: secure the proof that will be checked afterwards.
 	var before owmlog.InclusionProof
 	d.public.get(fmt.Sprintf("/owm/v1/proof/inclusion?entry=%s&size=%d", target.entryID, sth1.Size), &before)
 	leafHash := owmlog.LeafHashFromBytes(target.leaf)
@@ -982,11 +982,11 @@ func (d *demo) erase() {
 	d.public.get("/owm/v1/entries/"+target.entryID.String(), &lv)
 	linef("leaf #%d is still in the tree, payload status: %s", lv.Seq, lv.Payload)
 
-	// Der Kern der Sache: der alte Beweis gilt unverändert.
+	// The heart of the matter: the old proof holds unchanged.
 	must(before.Verify(leafHash, sth1))
 	okf("the proof issued before the erasure still verifies, the tree is unchanged")
 
-	// Und der Baum ist seither nur gewachsen.
+	// And the tree has only grown since.
 	var resp sthResp
 	d.admin.post("/admin/v1/sth", nil, &resp, http.StatusOK)
 	must(resp.Signed.Verify(d.nodePub))
@@ -998,8 +998,8 @@ func (d *demo) erase() {
 	must(cp.Verify(sth1, sth2))
 	okf("consistency proof %d -> %d: appended only, nothing rewritten", sth1.Size, sth2.Size)
 
-	// Ohne Salt ist die Nutzlast nicht zurückzurechnen — selbst wenn man den
-	// Klartext rät, fehlt der Schlüssel des Commitments.
+	// Without the salt the payload cannot be computed back — even if one guesses
+	// the plaintext, the key to the commitment is missing.
 	se, err := core.ParseSignedEntry(target.entry)
 	must(err)
 	e, err := se.Entry()
@@ -1017,26 +1017,26 @@ func (d *demo) erase() {
 	okf("%d guesses with the plaintext known: no hit (the salt is 2^256 wide)", tries)
 }
 
-// ---------------------------------------------------------------- 8 Manipulation
+// ---------------------------------------------------------------- 8 Tampering
 
 func (d *demo) tamper() {
 	section("Tampering attempts")
 
-	target := chain.verarbeitung
+	target := chain.processing
 
-	// a) Eintrag verändern, Signatur behalten.
+	// a) Alter the entry, keep the signature.
 	se, err := core.ParseSignedEntry(target.entry)
 	must(err)
 	forged := *se
 	body := append([]byte(nil), se.EntryBytes...)
 	body[len(body)-1] ^= 0x01
 	forged.EntryBytes = body
-	if forged.Verify(molkerei.key.Public()) == nil {
+	if forged.Verify(dairy.key.Public()) == nil {
 		must(fmt.Errorf("the altered entry was accepted"))
 	}
 	blockedf("one byte flipped in the entry -> signature invalid")
 
-	// b) Blatt austauschen, Inklusionsbeweis behalten.
+	// b) Swap the leaf, keep the inclusion proof.
 	leaf, err := owmlog.ParseLeaf(target.leaf)
 	must(err)
 	fenc, err := forged.Encode()
@@ -1051,7 +1051,7 @@ func (d *demo) tamper() {
 	}
 	blockedf("altered leaf against the same proof -> does not match the root")
 
-	// c) STH mit fremdem Schlüssel unterschreiben.
+	// c) Sign an STH with a foreign key.
 	attacker, err := core.GenerateKey(core.SigAlgMLDSA65)
 	must(err)
 	rogue := *sth1
@@ -1064,15 +1064,15 @@ func (d *demo) tamper() {
 	}
 	blockedf("STH signed with a foreign key -> signature does not match the node")
 
-	// d) Split View: die Node selbst unterschreibt zwei Bäume derselben Größe.
-	//    Möglich, weil dies unsere eigene Wegwerf-Node ist und wir an ihren
-	//    privaten Schlüssel kommen — genau der Fall, den ein Monitor findet.
+	// d) Split view: the node itself signs two trees of the same size.
+	//    Possible because this is our own throwaway node and we can get at its
+	//    private key — exactly the case a monitor finds.
 	nodeKey := d.readNodeKey()
 	evil := *sth1
 	evil.Root[0] ^= 0xff
 	evilSigned, err := owmlog.SignSTH(nodeKey, &evil)
 	must(err)
-	must(evilSigned.Verify(d.nodePub)) // gültig unterschrieben — und trotzdem falsch
+	must(evilSigned.Verify(d.nodePub)) // validly signed — and false all the same
 	evilSTH, err := evilSigned.STH()
 	must(err)
 	if err := owmlog.CheckSTHPair(sth1, evilSTH); err == nil {
@@ -1084,8 +1084,8 @@ func (d *demo) tamper() {
 	}
 }
 
-// readNodeKey liest den privaten Schlüssel der Wegwerf-Node aus ihrer
-// Identitätsdatei, um einen böswilligen Betreiber zu spielen.
+// readNodeKey reads the private key of the throwaway node from its identity
+// file in order to play a malicious operator.
 func (d *demo) readNodeKey() *core.PrivateKey {
 	raw, err := os.ReadFile(filepath.Join(d.dir, "owm-identity.json"))
 	must(err)
@@ -1101,7 +1101,7 @@ func (d *demo) readNodeKey() *core.PrivateKey {
 	return k
 }
 
-// ---------------------------------------------------------------- 9 Bilanz
+// ---------------------------------------------------------------- 9 Summary
 
 func (d *demo) summary() {
 	section("Summary")
@@ -1127,8 +1127,8 @@ func (d *demo) summary() {
 	}
 }
 
-// dbBytes zählt die Datenbank samt Journal- und WAL-Dateien: Was noch im
-// Write-Ahead-Log steht, gehört zum Platzbedarf dazu.
+// dbBytes counts the database including journal and WAL files: what is still in
+// the write-ahead log belongs to the space taken up.
 func (d *demo) dbBytes() int64 {
 	paths, err := filepath.Glob(filepath.Join(d.dir, "owm.sqlite*"))
 	must(err)

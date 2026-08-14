@@ -10,11 +10,11 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// Blätter und STHs kommen von fremden Nodes. Alles, was hier hereinkommt, ist
-// Angreifereingabe — und die einzige Zusicherung, die das Format braucht, ist:
-// Was angenommen wird, ist kanonisch. Gäbe es zu einem Blatt zwei gültige
-// Bytefolgen, gäbe es zwei Blatthashes für denselben Inhalt, und der
-// Inklusionsbeweis verlöre seine Aussage.
+// Leaves and STHs come from foreign nodes. Everything arriving here is attacker
+// input — and the only guarantee the format needs is: whatever is accepted is
+// canonical. Were there two valid byte sequences for one leaf, there would be
+// two leaf hashes for the same content, and the inclusion proof would lose its
+// meaning.
 
 func fuzzSeedKey(t *testing.F, alg core.SigAlg, fill byte) *core.PrivateKey {
 	t.Helper()
@@ -75,7 +75,7 @@ func FuzzParseLeaf(f *testing.F) {
 		if !bytes.Equal(data, again) {
 			t.Fatalf("accepted encoding is not canonical")
 		}
-		// Keine dieser Funktionen darf bei beliebiger Eingabe in Panik geraten.
+		// None of these functions may panic on arbitrary input.
 		_ = got.EntryID()
 		_, _ = got.Hash()
 		_ = got.Verify(logID, key.Public())

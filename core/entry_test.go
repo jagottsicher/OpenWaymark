@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-// testIssuedAt ist 2026-01-01T00:00:00Z in Millisekunden.
+// testIssuedAt is 2026-01-01T00:00:00Z in milliseconds.
 const testIssuedAt int64 = 1767225600000
 
-// fixtureSalt ist ein fester Salt für reproduzierbare Tests. Im Betrieb zieht
-// jede Nutzlast einen frischen, siehe NewSalt.
+// fixtureSalt is a fixed salt for reproducible tests. In production every
+// payload draws a fresh one, see NewSalt.
 var fixtureSalt = func() Salt {
 	var s Salt
 	for i := range s {
@@ -59,9 +59,9 @@ func TestEntryTypeStrings(t *testing.T) {
 	}
 }
 
-// TestErasureIsNotRevocation hält die Trennung aus OWM-0 §6.1 fest: beide
-// benennen ein Ziel, aber sie sagen Verschiedenes. Fielen sie zusammen, sähe
-// jede DSGVO-Löschung wie ein Eingeständnis aus, die Aussage sei falsch gewesen.
+// TestErasureIsNotRevocation pins down the distinction from OWM-0 §6.1: both
+// name a target, but they say different things. If they coincided, every GDPR
+// erasure would look like an admission that the statement had been false.
 func TestErasureIsNotRevocation(t *testing.T) {
 	if EntryTypeErasure == EntryTypeRevocation {
 		t.Fatal("erasure and revocation have the same numeric value")
@@ -122,9 +122,10 @@ func TestEntryValidate(t *testing.T) {
 	}
 }
 
-// TestParentLimit sichert die Obergrenze an beiden Stellen ab: beim Prüfen und
-// beim Dekodieren. Die zweite ist die wichtigere — dort entscheidet sich, ob ein
-// böswillig großes Array Speicher belegt, bevor jemand es ablehnt.
+// TestParentLimit secures the upper bound in both places: when validating and
+// when decoding. The second is the more important one — that is where it is
+// decided whether a maliciously large array claims memory before anyone
+// rejects it.
 func TestParentLimit(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x13)
 	ref := EntryRef{Entry: hashLabeled("test", []byte("parent"))}
@@ -150,7 +151,7 @@ func TestParentLimit(t *testing.T) {
 	if err := over.Validate(); !errors.Is(err, ErrTooManyParents) {
 		t.Errorf("Validate returns %v, expected ErrTooManyParents", err)
 	}
-	// Am Prüfschritt vorbei direkt kodieren, um den Dekodierpfad zu treffen.
+	// Encode directly, past the validation step, to hit the decoding path.
 	raw, err := encMode.Marshal(over.toWire())
 	if err != nil {
 		t.Fatalf("raw encoding: %v", err)
@@ -169,7 +170,7 @@ func TestTargetingEntryRules(t *testing.T) {
 			e := fixtureEntry(k)
 			e.Type = typ
 			e.Profile = ""
-			e.Commitment = Commitment{} // beide brauchen keine eigene Nutzlast
+			e.Commitment = Commitment{} // neither needs a payload of its own
 			e.Target = &ref
 			if err := e.Validate(); err != nil {
 				t.Fatalf("valid entry rejected: %v", err)
@@ -192,8 +193,8 @@ func TestTargetingEntryRules(t *testing.T) {
 
 func TestIssuedAtRoundTrip(t *testing.T) {
 	var e Entry
-	// Millisekundengenauigkeit ist die Auflösung des Formats; feinere Anteile
-	// werden abgeschnitten und dürfen nicht zurückkommen.
+	// Millisecond precision is the resolution of the format; finer fractions
+	// are truncated and must not come back.
 	want := time.Date(2026, 8, 10, 12, 34, 56, 789_000_000, time.UTC)
 	e.SetIssuedAt(want.Add(321 * time.Microsecond))
 	if got := e.IssuedAtTime(); !got.Equal(want) {
@@ -235,9 +236,9 @@ func TestSignAndVerifyEntry(t *testing.T) {
 	}
 }
 
-// TestEntryIDIgnoresSignature hält die Entscheidung aus OWM-0 §4.3 fest: Die
-// Inhaltsadresse deckt den Eintrag ab, nicht die Signatur. Sonst wäre sie bei
-// randomisiertem Signieren nicht reproduzierbar.
+// TestEntryIDIgnoresSignature pins down the decision from OWM-0 §4.3: the
+// content address covers the entry, not the signature. Otherwise it would not
+// be reproducible under randomised signing.
 func TestEntryIDIgnoresSignature(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x14)
 	e := fixtureEntry(k)
@@ -262,7 +263,7 @@ func TestSignEntryRejectsForeignIssuer(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x15)
 	other := keyFromSeedByte(t, SigAlgMLDSA65, 0x16)
 
-	e := fixtureEntry(other) // iss zeigt auf einen fremden Schlüssel
+	e := fixtureEntry(other) // iss points at a foreign key
 	if _, err := SignEntry(k, e); !errors.Is(err, ErrIssuerMismatch) {
 		t.Errorf("SignEntry returns %v, expected ErrIssuerMismatch", err)
 	}
@@ -271,8 +272,8 @@ func TestSignEntryRejectsForeignIssuer(t *testing.T) {
 	}
 }
 
-// TestVerifyRejectsForeignKey ist die Prüfung, ohne die sich jeder Eintrag mit
-// einem beliebigen Schlüssel „bestätigen" ließe.
+// TestVerifyRejectsForeignKey covers the check without which any entry could be
+// "confirmed" with an arbitrary key.
 func TestVerifyRejectsForeignKey(t *testing.T) {
 	k := keyFromSeedByte(t, SigAlgMLDSA65, 0x17)
 	other := keyFromSeedByte(t, SigAlgMLDSA65, 0x18)
@@ -319,9 +320,9 @@ func TestVerifyRejectsTamperedSignedEntry(t *testing.T) {
 	})
 
 	t.Run("entry modified", func(t *testing.T) {
-		// Der Zeitstempel wird um eine Millisekunde verschoben. Der Eintrag
-		// bleibt strukturell gültig und kanonisch — nur die Signatur passt
-		// nicht mehr.
+		// The timestamp is shifted by one millisecond. The entry stays
+		// structurally valid and canonical — only the signature no longer
+		// matches.
 		e := fixtureEntry(k)
 		e.IssuedAt++
 		other, err := e.Encode()

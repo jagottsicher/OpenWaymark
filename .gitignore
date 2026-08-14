@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 # SPDX-License-Identifier: Apache-2.0
 
-# Buildartefakte
+# Build artifacts
 /bin/
 /dist/
 *.wasm
@@ -11,18 +11,18 @@
 # Go
 /vendor/
 
-# Betriebsdaten einer lokalen Node — dürfen nie ins Repo
+# Runtime data of a local node — must never end up in the repo
 *.db
 *.db-wal
 *.db-shm
 /blobs/
 
-# Schlüsselmaterial. Private Schlüssel gehören nicht in die Versionskontrolle.
+# Key material. Private keys do not belong in version control.
 *.key
 *.pem
 /secrets/
 
-# Editor und Betriebssystem
+# Editor and operating system
 .DS_Store
 *~
 .idea/

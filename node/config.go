@@ -11,78 +11,76 @@ import (
 	"time"
 )
 
-// Voreinstellungen.
+// Defaults.
 const (
 	DefaultListen      = "127.0.0.1:8480"
 	DefaultAdminListen = "127.0.0.1:8481"
 	DefaultDatabase    = "owm.sqlite"
 	DefaultIdentity    = "owm-identity.json"
 
-	// DefaultMaxPayload begrenzt eine einzelne Nutzlast. Ein Lieferkettenereignis
-	// ist ein Datensatz, kein Dateianhang: Fotos, Laborberichte und Zeugnisse
-	// gehören hinter eine URL, deren Hash in der Nutzlast steht.
+	// DefaultMaxPayload caps a single payload. A supply chain event is a record,
+	// not a file attachment: photos, lab reports and certificates belong behind a
+	// URL whose hash sits in the payload.
 	DefaultMaxPayload = 256 * 1024
 
-	// DefaultSTHInterval ist der Abstand zwischen zwei Signed Tree Heads.
+	// DefaultSTHInterval is the gap between two Signed Tree Heads.
 	//
-	// Der Abstand bestimmt, wie lange eine Manipulation unentdeckt bleiben kann,
-	// und kostet je Ausgabe eine ML-DSA-Signatur. Eine Minute ist für eine Node
-	// auf Raspberry-Pi-Klasse unproblematisch und für einen Beobachter
-	// engmaschig genug.
+	// The gap decides how long tampering can stay unnoticed, and each issuance
+	// costs one ML-DSA signature. A minute is harmless for a node on Raspberry Pi
+	// class hardware and tight enough for an observer.
 	DefaultSTHInterval = time.Minute
 )
 
-// Operator beschreibt die verantwortliche Stelle.
+// Operator describes the responsible body.
 //
-// Kein Beiwerk: Im föderierten Modell ist jede Betreiberin für ihre eigenen
-// Daten datenschutzrechtlich verantwortlich. Wer ein Auskunfts- oder
-// Löschbegehren stellen will, muss erfahren können, an wen.
+// Not decoration: in the federated model every operator is the data controller
+// for their own data. Whoever wants to file an access or erasure request has to
+// be able to find out with whom.
 type Operator struct {
 	Name    string `json:"name,omitempty"`
 	Contact string `json:"contact,omitempty"`
 	Privacy string `json:"privacy,omitempty"`
 }
 
-// Config konfiguriert eine Node.
+// Config configures a node.
 type Config struct {
-	// Listen ist die Adresse der öffentlichen API.
+	// Listen is the address of the public API.
 	//
-	// Die Voreinstellung bindet an localhost. Eine Node gehört hinter einen
-	// TLS-terminierenden Reverse-Proxy; von sich aus ins Netz zu greifen ist
-	// nichts, was ein Programm ungefragt tun sollte.
+	// The default binds to localhost. A node belongs behind a TLS-terminating
+	// reverse proxy; reaching out onto the network by itself is not something a
+	// program should do unasked.
 	Listen string `json:"listen"`
 
-	// AdminListen ist die Adresse der Verwaltungsschnittstelle. Sie kennt keine
-	// Authentifizierung und MUSS deshalb lokal gebunden bleiben.
+	// AdminListen is the address of the admin interface. It knows no
+	// authentication and MUST therefore stay bound locally.
 	AdminListen string `json:"admin_listen"`
 
-	// Database ist der Pfad der SQLite-Datei. ":memory:" für Tests.
+	// Database is the path of the SQLite file. ":memory:" for tests.
 	Database string `json:"database"`
 
-	// Identity ist der Pfad der Identitätsdatei.
+	// Identity is the path of the identity file.
 	Identity string `json:"identity"`
 
-	// BaseURL ist die von außen erreichbare Adresse dieser Node, wie sie im
-	// DNS-TXT-Eintrag steht.
+	// BaseURL is the externally reachable address of this node, as it appears in
+	// the DNS TXT record.
 	BaseURL string `json:"base_url,omitempty"`
 
-	// Operator ist die verantwortliche Stelle.
+	// Operator is the responsible body.
 	Operator Operator `json:"operator,omitempty"`
 
-	// Profiles nennt die Profile, die diese Node annimmt. Leer bedeutet: alle
-	// einkompilierten.
+	// Profiles names the profiles this node accepts. Empty means: every profile
+	// compiled in.
 	Profiles []string `json:"profiles,omitempty"`
 
-	// MaxPayload begrenzt eine einzelne Nutzlast in Byte.
+	// MaxPayload caps a single payload in bytes.
 	MaxPayload int64 `json:"max_payload,omitempty"`
 
-	// STHInterval ist der Abstand zwischen zwei Signed Tree Heads. Null schaltet
-	// die selbsttätige Ausgabe ab; dann bleibt der Weg über die
-	// Verwaltungsschnittstelle.
+	// STHInterval is the gap between two Signed Tree Heads. Zero switches
+	// automatic issuance off; the route through the admin interface remains.
 	STHInterval Duration `json:"sth_interval,omitempty"`
 }
 
-// DefaultConfig liefert die Voreinstellungen.
+// DefaultConfig returns the defaults.
 func DefaultConfig() Config {
 	return Config{
 		Listen:      DefaultListen,
@@ -94,7 +92,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// LoadConfig liest eine JSON-Konfiguration über den Voreinstellungen.
+// LoadConfig reads a JSON configuration layered over the defaults.
 func LoadConfig(path string) (Config, error) {
 	cfg := DefaultConfig()
 	raw, err := os.ReadFile(path)
@@ -102,8 +100,8 @@ func LoadConfig(path string) (Config, error) {
 		return cfg, fmt.Errorf("owm/node: read configuration: %w", err)
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
-	// Ein vertipptes Feld ist eine Einstellung, die nicht wirkt — und die
-	// Betreiberin glaubt, sie hätte sie gesetzt.
+	// A mistyped field is a setting that has no effect — while the operator
+	// believes they have set it.
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("owm/node: read configuration: %w", err)
@@ -111,7 +109,7 @@ func LoadConfig(path string) (Config, error) {
 	return cfg, cfg.Check()
 }
 
-// Check füllt Leerstellen mit Voreinstellungen und prüft den Rest.
+// Check fills gaps with defaults and checks the rest.
 func (c *Config) Check() error {
 	if c.Listen == "" {
 		c.Listen = DefaultListen
@@ -131,8 +129,8 @@ func (c *Config) Check() error {
 	return nil
 }
 
-// Duration ist eine time.Duration, die in JSON als Zeichenkette steht ("5m").
-// Eine Zahl allein ließe offen, ob Sekunden oder Nanosekunden gemeint sind.
+// Duration is a time.Duration that appears in JSON as a string ("5m"). A bare
+// number would leave open whether seconds or nanoseconds were meant.
 type Duration time.Duration
 
 func (d Duration) Duration() time.Duration { return time.Duration(d) }

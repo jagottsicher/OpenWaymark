@@ -24,15 +24,15 @@ func load(t *testing.T) *profiles.Profile {
 	return p
 }
 
-// Ein vollständiger Satz gültiger Ereignisse — zugleich die Beispiele, an denen
-// sich eine Fremdimplementierung ausrichten kann.
+// A complete set of valid events — at the same time the examples a third-party
+// implementation can align itself with.
 var valid = map[string]string{
 	"production": `{
 		"event": "production",
 		"time": "2026-08-10T06:30:00+02:00",
 		"party": {"name": "Hof Sonnenblick", "gln": "4012345000009"},
 		"location": {"country": "DE", "geo": {"lat": 52.5, "lon": 13.4}},
-		"product": {"gtin": "04012345678901", "name": "Eier Freiland", "lot": "L-2026-0810"},
+		"product": {"gtin": "04012345678901", "name": "Free-range eggs", "lot": "L-2026-0810"},
 		"quantity": {"value": 1000, "unit": "H87"},
 		"certifications": [{"scheme": "EU-Bio", "id": "DE-ÖKO-006", "valid_until": "2027-03-31"}]
 	}`,
@@ -40,7 +40,7 @@ var valid = map[string]string{
 		"event": "aggregation",
 		"time": "2026-08-10T09:00:00+02:00",
 		"action": "add",
-		"container": {"name": "Zehnerpackung"},
+		"container": {"name": "Ten-pack"},
 		"children": [{"subject": "` + subjectHex + `", "quantity": {"value": 10, "unit": "H87"}}]
 	}`,
 	"transport": `{
@@ -56,7 +56,7 @@ var valid = map[string]string{
 	"processing": `{
 		"event": "processing",
 		"time": "2026-08-11T08:00:00+02:00",
-		"process": "pasteurisieren",
+		"process": "pasteurizing",
 		"inputs": [{"subject": "` + subjectHex + `", "quantity": {"value": 300, "unit": "LTR"}}],
 		"outputs": [{"subject": "` + subjectHex + `", "product": {"name": "Bergkäse"}, "quantity": {"value": 30, "unit": "KGM"}}]
 	}`,
@@ -66,12 +66,12 @@ var valid = map[string]string{
 		"from": {"name": "Molkerei Tal"},
 		"to": {"name": "Großhandel Mitte", "gln": "4012345000023"},
 		"transaction": {"type": "desadv", "id": "DE-2026-99812"},
-		"note": "Teillieferung"
+		"note": "Partial delivery"
 	}`,
 	"measurement": `{
 		"event": "measurement",
 		"time": "2026-08-10T11:15:00+02:00",
-		"sensor": {"id": "kuehl-77", "model": "TempLog 3"},
+		"sensor": {"id": "cool-77", "model": "TempLog 3"},
 		"quantity_kind": "temperature",
 		"unit": "CEL",
 		"readings": [
@@ -107,19 +107,19 @@ func TestInvalidEvents(t *testing.T) {
 		{"time without a time zone", `{"event":"production","time":"2026-08-10 06:30","product":{"name":"x"}}`},
 		{"production without goods", `{"event":"production","time":"2026-08-10T06:30:00Z"}`},
 		{"empty goods", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{}}`},
-		{"unknown field", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"preis":9.9}`},
+		{"unknown field", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"price":9.9}`},
 		{"field of the wrong event", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"step":"departure"}`},
 		{"aggregation without components", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[]}`},
 		{"aggregation with the wrong action", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"merge","children":[{"subject":"` + subjectHex + `"}]}`},
 		{"subject in upper case", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"` + strings.ToUpper(subjectHex) + `"}]}`},
 		{"subject too short", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"abcd"}]}`},
 		{"transport without a step", `{"event":"transport","time":"2026-08-10T06:30:00Z","carrier":{"name":"x"}}`},
-		{"processing without an output", `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"mahlen","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`},
+		{"processing without an output", `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"grinding","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`},
 		{"handover without a recipient", `{"event":"handover","time":"2026-08-10T06:30:00Z","from":{"name":"x"}}`},
 		{"empty party", `{"event":"handover","time":"2026-08-10T06:30:00Z","to":{}}`},
 		{"measurement without a unit", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
-		{"measured value as text", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":"kalt"}]}`},
-		{"unknown quantity", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"stimmung","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
+		{"measured value as text", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":"cold"}]}`},
+		{"unknown quantity", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"mood","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
 		{"coordinate out of range", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"geo":{"lat":91,"lon":0}}}`},
 		{"country code in lower case", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"country":"de"}}`},
 		{"negative quantity", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"quantity":{"value":-1,"unit":"KGM"}}`},
@@ -133,9 +133,9 @@ func TestInvalidEvents(t *testing.T) {
 	}
 }
 
-// Eine Messung muss als sensor_reading eingereicht werden, alles andere als
-// assertion. Sonst ließe sich eine von Hand geschriebene Kühlkette später als
-// Gerätebeleg ausgeben.
+// A measurement has to be submitted as sensor_reading, everything else as
+// assertion. Otherwise a hand-written cold chain could later be passed off as
+// device evidence.
 func TestEntryTypeRule(t *testing.T) {
 	p := load(t)
 	cases := []struct {
@@ -168,8 +168,8 @@ func TestEntryTypeRule(t *testing.T) {
 	}
 }
 
-// Die Profilkennung muss den Regeln des Kerns für das Feld prof genügen —
-// sonst ließe sich das Profil zwar laden, aber kein Eintrag damit ausstellen.
+// The profile identifier has to satisfy the core's rules for the prof field —
+// otherwise the profile would load but no entry could be issued with it.
 func TestIDAcceptedByCore(t *testing.T) {
 	if err := profiles.CheckID(food.ID); err != nil {
 		t.Fatalf("identifier %q: %v", food.ID, err)
@@ -193,7 +193,7 @@ func TestSchemaDigestIsFixed(t *testing.T) {
 	if a.SchemaDigest() != b.SchemaDigest() {
 		t.Fatal("two loads produce different digests")
 	}
-	// defs, event und sechs Ereignisschemata.
+	// defs, event and six event schemas.
 	if len(a.Files()) != 8 {
 		t.Fatalf("expected 8 schema files, got %d", len(a.Files()))
 	}

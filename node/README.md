@@ -3,63 +3,63 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: AGPL-3.0-only
 -->
 
-# `node/` — Node-Server · AGPL-3.0-only
+# `node/` — Node server · AGPL-3.0-only
 
-Der Server, der ein Log führt und für seine eigenen Daten autoritativ ist. HTTP-API zum
-Einreichen und Lesen von Einträgen, STH-Ausgabe, Inklusions- und Konsistenzbeweise,
-Produkthistorie, Nutzlastspeicher mit echtem Löschpfad.
+The server that keeps a log and is authoritative for its own data. HTTP API for submitting and
+reading entries, STH issuance, inclusion and consistency proofs, product history, payload storage
+with a real erasure path.
 
-Vollständige Beschreibung der Schnittstelle: [OWM-7](../spec/owm-7-node-api.md).
-Identität, Schlüsselverzeichnis und Rotation: [OWM-3](../spec/owm-3-keys.md).
+Full description of the interface: [OWM-7](../spec/owm-7-node-api.md).
+Identity, key directory and rotation: [OWM-3](../spec/owm-3-keys.md).
 
-## Betrieb
+## Operation
 
 ```sh
-go run ./node/cmd/owmnode init  -config owm.json -operator "Hof Sonnenblick" -contact hof@beispiel.de
+go run ./node/cmd/owmnode init  -config owm.json -operator "Hof Sonnenblick" -contact hof@example.com
 go run ./node/cmd/owmnode show  -config owm.json
 go run ./node/cmd/owmnode serve -config owm.json
 ```
 
-`init` legt Konfiguration und Identität an und überschreibt **nie** eine bestehende. Eine
-Identität zu überschreiben hieße, das Log unter neuer Kennung fortzuführen — alle bisherigen STHs
-wären dann von einem Schlüssel, den niemand mehr kennt.
+`init` creates configuration and identity and **never** overwrites an existing one. Overwriting an
+identity would mean continuing the log under a new ID — every STH issued so far would then come
+from a key nobody has any more.
 
-Der laufende Betrieb — Schlüssel aufnehmen, Nutzlasten löschen, STHs ausstellen — geht über die
-Verwaltungsschnittstelle der laufenden Node und nicht über weitere Unterbefehle. Zwei Prozesse
-auf derselben SQLite-Datei wären ein Weg, sich die Datenbank zu zerlegen.
+Day-to-day operation — adding keys, erasing payloads, issuing STHs — goes through the admin
+interface of the running node, not through further subcommands. Two processes on the same SQLite
+file would be one good way to take the database apart.
 
-## Zwei Schnittstellen
+## Two interfaces
 
-| | Voreinstellung | Wer |
+| | Default | Who |
 |---|---|---|
-| Öffentliche API | `127.0.0.1:8480` | die Welt, hinter einem TLS-terminierenden Reverse-Proxy |
-| Verwaltung | `127.0.0.1:8481` | die Betreiberin |
+| Public API | `127.0.0.1:8480` | the world, behind a TLS-terminating reverse proxy |
+| Admin | `127.0.0.1:8481` | the operator |
 
-**Die Verwaltungsschnittstelle kennt keine Authentifizierung, und das ist Absicht.** Zugangsschutz
-gehört hier in die Umgebung — lokale Bindung, Unix-Socket hinter einem Proxy, VPN. Ein
-selbstgestricktes Token-Verfahren im Anwendungscode wäre schwächer als das, was Betriebssystem
-und ausgewachsener Proxy ohnehin können, und würde vortäuschen, die Frage sei geklärt. Wer diese
-Schnittstelle erreicht, kann Schlüssel aufnehmen und Nutzlasten löschen.
+**The admin interface has no authentication, and that is deliberate.** Access control belongs in
+the environment here — binding to localhost, a Unix socket behind a proxy, a VPN. A home-grown
+token scheme in application code would be weaker than what the operating system and a fully grown
+proxy can do anyway, and it would pretend the question had been settled. Anyone who reaches this
+interface can add keys and erase payloads.
 
-Auch die öffentliche API bindet voreingestellt an localhost: Von sich aus ins Netz zu greifen ist
-nichts, was ein Programm ungefragt tun sollte.
+The public API binds to localhost by default as well: reaching out onto the network of its own
+accord is not something a program should do unasked.
 
-## Wessen Einträge angenommen werden
+## Whose entries are accepted
 
-Nur die von Schlüsseln im eigenen Verzeichnis. Eine Node ist autoritativ für ihre eigenen
-Teilnehmer und für sonst niemanden; wer dort nicht steht, hat eine andere Node. Ebenso nimmt sie
-nur Profile an, die sie prüfen kann — ein Profil abzulehnen, das man nicht kennt, ist ehrlicher,
-als es ungeprüft anzunehmen.
+Only those from keys in its own directory. A node is authoritative for its own participants and
+for nobody else; whoever is not listed there belongs to a different node. It likewise accepts only
+profiles it can validate — rejecting a profile you do not know is more honest than accepting it
+unchecked.
 
-Löschbezeugungen (`erasure`) erzeugt ausschließlich die Node selbst. Sie von außen anzunehmen
-hieße, jemanden behaupten zu lassen, hier sei etwas gelöscht worden.
+Erasure attestations (`erasure`) are produced by the node itself and by nobody else. Accepting
+them from outside would let somebody claim that something had been erased here.
 
-## Speicher
+## Storage
 
-`modernc.org/sqlite` — reines Go, ohne cgo. Das ist kein Detail: Nur so lassen sich Binaries für
-ARM bauen, ohne eine Cross-Toolchain einzurichten, und nur dann ist eine Node auf
-Raspberry-Pi-Klasse-Hardware wirklich betreibbar.
+`modernc.org/sqlite` — pure Go, no cgo. That is not a detail: it is the only way to build binaries
+for ARM without setting up a cross toolchain, and only then is a node genuinely operable on
+Raspberry-Pi-class hardware.
 
-**Lizenz:** AGPL-3.0-only, abweichend vom übrigen Repository. Wer diese Software als Dienst
-betreibt, gibt seine Änderungen an das Netz zurück, in dem er sie einsetzt. Die Bibliotheken
-(`core/`, `log/`, `client/`) stehen weiterhin unter Apache-2.0 und bleiben frei einbindbar.
+**Licence:** AGPL-3.0-only, differing from the rest of the repository. Whoever runs this software
+as a service gives their changes back to the network they run it on. The libraries (`core/`,
+`log/`, `client/`) remain under Apache-2.0 and stay freely importable.

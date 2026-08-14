@@ -13,13 +13,13 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// FormatVersion ist die Version des Blatt- und STH-Formats, die dieses Paket
-// erzeugt und akzeptiert.
+// FormatVersion is the version of the leaf and STH format this package produces
+// and accepts.
 const FormatVersion = 1
 
-// MaxLeafSize begrenzt ein Blatt. Ein Eintrag mit MaxParents Vorgängern und
-// ML-DSA-65-Signatur liegt bei rund 72 KiB; 128 KiB lässt Luft, ohne einem
-// Angreifer beliebigen Speicher zu überlassen.
+// MaxLeafSize bounds a leaf. An entry with MaxParents predecessors and an
+// ML-DSA-65 signature comes to roughly 72 KiB; 128 KiB leaves headroom without
+// handing an attacker arbitrary memory.
 const MaxLeafSize = 128 * 1024
 
 var (
@@ -29,44 +29,45 @@ var (
 	ErrLogMismatch  = errors.New("owm/log: belongs to a different log")
 )
 
-// hasher ist die RFC-6962-Baumhashfunktion: SHA-256 mit 0x00 vor Blättern und
-// 0x01 vor inneren Knoten.
+// hasher is the RFC 6962 tree hash function: SHA-256 with 0x00 in front of
+// leaves and 0x01 in front of interior nodes.
 //
-// Das ist eine andere Domänentrennung als die aus OWM-0 §3.3 und ersetzt sie
-// hier bewusst — der Vorrang liegt bei der Kompatibilität zur
-// CT-Baumkonstruktion. Getrennt wird an der sicherheitskritischen Stelle
-// trotzdem: Ein Blatthash kann nie als Knotenhash durchgehen.
+// That is a different domain separation from the one in OWM-0 §3.3 and
+// deliberately replaces it here — compatibility with the CT tree construction
+// takes precedence. Separation still happens where it is security critical: a
+// leaf hash can never pass as a node hash.
 var hasher = rfc6962.DefaultHasher
 
-// Leaf ist ein Blatt des Logs.
+// Leaf is a leaf of the log.
 //
-// Es enthält den signierten Eintrag als opaken Bytestring und nicht nur dessen
-// Kennung. Die Eintragskennung deckt die Signatur nicht ab (OWM-0 §4.3) — stünde
-// nur sie im Blatt, wäre die Signatur nicht Teil des Baums und ließe sich
-// nachträglich austauschen, ohne dass ein Inklusionsbeweis es bemerkt.
+// It holds the signed entry as an opaque byte string and not merely its
+// identifier. The entry identifier does not cover the signature (OWM-0 §4.3) —
+// if only the identifier were in the leaf, the signature would not be part of
+// the tree and could be swapped out afterwards without an inclusion proof
+// noticing.
 type Leaf struct {
 	Version uint16     `json:"v"`
 	Log     core.LogID `json:"log"`
 
-	// Seq ist die Position im Log, beginnend bei 0.
+	// Seq is the position in the log, starting at 0.
 	Seq uint64 `json:"seq"`
 
-	// LoggedAt ist der Zeitpunkt, zu dem die Node den Eintrag aufgenommen hat,
-	// in Millisekunden seit der Unix-Epoche, UTC.
+	// LoggedAt is the point in time at which the node accepted the entry, in
+	// milliseconds since the Unix epoch, UTC.
 	//
-	// Nicht zu verwechseln mit dem Ausstellungszeitpunkt im Eintrag: Der ist die
-	// Behauptung des Ausstellers, dies die Bezeugung der Node. Dass beide
-	// auseinanderfallen dürfen, ist der Punkt — ein rückdatierter Eintrag ist
-	// genau daran zu erkennen.
+	// Not to be confused with the issuance timestamp inside the entry: that one
+	// is the issuer's claim, this one is the node's witness. That the two may
+	// diverge is the whole point — a backdated entry is recognised by exactly
+	// this.
 	LoggedAt int64 `json:"ts"`
 
-	// Entry ist die kanonische Kodierung des signierten Eintrags.
+	// Entry is the canonical encoding of the signed entry.
 	Entry []byte `json:"ent"`
 }
 
-// leafWire ist die Drahtform nach OWM-2 §3. Alle Felder sind Pflicht, deshalb
-// steht nirgends omitempty — ein weggelassenes Feld wäre eine zweite Kodierung
-// desselben Blattes.
+// leafWire is the wire form per OWM-2 §3. All fields are mandatory, which is
+// why omitempty appears nowhere — an omitted field would be a second encoding
+// of the same leaf.
 type leafWire struct {
 	Version  uint16 `cbor:"1,keyasint"`
 	Log      []byte `cbor:"2,keyasint"`
@@ -75,10 +76,10 @@ type leafWire struct {
 	Entry    []byte `cbor:"5,keyasint"`
 }
 
-// LoggedAtTime liefert den Aufnahmezeitpunkt als time.Time in UTC.
+// LoggedAtTime returns the acceptance timestamp as a time.Time in UTC.
 func (l *Leaf) LoggedAtTime() time.Time { return time.UnixMilli(l.LoggedAt).UTC() }
 
-// Validate prüft die strukturellen Regeln aus OWM-2 §3.
+// Validate checks the structural rules from OWM-2 §3.
 func (l *Leaf) Validate() error {
 	if l.Version != FormatVersion {
 		return fmt.Errorf("%w: %d", ErrLeafVersion, l.Version)
@@ -95,7 +96,7 @@ func (l *Leaf) Validate() error {
 	return nil
 }
 
-// Encode liefert die kanonische CBOR-Kodierung des Blattes.
+// Encode returns the canonical CBOR encoding of the leaf.
 func (l *Leaf) Encode() ([]byte, error) {
 	if err := l.Validate(); err != nil {
 		return nil, err
@@ -116,8 +117,8 @@ func (l *Leaf) Encode() ([]byte, error) {
 	return b, nil
 }
 
-// ParseLeaf liest ein Blatt und prüft dabei, dass die Eingabe seine kanonische
-// Kodierung ist.
+// ParseLeaf reads a leaf, checking along the way that the input is its
+// canonical encoding.
 func ParseLeaf(b []byte) (*Leaf, error) {
 	if len(b) > MaxLeafSize {
 		return nil, fmt.Errorf("%w: %d bytes, allowed %d", ErrLeafSize, len(b), MaxLeafSize)
@@ -143,20 +144,20 @@ func ParseLeaf(b []byte) (*Leaf, error) {
 	return l, nil
 }
 
-// SignedEntry dekodiert den eingebetteten Eintrag. Die Signatur wird dabei
-// nicht geprüft; dafür ist Verify da.
+// SignedEntry decodes the embedded entry. The signature is not checked in the
+// process; Verify is there for that.
 func (l *Leaf) SignedEntry() (*core.SignedEntry, error) {
 	return core.ParseSignedEntry(l.Entry)
 }
 
-// EntryID liefert die Inhaltsadresse des eingebetteten Eintrags.
+// EntryID returns the content address of the embedded entry.
 func (l *Leaf) EntryID() core.Digest {
 	return core.EntryIDFromBytes(entryBytesOf(l.Entry))
 }
 
-// entryBytesOf holt die Eintragsbytes aus einem signierten Eintrag heraus und
-// liefert bei unlesbarer Eingabe einen leeren Schnipsel. Der Aufrufer hat die
-// Kodierung an dieser Stelle bereits akzeptiert.
+// entryBytesOf pulls the entry bytes out of a signed entry and returns an empty
+// slice for unreadable input. The caller has already accepted the encoding at
+// this point.
 func entryBytesOf(signed []byte) []byte {
 	se, err := core.ParseSignedEntry(signed)
 	if err != nil {
@@ -165,7 +166,7 @@ func entryBytesOf(signed []byte) []byte {
 	return se.EntryBytes
 }
 
-// Hash liefert den Blatthash nach RFC 6962: SHA-256(0x00 ‖ blatt).
+// Hash returns the leaf hash per RFC 6962: SHA-256(0x00 ‖ leaf).
 func (l *Leaf) Hash() (core.Digest, error) {
 	b, err := l.Encode()
 	if err != nil {
@@ -174,19 +175,19 @@ func (l *Leaf) Hash() (core.Digest, error) {
 	return LeafHashFromBytes(b), nil
 }
 
-// LeafHashFromBytes berechnet den Blatthash aus der bereits kanonisch kodierten
-// Form.
+// LeafHashFromBytes computes the leaf hash from the already canonically encoded
+// form.
 func LeafHashFromBytes(canonical []byte) core.Digest {
 	var d core.Digest
 	copy(d[:], hasher.HashLeaf(canonical))
 	return d
 }
 
-// Verify prüft den eingebetteten Eintrag vollständig: Signatur, Aussteller,
-// Struktur — und dass das Blatt zu diesem Log gehört.
+// Verify checks the embedded entry in full: signature, issuer, structure — and
+// that the leaf belongs to this log.
 //
-// Die Log-Prüfung ist kein Beiwerk. Ohne sie ließe sich ein Blatt aus einem
-// fremden Log übernehmen und hier als eigenes ausgeben.
+// The log check is not incidental. Without it a leaf from a foreign log could
+// be taken over and passed off as one's own.
 func (l *Leaf) Verify(logID core.LogID, pub *core.PublicKey) error {
 	if err := l.Validate(); err != nil {
 		return err

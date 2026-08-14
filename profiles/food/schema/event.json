@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "OpenWaymark-Lebensmittelprofil food.v1",
-  "description": "Wurzelschema. Das Feld event wählt den Ereignistyp; die zugehörigen Felder stehen im jeweiligen Teilschema. unevaluatedProperties verbietet alles, was weder hier noch dort vorgesehen ist.",
+  "title": "OpenWaymark food profile food.v1",
+  "description": "Root schema. The event field selects the event type; the fields that go with it live in the respective sub-schema. unevaluatedProperties forbids anything provided for neither here nor there.",
   "type": "object",
   "required": ["event", "time"],
   "properties": {
@@ -16,15 +16,15 @@
       ]
     },
     "time": {
-      "description": "Zeitpunkt des Ereignisses in der Wirklichkeit. Nicht zu verwechseln mit iat im Eintrag (Ausstellungszeit) oder mit dem Eingangszeitpunkt im Blatt.",
+      "description": "Point in time of the event in the real world. Not to be confused with iat in the entry (time of issue) or with the time of receipt in the leaf.",
       "$ref": "defs.json#/$defs/timestamp"
     },
     "party": {
-      "description": "Wer gehandelt hat.",
+      "description": "Who acted.",
       "$ref": "defs.json#/$defs/party"
     },
     "location": {
-      "description": "Wo es geschehen ist.",
+      "description": "Where it happened.",
       "$ref": "defs.json#/$defs/location"
     },
     "note": {

@@ -5,75 +5,70 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenWaymark
 
-**Ein offenes, föderiertes Protokoll für kryptographisch verifizierbare Herkunfts- und
-Lieferkettennachweise.**
+**An open, federated protocol for cryptographically verifiable provenance and supply chain
+evidence.**
 
-Website: <https://openwaymark.org/> · Lizenz: Apache-2.0 (Bibliotheken) und AGPL-3.0-only (Server)
-· Stand: frühe Entwicklung, Format noch nicht stabil
+Website: <https://openwaymark.org/> · License: Apache-2.0 (libraries) and AGPL-3.0-only (servers)
+· Status: early development, the format is not yet stable
 
-> *Note for English readers:* documentation, specification and source comments are currently in
-> German. All program output and error messages are English plain text. Contributions in English
-> are welcome — see [Mitarbeiten](#mitarbeiten).
+For any good — an egg, a diamond, a battery cell — OpenWaymark answers four questions in a way
+that can be checked rather than believed:
 
-OpenWaymark beantwortet für ein beliebiges Gut — ein Ei, einen Diamanten, eine Batteriezelle —
-vier Fragen so, dass die Antwort überprüfbar ist statt geglaubt werden zu müssen:
+- Where does it come from?
+- Which stations has it passed through?
+- Who claimed that, and how well verified is that person or body?
+- Was the cold chain kept, is it certified organic, is it conflict-free?
 
-- Woher stammt es?
-- Welche Stationen hat es durchlaufen?
-- Wer hat das behauptet, und wie gut ist diese Person oder Stelle verifiziert?
-- Wurde die Kühlkette eingehalten, ist es bio-zertifiziert, konfliktfrei?
+The answer consists of signed entries in append-only logs, of proofs a client recomputes for
+itself, and of the ability to contradict a node that lies.
 
-Die Antwort besteht aus signierten Einträgen in append-only Logs, aus Beweisen, die ein Client
-selbst nachrechnet, und aus der Möglichkeit, einer Node zu widersprechen, die lügt.
+## Contents
 
-## Inhalt
+- [What OpenWaymark is — and what it is not](#what-openwaymark-is--and-what-it-is-not)
+- [Try it in five minutes](#try-it-in-five-minutes)
+- [How it works](#how-it-works)
+- [Running your own node](#running-your-own-node)
+- [Repository layout](#repository-layout)
+- [Status and roadmap](#status-and-roadmap)
+- [Documentation](#documentation)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Releases and versioning](#releases-and-versioning)
+- [License](#license)
 
-- [Was OpenWaymark ist — und was nicht](#was-openwaymark-ist--und-was-nicht)
-- [In fünf Minuten ansehen](#in-fünf-minuten-ansehen)
-- [Wie es funktioniert](#wie-es-funktioniert)
-- [Eigene Node betreiben](#eigene-node-betreiben)
-- [Aufbau des Repositorys](#aufbau-des-repositorys)
-- [Stand und Fahrplan](#stand-und-fahrplan)
-- [Dokumentation](#dokumentation)
-- [Sicherheit](#sicherheit)
-- [Mitarbeiten](#mitarbeiten)
-- [Releases und Versionierung](#releases-und-versionierung)
-- [Lizenz](#lizenz)
-
-## Was OpenWaymark ist — und was nicht
+## What OpenWaymark is — and what it is not
 
 |  |  |
 |---|---|
-| **Föderiert** | Jede Node ist autoritativ für ihre eigenen Daten. Kein globaler Zustand, auf den sich alle einigen müssen. Vergleichbar mit E-Mail oder DNS, nicht mit einer Blockchain. |
-| **Transparenzlog statt Blockchain** | Jede Node führt ein lokales, append-only Merkle-Log nach dem Vorbild von Certificate Transparency (RFC 6962). Manipulationssicherheit entsteht durch signierte Baum-Snapshots und gegenseitige Beobachtung, nicht durch Konsens. |
-| **Löschbar** | DSGVO-Löschung ist eine Kernanforderung, kein Nachtrag. Das Log speichert nur ein gesalzenes Commitment; Nutzlast und Salt liegen off-chain und lassen sich wirklich löschen — ohne dass ein einziger historischer Beweis ungültig wird. |
-| **Post-Quantum ab Tag 1** | Ausschließlich ML-DSA (FIPS 204) und ML-KEM (FIPS 203). Kein RSA, kein ECC, kein Hybrid-Übergangsmodell. |
-| **Branchenagnostisch** | Der Kern kennt kein Branchenschema. Was in einer Nutzlast stehen darf, legt ein austauschbares Schema-Profil fest; das erste ist `food.v1`. |
-| **Kein Finanzprodukt** | Keine handelbare Kryptowährung, kein Token mit Marktpreis, keine Börse. Das geplante Anreizsystem ist ein geschlossenes, nicht handelbares Pfandsystem. |
-| **Kein Wahrheitsbeweis** | OpenWaymark kann nicht verhindern, dass jemand bei der Ersterfassung lügt. Es macht die Lüge nachträglich manipulationssicher dokumentiert, zurechenbar und ökonomisch unattraktiv. Siehe [Angreifermodell](spec/owm-9-threat-model.md). |
+| **Federated** | Every node is authoritative for its own data. There is no global state everybody has to agree on. Comparable to email or DNS, not to a blockchain. |
+| **A transparency log, not a blockchain** | Every node keeps a local, append-only Merkle log modelled on Certificate Transparency (RFC 6962). Tamper evidence comes from signed tree snapshots and mutual observation, not from consensus. |
+| **Erasable** | Erasure under the GDPR is a core requirement, not an afterthought. The log stores only a salted commitment; payload and salt live off-chain and can genuinely be deleted — without a single historical proof becoming invalid. |
+| **Post-quantum from day one** | ML-DSA (FIPS 204) and ML-KEM (FIPS 203) exclusively. No RSA, no ECC, no hybrid transition scheme. |
+| **Industry-agnostic** | The core knows no industry schema. What may appear in a payload is laid down by an interchangeable schema profile; the first one is `food.v1`. |
+| **Not a financial product** | No tradable cryptocurrency, no token with a market price, no exchange. The planned incentive scheme is a closed, non-tradable deposit system. |
+| **Not a proof of truth** | OpenWaymark cannot stop anyone from lying at the point of first capture. It makes the lie tamper-evidently documented after the fact, attributable and economically unattractive. See the [threat model](spec/owm-9-threat-model.md). |
 
-## In fünf Minuten ansehen
+## Try it in five minutes
 
-Benötigt Go 1.25 oder neuer. Sonst nichts — kein Docker, kein Netz nach außen, keine Datenbank
-zum Aufsetzen.
+Requires Go 1.25 or newer. Nothing else — no Docker, no outbound network, no database to set up.
 
 ```sh
-git clone <url-dieses-repositorys> openwaymark
+git clone <repository-url> openwaymark
 cd openwaymark
 go run ./demo
 ```
 
-Die Vorführung baut `owmnode`, startet die Node in einem Wegwerf-Verzeichnis auf zwei freien Ports
-an `127.0.0.1`, spielt eine vollständige Lebensmittelkette durch und räumt am Ende alles wieder
-weg. Der Client glaubt der Node dabei kein Wort: Er rechnet jede Kennung nach und prüft jede
-Signatur, jedes Commitment und jeden Beweis selbst.
+The demonstration builds `owmnode`, starts the node in a throwaway directory on two free ports on
+`127.0.0.1`, plays through a complete food chain and cleans everything up afterwards. The client
+takes the node's word for nothing: it recomputes every identifier and checks every signature,
+every commitment and every proof itself.
 
 ```
 5. Reading the chain back: the client checks everything itself
             #7 handover           Molkerei Alpenrand -> Feinkost Brunner e.K. (DA-2026-08-11-0093)
-               assertion, logged 13:30:34, proof 3 nodes
+               assertion, logged 05:45:09, proof 3 nodes
                #6 processing         pasteurise and add rennet -> Mountain cheese, 12 months, by ...
-                  assertion, logged 13:30:34, proof 3 nodes
+                  assertion, logged 05:45:09, proof 3 nodes
    ok       8 entries: signature, commitment and inclusion proof verified
    ok       public keys fetched over the public API
 
@@ -96,198 +91,197 @@ Signatur, jedes Commitment und jeden Beweis selbst.
    blocked  split view detected: owm/log: split view: two roots for the same tree size
 ```
 
-Neun Abschnitte, im Einzelnen erklärt in [`demo/README.md`](demo/README.md).
+Nine sections, explained one by one in [`demo/README.md`](demo/README.md).
 
-## Wie es funktioniert
+## How it works
 
-### Eintrag, Blatt, Baum
+### Entry, leaf, tree
 
-Wer etwas behauptet, schreibt einen **Eintrag**: deterministisch als CBOR serialisiert
-(RFC 8949 §4.2), signiert mit ML-DSA, adressiert über den Hash seines Inhalts. Ein Eintrag nennt
-sein Subjekt (das Gut), seinen Aussteller, sein Profil, seine Elterneinträge — und statt der
-Nutzlast nur deren **gesalzenes Commitment** `H(salt ‖ payload)`.
+Whoever claims something writes an **entry**: serialised deterministically as CBOR
+(RFC 8949 §4.2), signed with ML-DSA, addressed by the hash of its content. An entry names its
+subject (the good), its issuer, its profile, its parent entries — and, instead of the payload,
+only the payload's **salted commitment** `H(salt ‖ payload)`.
 
-Die Node hängt daraus ein **Blatt** an ihr Merkle-Log. Über den Baum stellt sie periodisch einen
-**Signed Tree Head** aus: Log-Kennung, Baumgröße, Wurzelhash, Zeitstempel, signiert. Aus dem Baum
-folgen zwei Beweise, die jeder Client selbst nachrechnen kann:
+From that the node appends a **leaf** to its Merkle log. Over the tree it periodically issues a
+**Signed Tree Head**: log identifier, tree size, root hash, timestamp, signed. Two proofs follow
+from the tree, and every client can recompute both for itself:
 
-- **Inklusionsbeweis** — dieses Blatt steckt in genau diesem Baum.
-- **Konsistenzbeweis** — der neue Baum ist der alte plus Anhang; nichts wurde umgeschrieben.
+- **Inclusion proof** — this leaf sits in exactly this tree.
+- **Consistency proof** — the new tree is the old one plus additions; nothing was rewritten.
 
-### Warum Löschen und Beweisen sich nicht widersprechen
+### Why erasure and proof do not contradict each other
 
-Personenbezogene Daten stehen **nie** im Blatt, sondern ausschließlich im Off-Chain-Blob. Eine
-Löschung entfernt Nutzlast **und Salt** und hängt einen Grabstein an. Der Baum bleibt dabei
-unverändert — deshalb gelten **alle je ausgestellten STHs und Inklusionsbeweise unverändert
-weiter**. Ohne Salt ist die Nutzlast auch dann nicht rekonstruierbar, wenn ihr Wertebereich klein
-ist und der Angreifer den Klartext errät; das ist der Unterschied zu einem nackten Hash.
+Personal data is **never** in the leaf, only ever in the off-chain blob. An erasure removes the
+payload **and the salt** and appends a tombstone. The tree stays unchanged — which is why **every
+STH and every inclusion proof ever issued remains valid unchanged**. Without the salt the payload
+cannot be reconstructed even if its value range is small and the attacker guesses the plaintext;
+that is the difference from a bare hash.
 
-Das historische Gegenbeispiel steht in [CLAUDE.md](CLAUDE.md) §2: das alte SKS-Keyserver-Netz,
-append-only ohne Löschmöglichkeit, 2019 durch vergiftete Einträge faktisch unbenutzbar.
+The historical counter-example is in [CLAUDE.md](CLAUDE.md) §2: the old SKS keyserver network,
+append-only without any way to delete, rendered practically unusable in 2019 by poisoned entries.
 
-### Föderation statt globaler Kette
+### Federation instead of a global chain
 
-Es gibt kein Doppelausgabe-Problem, also auch keinen Grund für einen teuren Konsensmechanismus.
-Jede Node ist für ihre eigenen Teilnehmer zuständig und nimmt nur Einträge von Schlüsseln aus
-ihrem eigenen Verzeichnis an. Gefunden werden Nodes über DNS:
+There is no double-spending problem, and therefore no reason for an expensive consensus
+mechanism. Every node is responsible for its own participants and accepts entries only from keys
+in its own directory. Nodes are found over DNS:
 
 ```
-_openwaymark.beispiel.de. IN TXT "v=owm1; node=https://provenance.beispiel.de"
+_openwaymark.example.com. IN TXT "v=owm1; node=https://provenance.example.com"
 ```
 
-Der zentrale Angriff auf ein solches Log ist der **Split View**: Eine Node zeigt zwei Beobachtern
-zwei verschiedene Bäume derselben Größe. Beide Unterschriften sind gültig — auffallen kann das
-nur jemandem, der beide sieht. Dafür sind zwei Dinge vorgesehen: gezieltes Gossip zwischen
-tatsächlichen Lieferkettenpartnern und STH-Gossip an unabhängige Monitore
-([`monitor/`](monitor/), noch nicht gebaut). Die Erkennungslogik selbst steht bereits in
-`log.CheckSTHPair`.
+The central attack on a log like this is the **split view**: a node shows two observers two
+different trees of the same size. Both signatures are valid — it can only be noticed by someone
+who sees both. Two things are planned against it: targeted gossip between actual supply chain
+partners, and STH gossip to independent monitors ([`monitor/`](monitor/), not built yet). The
+detection logic itself already exists in `log.CheckSTHPair`.
 
-### Profile
+### Profiles
 
-Der Kern kennt keine Branche. Ein Profil legt per JSON Schema fest, was in einer Nutzlast stehen
-darf, und wird über die Profilkennung im Eintrag referenziert. Das erste Profil `food.v1` bildet
-die Ereignisse von GS1 EPCIS 2.0 nach — Erzeugung, Aggregation, Transport, Messung, Verarbeitung,
-Übergabe —, damit die Industrie ohne Übersetzungsschicht anschlussfähig ist.
+The core knows no industry. A profile lays down by JSON Schema what may appear in a payload, and
+is referenced through the profile identifier in the entry. The first profile, `food.v1`, mirrors
+the events of GS1 EPCIS 2.0 — production, aggregation, transport, measurement, processing,
+handover — so that industry can connect without a translation layer.
 
-Eine Profilversion ändert sich nie: Wäre `food.v1` heute anders als gestern, wäre ein Eintrag von
-gestern heute ungültig, ohne dass ihn jemand angefasst hätte. Änderungen erscheinen als `food.v2`.
+A profile version never changes: were `food.v1` different today from yesterday, an entry from
+yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
-### Kryptographie
+### Cryptography
 
 | | |
 |---|---|
-| Signaturen (Nodes, Entitäten) | ML-DSA-65 — 1952 B Public Key, 3309 B Signatur |
-| Signaturen (Sensoren, Masseneinträge) | ML-DSA-44 — 1312 B Public Key, 2420 B Signatur |
-| Verschlüsselung (geplant, E5) | ML-KEM über `crypto/mlkem` der Standardbibliothek |
-| Hash | SHA-256, überall mit Domain-Trennung (`OWM/1 entry`, `OWM/1 commit`, …) |
-| Serialisierung | deterministisches CBOR, RFC 8949 §4.2 |
+| Signatures (nodes, entities) | ML-DSA-65 — 1952 B public key, 3309 B signature |
+| Signatures (sensors, bulk entries) | ML-DSA-44 — 1312 B public key, 2420 B signature |
+| Encryption (planned, E5) | ML-KEM via `crypto/mlkem` from the standard library |
+| Hash | SHA-256, everywhere with domain separation (`OWM/1 entry`, `OWM/1 commit`, …) |
+| Serialisation | deterministic CBOR, RFC 8949 §4.2 |
 
-Die Größe ist kein Nebenaspekt, sondern eine Entwurfsbedingung: Ein Eintrag der Vorführung wiegt
-im Mittel 3407 Byte, seine Nutzlast 488 Byte. Der Löwenanteil ist die Signatur — deshalb ML-DSA-44
-für Sensoren und deshalb ist Batch-Signierung vorgesehen.
+Size is not a side issue but a design constraint: an entry in the demonstration weighs 3407 bytes
+on average, its payload 492 bytes. The lion's share is the signature — which is why sensors use
+ML-DSA-44 and why batch signing is planned.
 
-## Eigene Node betreiben
+## Running your own node
 
 ```sh
 go build -o owmnode ./node/cmd/owmnode
 
 ./owmnode init -config owm.json \
-    -operator "Hof Sonnenblick" -contact datenschutz@beispiel.de \
-    -base-url https://provenance.beispiel.de
+    -operator "Hof Sonnenblick" -contact privacy@example.com \
+    -base-url https://provenance.example.com
 ./owmnode show  -config owm.json
 ./owmnode serve -config owm.json
 ```
 
-`init` legt Konfiguration und Identität an und überschreibt **nie** eine bestehende — eine
-Identität zu überschreiben hieße, das Log unter neuer Kennung fortzuführen, und alle bisherigen
-STHs wären von einem Schlüssel, den niemand mehr kennt.
+`init` creates configuration and identity and **never** overwrites an existing one — overwriting
+an identity would mean continuing the log under a new identifier, and every STH issued so far
+would be from a key nobody has any more.
 
-Die Node öffnet zwei Schnittstellen, beide voreingestellt auf `127.0.0.1`:
+The node opens two interfaces, both bound to `127.0.0.1` by default:
 
-| | Voreinstellung | Für wen |
+| | Default | For whom |
 |---|---|---|
-| Öffentliche API `/owm/v1` | `127.0.0.1:8480` | die Welt, hinter einem TLS-terminierenden Reverse-Proxy |
-| Verwaltung `/admin/v1` | `127.0.0.1:8481` | ausschließlich die Betreiberin |
+| Public API `/owm/v1` | `127.0.0.1:8480` | the world, behind a TLS-terminating reverse proxy |
+| Administration `/admin/v1` | `127.0.0.1:8481` | the operator, and nobody else |
 
-⚠️ **Die Verwaltungsschnittstelle kennt keine Authentifizierung, und das ist Absicht.**
-Zugangsschutz gehört in die Umgebung: lokale Bindung, Unix-Socket hinter einem Proxy, VPN. Wer
-diese Schnittstelle erreicht, kann Schlüssel aufnehmen und Nutzlasten löschen. Ein
-selbstgestricktes Token-Verfahren im Anwendungscode wäre schwächer als das, was Betriebssystem und
-ausgewachsener Proxy ohnehin können — und würde vortäuschen, die Frage sei geklärt.
+⚠️ **The administration interface has no authentication, and that is deliberate.** Access control
+belongs in the environment: local binding, a Unix socket behind a proxy, a VPN. Whoever reaches
+this interface can enrol keys and erase payloads. A home-grown token scheme in the application
+code would be weaker than what the operating system and a grown-up proxy can do anyway — and it
+would pretend the question had been settled.
 
-Der laufende Betrieb — Schlüssel aufnehmen, Nutzlasten löschen, STHs ausstellen — geht über die
-Verwaltungsschnittstelle, nicht über weitere Unterbefehle: Zwei Prozesse auf derselben
-SQLite-Datei wären ein Weg, sich die Datenbank zu zerlegen.
+Day-to-day operation — enrolling keys, erasing payloads, issuing STHs — goes through the
+administration interface rather than through further subcommands: two processes on the same SQLite
+file would be a fine way to take the database apart.
 
-Gespeichert wird über `modernc.org/sqlite`, reines Go ohne cgo. Damit lassen sich Binaries für ARM
-ohne Cross-Toolchain bauen — die Voraussetzung dafür, dass eine Node auf Raspberry-Pi-Klasse
-wirklich betreibbar ist.
+Storage is `modernc.org/sqlite`, pure Go without cgo. That allows binaries for ARM to be built
+without a cross toolchain — the precondition for a node genuinely being operable on
+Raspberry-Pi-class hardware.
 
-Vollständige Schnittstellenbeschreibung: [OWM-7](spec/owm-7-node-api.md).
+Full interface description: [OWM-7](spec/owm-7-node-api.md).
 
-## Aufbau des Repositorys
+## Repository layout
 
-Ein einziges Go-Modul `openwaymark.org/owm` mit Unterpaketen. Aufgespalten wird erst, wenn jemand
-`core/` einzeln einbinden will.
+A single Go module `openwaymark.org/owm` with subpackages. It will be split up only once somebody
+wants to pull in `core/` on its own.
 
-| Verzeichnis | Inhalt | Lizenz |
+| Directory | Content | License |
 |---|---|---|
-| [`spec/`](spec/) | Protokollspezifikation, normativ | Apache-2.0 |
-| [`core/`](core/) | Eintragstypen, deterministisches CBOR, ML-DSA, Commitments | Apache-2.0 |
-| [`log/`](log/) | Merkle-Log, STH, Inklusions- und Konsistenzbeweise, Löschpfad | Apache-2.0 |
-| [`profiles/`](profiles/) | Schema-Profile, zuerst [`food/`](profiles/food/) | Apache-2.0 |
-| [`node/`](node/) | Node-Server und `owmnode` | AGPL-3.0-only |
-| [`monitor/`](monitor/) | unabhängiger Log-Monitor (geplant) | AGPL-3.0-only |
-| [`client/`](client/) | WASM-Verifier und Web-App (geplant) | Apache-2.0 |
-| [`demo/`](demo/) | Ende-zu-Ende-Vorführung gegen eine echte Node | Apache-2.0 |
-| [`testdata/`](testdata/) | Testvektoren für Fremdimplementierungen | Apache-2.0 |
+| [`spec/`](spec/) | protocol specification, normative | Apache-2.0 |
+| [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
+| [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
+| [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
+| [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
+| [`monitor/`](monitor/) | independent log monitor (planned) | AGPL-3.0-only |
+| [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
+| [`demo/`](demo/) | end-to-end demonstration against a real node | Apache-2.0 |
+| [`testdata/`](testdata/) | test vectors for third-party implementations | Apache-2.0 |
 
-Die Testvektoren sind **Teil der Spezifikation**, nicht bloß Testbeiwerk: Wer OpenWaymark in einer
-anderen Sprache implementiert, prüft sich daran.
+The test vectors are **part of the specification**, not mere test scaffolding: anyone
+implementing OpenWaymark in another language checks themselves against them.
 
-## Stand und Fahrplan
+## Status and roadmap
 
-**Frühe Entwicklung.** Das Protokoll ist noch nicht stabil, das Datenformat kann sich ändern.
-Noch keine Version ist für den Produktivbetrieb gedacht.
+**Early development.** The protocol is not stable yet, the data format may change. No version so
+far is meant for production use.
 
-| Etappe | Inhalt | Stand |
+| Stage | Content | Status |
 |---|---|---|
-| E0 | Fundament, Spezifikationsentwürfe, CI | fertig |
-| E1 | Kern-Datenmodell, Krypto, Testvektoren | fertig |
-| E2 | Merkle-Log, STH, Beweise, Löschpfad | fertig |
-| E3 | Node-Server, HTTP-API, Profil `food.v1` | fertig |
-| E4 | Föderation: DNS-Discovery, Gossip, `monitor/` | als Nächstes |
-| E5 | Trust-Level, Attestierungen, Sensor-Zertifikate | offen |
-| E6 | Web-App und WASM-Verifier | offen |
-| E7/E8 | Pfandsystem und Streitschlichtung | bewusst vertagt |
+| E0 | foundation, specification drafts, CI | done |
+| E1 | core data model, cryptography, test vectors | done |
+| E2 | Merkle log, STH, proofs, erasure path | done |
+| E3 | node server, HTTP API, profile `food.v1` | done |
+| E4 | federation: DNS discovery, gossip, `monitor/` | next |
+| E5 | trust levels, attestations, sensor certificates | open |
+| E6 | web app and WASM verifier | open |
+| E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
-E7/E8 warten, bis mindestens zwei fremdbetriebene Nodes echte Daten führen. Erst dann lassen sich
-Cap-Höhen und Zeitfenster an Messwerten kalibrieren statt zu raten. Der Kern ist bewusst so
-gebaut, dass er nicht davon abhängt.
+E7/E8 wait until at least two independently operated nodes carry real data. Only then can cap
+heights and time windows be calibrated against measurements instead of guessed. The core is
+deliberately built so that it does not depend on them.
 
-## Dokumentation
+## Documentation
 
-| Dokument | Inhalt |
+| Document | Content |
 |---|---|
-| [OWM-0](spec/owm-0-overview.md) | Protokollübersicht, Begriffe, Kennungen, Kryptoparameter, Discovery |
-| [OWM-2](spec/owm-2-log.md) | Log, Merkle-Baum, Signed Tree Heads, Beweise, Löschpfad |
-| [OWM-3](spec/owm-3-keys.md) | Schlüssel, Node-Identität, Verzeichnis, Rotation |
-| [OWM-4](spec/owm-4-profiles.md) | Profilmechanismus und Lebensmittelprofil `food.v1` |
-| [OWM-7](spec/owm-7-node-api.md) | Node-API: Einreichen, Lesen, Beweise, Verwaltung |
-| [OWM-9](spec/owm-9-threat-model.md) | Angreifermodell, Grenzen des Systems |
-| [CLAUDE.md](CLAUDE.md) | Konzeptdokument: Grundsatzentscheidungen mit Begründung, verworfene Ansätze |
+| [OWM-0](spec/owm-0-overview.md) | protocol overview, terms, identifiers, crypto parameters, discovery |
+| [OWM-2](spec/owm-2-log.md) | log, Merkle tree, signed tree heads, proofs, erasure path |
+| [OWM-3](spec/owm-3-keys.md) | keys, node identity, directory, rotation |
+| [OWM-4](spec/owm-4-profiles.md) | profile mechanism and the food profile `food.v1` |
+| [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
+| [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
+| [CLAUDE.md](CLAUDE.md) | concept document: fundamental decisions with reasoning, rejected approaches |
 
-Paketnahe Erläuterungen stehen in den README-Dateien der Verzeichnisse
-([`node/`](node/README.md), [`profiles/`](profiles/README.md), [`demo/`](demo/README.md)) und in
-den Kommentaren; die normative Fassung ist immer die Spezifikation.
+Package-level explanations live in the README files of the directories
+([`node/`](node/README.md), [`profiles/`](profiles/README.md), [`demo/`](demo/README.md)) and in
+the comments; the normative version is always the specification.
 
-## Sicherheit
+## Security
 
-Das [Angreifermodell](spec/owm-9-threat-model.md) beschreibt, wogegen OpenWaymark schützt und
-wogegen ausdrücklich nicht. Die drei wichtigsten Grenzen:
+The [threat model](spec/owm-9-threat-model.md) describes what OpenWaymark protects against and
+what it expressly does not. The three most important limits:
 
-1. **Das Orakel-Problem bleibt.** Wer bei der Ersterfassung lügt, wird durch keine Signatur
-   ehrlich. Das Protokoll macht die Lüge zurechenbar und nachträglich unveränderbar dokumentiert —
-   stichprobenartige physische Audits ersetzt es nicht.
-2. **Ein Split View fällt nur auf, wenn jemand hinsieht.** Solange kein Monitor läuft, kann eine
-   Node zwei Wahrheiten unterschreiben. Deshalb ist E4 die nächste Etappe.
-3. **Die Verwaltungsschnittstelle ist ungeschützt.** Sie gehört nicht ins offene Netz.
+1. **The oracle problem remains.** Whoever lies at the point of first capture is not made honest
+   by any signature. The protocol makes the lie attributable and tamper-evidently documented after
+   the fact — it does not replace spot-check physical audits.
+2. **A split view is only noticed if somebody looks.** As long as no monitor runs, a node can sign
+   two truths. That is why E4 is the next stage.
+3. **The administration interface is unprotected.** It does not belong on the open internet.
 
-**Sicherheitslücken bitte nicht als öffentliches Issue melden**, sondern vertraulich über die
-private Sicherheitsmeldung des Repositorys (auf GitHub: Reiter *Security* → *Report a
-vulnerability*). Bis eine Behebung vorliegt, bleiben Meldung und Berichterstatterin unerwähnt,
-danach wird beides in den Release-Notes genannt, sofern gewünscht.
+**Please do not report security vulnerabilities as public issues**, but confidentially through the
+repository's private security reporting (on GitHub: *Security* tab → *Report a vulnerability*).
+Until a fix exists, neither the report nor the reporter is mentioned; afterwards both are named in
+the release notes, if desired.
 
-## Mitarbeiten
+## Contributing
 
-Beiträge sind willkommen — Fehlerberichte, Spezifikationskritik, Code, Profile für weitere
-Branchen, Implementierungen in anderen Sprachen.
+Contributions are welcome — bug reports, criticism of the specification, code, profiles for
+further industries, implementations in other languages.
 
-### Voraussetzungen
+### Prerequisites
 
-Go 1.25 oder neuer (CIRCL setzt das voraus). Weiter nichts.
+Go 1.25 or newer (CIRCL requires it). Nothing else.
 
-### Vor jedem Beitrag lokal grün bekommen
+### Get this green locally before every contribution
 
 ```sh
 go build ./...
@@ -298,102 +292,99 @@ go test -race ./...
 go run ./demo
 ```
 
-Genau das prüft auch die Pipeline ([`.gitlab-ci.yml`](.gitlab-ci.yml)), zusätzlich zu einem kurzen
-Fuzz-Lauf über die Deserialisierer. Die Deserialisierung ist die einzige Stelle, an der fremde
-Bytes ins System kommen — wer daran etwas ändert, sollte den Fuzzer länger laufen lassen:
+That is exactly what the pipeline checks too ([`.gitlab-ci.yml`](.gitlab-ci.yml)), plus a short
+fuzz run over the parsers. Parsing is the only place where foreign bytes enter the system —
+whoever changes anything there should let the fuzzer run for longer:
 
 ```sh
 go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 5m
 ```
 
-### Was beim Ändern zu beachten ist
+### What to watch out for when changing things
 
-- **Spec zuerst.** Jede Änderung am Drahtformat, an Kennungen, an Domain-Trennern oder an der
-  API ändert zuerst die Spezifikation unter `spec/` und dann den Code. Ein Format, das nur im Code
-  steht, ist kein Protokoll.
-- **Testvektoren nachziehen.** Ändert sich die Serialisierung, werden die goldenen Daten in
-  `testdata/vectors` neu erzeugt: `go test ./core/ -update`. Der Diff gehört in denselben Commit
-  und ist der eigentliche Prüfstein — er zeigt, ob die Änderung Altdaten unlesbar macht.
-- **Nie Klartext-Personendaten ins Blatt.** Alles Personenbezogene lebt im Off-Chain-Blob. Diese
-  Regel steht in der Spezifikation, nicht nur im Code.
-- **Profilversionen sind unveränderlich.** Änderungen an `food.v1` sind keine Änderungen, sondern
-  `food.v2`.
-- **SPDX-Kopf in jede neue Datei**, passend zum Bereich (siehe [Lizenz](#lizenz)). Das Repository
-  folgt der [REUSE-Spezifikation](https://reuse.software/); `REUSE.toml` regelt die Ausnahmen.
-- **Keine Schlüssel, keine Betriebsdaten ins Repository.** `.gitignore` deckt die üblichen Fälle
-  ab, das Nachdenken ersetzt es nicht.
+- **Specification first.** Every change to the wire format, to identifiers, to domain separators
+  or to the API changes the specification under `spec/` first and the code second. A format that
+  exists only in the code is not a protocol.
+- **Update the test vectors.** If the serialisation changes, the golden data in `testdata/vectors`
+  is regenerated: `go test ./core/ -update`. The diff belongs in the same commit and is the real
+  touchstone — it shows whether the change makes old data unreadable.
+- **Never put personal data in the leaf in the clear.** Everything personal lives in the off-chain
+  blob. That rule is in the specification, not just in the code.
+- **Profile versions are immutable.** Changes to `food.v1` are not changes but `food.v2`.
+- **An SPDX header in every new file**, matching the area (see [License](#license)). The
+  repository follows the [REUSE specification](https://reuse.software/); `REUSE.toml` covers the
+  exceptions.
+- **No keys, no operational data in the repository.** `.gitignore` covers the usual cases; it does
+  not replace thinking.
 
-### Sprache
+### Language
 
-| Wo | Sprache |
-|---|---|
-| Spezifikation, README-Dateien, Quelltextkommentare, Commit-Nachrichten | Deutsch |
-| **Alle Programmausgaben und Fehlermeldungen** | **Englisch, Klartext** |
+Everything in this repository is in English: specification, README files, source comments, commit
+messages, program output and error messages.
 
-Programmausgabe heißt: Fehlertexte der Bibliotheken, `detail` der HTTP-Fehlerantworten, jede Zeile
-von `owmnode` und der Vorführung. Klartext heißt: keine ANSI-Farben, keine Rahmen, keine Emoji,
-keine typographischen Pfeile — die Ausgabe soll sich unverändert in eine Datei, ein Ticket oder
-eine Mail kopieren lassen und in jedem Terminal gleich aussehen. Fehlertexte beginnen mit dem
-Paketpräfix (`owm:`, `owm/log:`, `owm/node:`, `owm/profiles:`) und danach klein — so verlangt es
-`staticcheck` (ST1005), und so lassen sie sich verschachteln.
+Program output is additionally **plain text**: no ANSI colours, no boxes, no emoji, no typographic
+arrows — the output should copy unchanged into a file, a ticket or a mail and look the same in
+every terminal. Error texts start with the package prefix (`owm:`, `owm/log:`, `owm/node:`,
+`owm/profiles:`) and continue in lower case — as `staticcheck` requires (ST1005), and so that they
+nest.
 
-Wer lieber auf Englisch beiträgt: gern. Deutsche Prosa ist der Ist-Zustand, keine Bedingung;
-eine spätere Umstellung der Dokumentation auf Englisch ist ausdrücklich denkbar.
+Proper nouns in test and demonstration data stay as they are: the fictional companies and farms
+have German names, and identifiers from the real world (for instance the organic control number
+`DE-ÖKO-006`) are quoted, not translated.
 
-### Ablauf
+### Workflow
 
-1. Issue aufmachen, bevor größere Arbeit beginnt — besonders bei Protokolländerungen.
-2. Branch von `main`, ein Thema pro Branch.
-3. Commit-Betreff als knapper Aussagesatz auf Deutsch, im Rumpf das *Warum*, nicht das *Was*
-   (das steht im Diff).
-4. Merge/Pull Request mit grüner Pipeline.
+1. Open an issue before starting larger work — especially for protocol changes.
+2. Branch from `main`, one topic per branch.
+3. Commit subject as a short declarative sentence, the *why* in the body, not the *what* (that is
+   in the diff).
+4. Merge/pull request with a green pipeline.
 
-## Releases und Versionierung
+## Releases and versioning
 
-Zwei Dinge werden getrennt versioniert:
+Two things are versioned separately:
 
-- **Das Protokoll** trägt die Version im Drahtformat und in den Domain-Trennern (`OWM/1`). Sie
-  steigt nur, wenn sich das Format bricht.
-- **Die Software** folgt [SemVer](https://semver.org/lang/de/). Solange die Hauptversion `0` ist,
-  kann sich in jeder Minor-Version alles ändern — auch das Drahtformat.
+- **The protocol** carries its version in the wire format and in the domain separators (`OWM/1`).
+  It only rises when the format breaks.
+- **The software** follows [SemVer](https://semver.org/). As long as the major version is `0`,
+  anything can change in any minor version — the wire format included.
 
-Ein Release ist ein annotiertes Git-Tag `vX.Y.Z` auf `main` mit grüner Pipeline. Die Release-Notes
-nennen in dieser Reihenfolge:
+A release is an annotated Git tag `vX.Y.Z` on `main` with a green pipeline. The release notes name,
+in this order:
 
-1. **Formatänderungen** — was an Einträgen, Blättern, STHs oder der API nicht mehr abwärtskompatibel
-   ist, und was Betreiber vorhandener Logs tun müssen.
-2. **Sicherheitsrelevantes**.
-3. Alles Übrige.
+1. **Format changes** — what is no longer backwards compatible in entries, leaves, STHs or the
+   API, and what operators of existing logs have to do.
+2. **Security-relevant matters.**
+3. Everything else.
 
-Gebaut wird aus dem Tag:
+Builds are made from the tag:
 
 ```sh
-git clone --branch v0.1.0 <url-dieses-repositorys> openwaymark
+git clone --branch v0.1.0 <repository-url> openwaymark
 cd openwaymark
 CGO_ENABLED=0 go build -trimpath -o owmnode ./node/cmd/owmnode
 ```
 
-`owmnode version` gibt Commit und Go-Version aus, weil `go build` beides aus der
-Versionskontrolle einbettet. Binaries für `linux/amd64` und `linux/arm64` werden an das Release
-angehängt — ohne cgo, damit ein Raspberry Pi dieselbe Datei ausführt, die auch ein Server
-ausführt.
+`owmnode version` prints commit and Go version, because `go build` embeds both from version
+control. Binaries for `linux/amd64` and `linux/arm64` are attached to the release — without cgo,
+so that a Raspberry Pi runs the same file a server runs.
 
-Ein Release enthält immer die passenden Testvektoren. Fremdimplementierungen prüfen sich gegen
-`testdata/vectors` genau dieses Tags.
+A release always contains the matching test vectors. Third-party implementations check themselves
+against `testdata/vectors` of exactly that tag.
 
-## Lizenz
+## License
 
-Geteilte Lizenzierung, damit Bibliotheken frei einbindbar bleiben und Serverbetreiber ihre
-Änderungen zurückgeben:
+Split licensing, so that the libraries stay freely embeddable and server operators give their
+changes back:
 
-| Bereich | Lizenz |
+| Area | License |
 |---|---|
 | `spec/`, `core/`, `log/`, `client/`, `profiles/`, `testdata/`, `demo/` | Apache-2.0 |
 | `node/`, `monitor/` | AGPL-3.0-only |
 
-Wer eine Node als Dienst betreibt, gibt seine Änderungen an das Netz zurück, in dem er sie
-einsetzt. Wer nur `core/` oder `log/` in eigene Software einbindet — einen Client, einen Scanner,
-eine Fremdimplementierung — bleibt davon unberührt.
+Whoever operates a node as a service gives their changes back to the network they run it in.
+Whoever merely embeds `core/` or `log/` in their own software — a client, a scanner, a
+third-party implementation — is unaffected by that.
 
-Jede Datei trägt einen SPDX-Bezeichner; die vollständigen Lizenztexte liegen in
-[`LICENSES/`](LICENSES/). Das Repository folgt der [REUSE-Spezifikation](https://reuse.software/).
+Every file carries an SPDX identifier; the full license texts are in [`LICENSES/`](LICENSES/). The
+repository follows the [REUSE specification](https://reuse.software/).

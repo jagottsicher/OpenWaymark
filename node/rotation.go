@@ -13,27 +13,27 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// ErrRotation meldet eine unbrauchbare Schlüsselankündigung.
+// ErrRotation reports an unusable key announcement.
 var ErrRotation = errors.New("owm/node: key announcement is invalid")
 
-// RotationPayload ist die Nutzlast eines key_rotation-Eintrags (OWM-3 §6).
+// RotationPayload is the payload of a key_rotation entry (OWM-3 §6).
 //
-// Der Eintrag ist vom bisherigen Schlüssel signiert und benennt den Nachfolger.
-// Damit ist die Rotation genau das, was sie sein soll: eine Aussage des alten
-// Inhabers, im Log festgehalten und für jeden nachvollziehbar. Ein Nachfolger,
-// der sich selbst ankündigt, wäre keine Rotation, sondern eine Neuanmeldung.
+// The entry is signed by the outgoing key and names the successor. That makes
+// rotation exactly what it should be: a statement by the old holder, recorded in
+// the log and traceable by anyone. A successor announcing itself would not be a
+// rotation but a fresh registration.
 type RotationPayload struct {
 	Alg    string `json:"alg"`
 	Public string `json:"public"`
 	Label  string `json:"label,omitempty"`
 }
 
-// applyRotation nimmt den angekündigten Nachfolgeschlüssel ins Verzeichnis auf.
+// applyRotation takes the announced successor key into the directory.
 //
-// Der Vorgänger wird NICHT stillgelegt. Beide Schlüssel gelten eine Zeit lang
-// nebeneinander, sonst bräche jede Rotation den laufenden Betrieb: Ein Sensor,
-// der die Ankündigung noch nicht gesehen hat, signiert weiter mit dem alten
-// Schlüssel. Das Stilllegen ist ein eigener Schritt der Betreiberin.
+// The predecessor is NOT retired. Both keys are valid side by side for a while,
+// otherwise every rotation would break ongoing operation: a sensor that has not
+// yet seen the announcement keeps signing with the old key. Retiring is a
+// separate step taken by the operator.
 func (n *Node) applyRotation(ctx context.Context, e *core.Entry, payload []byte) error {
 	var p RotationPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
@@ -51,10 +51,10 @@ func (n *Node) applyRotation(ctx context.Context, e *core.Entry, payload []byte)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRotation, err)
 	}
-	// Das Subjekt des Eintrags MUSS die Kennung des Nachfolgers sein. Ohne diese
-	// Bindung stünde im Log eine Rotation zu Schlüssel A, während in der
-	// Nutzlast Schlüssel B ankündigt wird — und nach einer Löschung der Nutzlast
-	// wäre nicht mehr feststellbar, welcher gemeint war.
+	// The subject of the entry MUST be the identifier of the successor. Without
+	// that binding the log would record a rotation to key A while the payload
+	// announces key B — and once the payload is erased it would no longer be
+	// possible to tell which one was meant.
 	if core.SubjectID(pub.ID()) != e.Subject {
 		return fmt.Errorf("%w: subject %s, announced was %s", ErrRotation, e.Subject, pub.ID())
 	}

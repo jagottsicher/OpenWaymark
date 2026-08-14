@@ -3,55 +3,56 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Vorführung
+# Demo
 
-Eine vollständige Lieferkette gegen eine **echte, laufende Node** — vom Melkstand bis zum
-Feinkosthändler, mit widersprechendem Kühlkettensensor, DSGVO-Löschung und vier
-Manipulationsversuchen.
+A complete supply chain against a **real, running node** — from the milking parlour to the
+delicatessen, with a contradicting cold-chain sensor, GDPR erasure and four tampering attempts.
 
 ```sh
 go run ./demo
 ```
 
-Das Programm baut `owmnode`, startet es in einem Wegwerf-Verzeichnis auf zwei freien Ports an
-`127.0.0.1`, redet ausschließlich über HTTP mit ihm und räumt am Ende alles wieder weg. Es
-braucht kein Netz nach außen und fasst nichts an, was nicht ihm gehört.
+The program builds `owmnode`, starts it in a throwaway directory on two free ports on
+`127.0.0.1`, talks to it over HTTP and nothing else, and clears everything away again at the end.
+It needs no outside network and touches nothing that is not its own.
 
-| Schalter | Bedeutung |
+| Flag | Meaning |
 |---|---|
-| `-keep` | Arbeitsverzeichnis (Datenbank, Identität, Konfiguration) behalten |
-| `-work DIR` | übergeordnetes Verzeichnis für den Wegwerf-Datenbestand |
-| `-repo DIR` | Wurzel des Repositorys, falls nicht aus dem Modul erkennbar |
+| `-keep` | keep the working directory (database, identity, configuration) |
+| `-work DIR` | parent directory for the throwaway data |
+| `-repo DIR` | repository root, if it cannot be derived from the module |
 
-Die Ausgabe ist Klartext in englischer Sprache, ohne Farben und ohne Sonderzeichen — sie lässt
-sich unverändert in eine Datei, ein Ticket oder eine Mail kopieren. Die Marke links sagt, worum es
-in der Zeile geht: `ok` geprüft und in Ordnung, `blocked` abgewiesen (so gewollt), `note` Hinweis.
+The output is plain text: no ANSI colours, no box drawing, no emoji, no typographic arrows — it
+looks the same in every terminal and can be copied unchanged into a file, a ticket or a mail. The
+mark in the fixed left-hand column says what a line is about: `ok` checked and in order,
+`blocked` turned away (as intended), `note` a remark. Continuation lines are indented to the same
+column, and arrows are written as ASCII `->` and `<-`.
 
-## Warum das Programm nur `core/` und `log/` einbindet
+## Why the program imports only `core/` and `log/`
 
-Die Vorführung ist kein Teil der Node, sondern ihr Gegenüber. Sie importiert ausschließlich die
-Bibliotheken unter Apache-2.0; die Node (AGPL-3.0-only) läuft als eigener Prozess und wird wie von
-einem fremden Client über die öffentliche API angesprochen.
+The demo is not part of the node, it is the node's counterpart. It imports only the libraries
+under Apache-2.0; the node (AGPL-3.0-only) runs as a process of its own and is addressed over the
+public API just as any third-party client would address it.
 
-Das ist keine Lizenzkosmetik, sondern die eigentliche Probe: Was die Vorführung nicht über die
-öffentliche API bekommt, bekommt auch sonst niemand. Genau so ist aufgefallen, dass die API
-zunächst keinen Teilnehmerschlüssel herausgab — womit ein fremder Client keine einzige Signatur
-hätte prüfen können.
+This is not licence cosmetics but the actual test: whatever the demo cannot get from the public
+API, nobody else gets either. That is exactly how it came to light that the API initially handed
+out no participant key at all — which would have left a third-party client unable to verify a
+single signature.
 
-## Was die neun Abschnitte zeigen
+## What the nine sections show
 
 | | |
 |---|---|
-| 1 Node starten | Die Node behauptet ihre Kennungen, der Client rechnet sie nach: Schlüsselkennung aus den Schlüsselbytes, Log-Kennung aus dem Gründungsschlüssel. |
-| 2 Teilnehmer | Fünf Schlüssel im Verzeichnis, Sensor mit ML-DSA-44. Ein Schlüssel von außerhalb wird abgewiesen. |
-| 3 Lieferkette | Acht `food.v1`-Ereignisse — Erzeugung, Aggregation, Transport, Messung, Verarbeitung, Übergabe — über Elternverweise verknüpft. Eine handgeschriebene Kühlkettenmessung weist das Profil ab: Messungen brauchen den Eintragstyp `sensor_reading`. |
-| 4 Signed Tree Head | Unterschrift des Baumzustands, geprüft gegen den Node-Schlüssel — nicht gegen die mitgelieferte Lesefassung. |
-| 5 Kette zurücklesen | Für jeden der acht Einträge: Blatt selbst dekodieren, Signatur gegen den über die API bezogenen Ausstellerschlüssel, Nutzlast gegen das Commitment, Inklusionsbeweis gegen die unterschriebene Wurzel. |
-| 6 Kühlkette | Die Zusage im Frachtpapier (2–6 °C) gegen die Sensorwerte. Zwei Ausreißer, signiert von zwei verschiedenen Schlüsseln im selben Log — ein Widerspruch, kein Schiedsspruch. |
-| 7 Löschung | Nutzlast und Salt weg, Grabstein angehängt: Der vor der Löschung ausgestellte Inklusionsbeweis gilt unverändert weiter, der Konsistenzbeweis zeigt reines Anhängen. 200 000 Rateversuche mit bekanntem Klartext treffen das Commitment nicht. |
-| 8 Manipulation | Gekipptes Byte, ausgetauschtes Blatt, fremd unterschriebener STH — und ein Split View, den die Node mit ihrem eigenen Schlüssel gültig unterschreibt. Den findet nur, wer beide Bäume sieht. |
-| 9 Bilanz | Größen: Ø 3407 Byte je Eintrag gegenüber Ø 488 Byte Nutzlast. Der Löwenanteil ist die Post-Quantum-Signatur. |
+| 1 Start the node | The node asserts its identifiers and the client recomputes them: key ID from the key bytes, log ID from the founding key. |
+| 2 Participants | Five keys in the directory, sensor on ML-DSA-44. A key from outside is turned away. |
+| 3 Supply chain | Eight `food.v1` events — production, aggregation, transport, measurement, processing, handover — linked by parent references. The profile rejects a hand-written cold-chain measurement: measurements need entry type `sensor_reading`. |
+| 4 Signed tree head | Signature over the tree state, verified against the node key — not against the human-readable rendering shipped with it. |
+| 5 Read the chain back | For each of the eight entries: decode the leaf yourself, the signature against the issuer key fetched over the API, the payload against the commitment, the inclusion proof against the signed root. |
+| 6 Cold chain | The promise in the freight papers (2–6 °C) against the sensor readings. Two outliers, signed by two different keys in the same log — a contradiction, not a ruling. |
+| 7 Erasure | Payload and salt gone, tombstone appended: the inclusion proof issued before the erasure still holds unchanged, the consistency proof shows pure appending. 200,000 guesses with known plaintext do not hit the commitment. |
+| 8 Tampering | A flipped byte, a swapped leaf, an STH signed with a foreign key — and a split view that the node signs validly with its own key. Only someone who sees both trees finds that one. |
+| 9 Balance sheet | Sizes: 3407 bytes per entry on average against 488 bytes of payload on average. The lion's share is the post-quantum signature. |
 
-Abschnitt 8 ist der einzige, der einen Vorgriff enthält: Der Split View wird hier von Hand
-konstruiert und erkannt. Wer ihn im Betrieb bemerkt, ist der noch nicht gebaute
-[Monitor](../spec/owm-9-threat-model.md).
+Section 8 is the only one that runs ahead of the code: the split view is constructed and detected
+by hand here. What notices it in production is the [monitor](../spec/owm-9-threat-model.md), which
+has yet to be built.

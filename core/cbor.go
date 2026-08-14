@@ -11,19 +11,17 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-// ErrNotCanonical meldet eine Kodierung, die nicht der kanonischen Form
-// entspricht.
+// ErrNotCanonical reports an encoding that is not in canonical form.
 var ErrNotCanonical = errors.New("owm: encoding is not canonical")
 
-// encMode ist Core Deterministic Encoding nach RFC 8949 §4.2.1: kürzestmögliche
-// Argumente, keine Kodierungen unbestimmter Länge, Map-Schlüssel bytweise
-// lexikographisch sortiert.
+// encMode is Core Deterministic Encoding per RFC 8949 §4.2.1: shortest possible
+// arguments, no indefinite-length encodings, map keys sorted bytewise in
+// lexicographic order.
 //
-// decMode lehnt alles ab, was zu einer zweiten gültigen Lesart führen könnte:
-// doppelte Schlüssel, unbestimmte Längen, Tags, unbekannte Felder. Ein
-// Datenformat, das dieselbe Aussage auf mehrere Arten kodieren lässt, hat
-// mehrere Inhaltsadressen — und dann trägt eine gültige Signatur plötzlich
-// zwei verschiedene Einträge.
+// decMode rejects everything that could yield a second valid reading: duplicate
+// keys, indefinite lengths, tags, unknown fields. A data format that lets the
+// same statement be encoded in several ways has several content addresses — and
+// then one valid signature suddenly covers two different entries.
 var (
 	encMode cbor.EncMode
 	decMode cbor.DecMode
@@ -48,9 +46,9 @@ func init() {
 	}
 }
 
-// entryWire ist die Drahtform eines Eintrags: eine CBOR-Map mit
-// Ganzzahlschlüsseln. Optionale Felder werden bei Abwesenheit weggelassen und
-// nicht als null kodiert — sonst gäbe es zwei Kodierungen desselben Eintrags.
+// entryWire is the wire form of an entry: a CBOR map with integer keys.
+// Optional fields are omitted when absent rather than encoded as null —
+// otherwise there would be two encodings of the same entry.
 type entryWire struct {
 	Version    uint16    `cbor:"1,keyasint"`
 	Type       uint8     `cbor:"2,keyasint"`
@@ -63,16 +61,16 @@ type entryWire struct {
 	Target     *refWire  `cbor:"9,keyasint,omitempty"`
 }
 
-// refWire ist ein Eintragsverweis als CBOR-Array fester Länge 2. Die feste
-// Länge vermeidet zwei zulässige Kodierungen desselben Verweises; ein
-// unbekanntes Log steht als leerer Bytestring.
+// refWire is an entry reference as a CBOR array of fixed length 2. The fixed
+// length avoids two admissible encodings of the same reference; an unknown log
+// is written as an empty byte string.
 type refWire struct {
 	_     struct{} `cbor:",toarray"`
 	Entry []byte
 	Log   []byte
 }
 
-// signedEntryWire ist die Drahtform eines signierten Eintrags.
+// signedEntryWire is the wire form of a signed entry.
 type signedEntryWire struct {
 	Entry []byte `cbor:"1,keyasint"`
 	Alg   uint16 `cbor:"2,keyasint"`
@@ -153,8 +151,9 @@ func (w *entryWire) toEntry() (*Entry, error) {
 		e.Commitment = Commitment(c)
 	}
 	if len(w.Parents) > 0 {
-		// Vor dem Anlegen prüfen, nicht erst in Validate: sonst reserviert ein
-		// böswillig großes par-Array den Speicher, bevor jemand es ablehnt.
+		// Check before allocating, not later in Validate: otherwise a
+		// maliciously large par array claims the memory before anyone
+		// rejects it.
 		if len(w.Parents) > MaxParents {
 			return nil, fmt.Errorf("%w: %d, allowed %d", ErrTooManyParents, len(w.Parents), MaxParents)
 		}
@@ -177,9 +176,9 @@ func (w *entryWire) toEntry() (*Entry, error) {
 	return e, nil
 }
 
-// Encode liefert die kanonische CBOR-Kodierung des Eintrags. Der Eintrag wird
-// vorher validiert: ein ungültiger Eintrag soll gar nicht erst eine
-// Inhaltsadresse bekommen.
+// Encode returns the canonical CBOR encoding of the entry. The entry is
+// validated first: an invalid entry should not get a content address in the
+// first place.
 func (e *Entry) Encode() ([]byte, error) {
 	if err := e.Validate(); err != nil {
 		return nil, err
@@ -191,8 +190,8 @@ func (e *Entry) Encode() ([]byte, error) {
 	return b, nil
 }
 
-// ParseEntry dekodiert einen Eintrag und weist alles zurück, was nicht der
-// kanonischen Form entspricht.
+// ParseEntry decodes an entry and rejects everything that is not in canonical
+// form.
 func ParseEntry(b []byte) (*Entry, error) {
 	var w entryWire
 	if err := decMode.Unmarshal(b, &w); err != nil {
@@ -211,7 +210,7 @@ func ParseEntry(b []byte) (*Entry, error) {
 	return e, nil
 }
 
-// Encode liefert die kanonische CBOR-Kodierung des signierten Eintrags.
+// Encode returns the canonical CBOR encoding of the signed entry.
 func (s *SignedEntry) Encode() ([]byte, error) {
 	if err := s.validateShape(); err != nil {
 		return nil, err
@@ -227,9 +226,9 @@ func (s *SignedEntry) Encode() ([]byte, error) {
 	return b, nil
 }
 
-// ParseSignedEntry dekodiert einen signierten Eintrag. Der eingebettete Eintrag
-// bleibt dabei ein opaker Bytestring — dekodiert wird er erst durch Entry(),
-// signaturgeprüft durch Verify().
+// ParseSignedEntry decodes a signed entry. The embedded entry stays an opaque
+// byte string — it is decoded only by Entry() and signature-checked only by
+// Verify().
 func ParseSignedEntry(b []byte) (*SignedEntry, error) {
 	var w signedEntryWire
 	if err := decMode.Unmarshal(b, &w); err != nil {
@@ -259,29 +258,22 @@ func (s *SignedEntry) validateShape() error {
 	return nil
 }
 
-// checkCanonical stellt sicher, dass die Eingabe bereits kanonisch kodiert war.
+// MarshalCanonical encodes a value by the same rules as an entry.
 //
-// Die Prüfung ist mechanisch — neu kodieren und Bytes vergleichen — und deckt
-// jede Abweichung ab: nicht kürzestmögliche Argumente, falsch sortierte
-// Schlüssel, explizit kodierte optionale Felder. Ohne sie ließe sich eine
-// gültige Signatur an eine abweichend kodierte Fassung desselben Eintrags
-// heften.
-// MarshalCanonical kodiert einen Wert nach denselben Regeln wie einen Eintrag.
-//
-// Exportiert, damit andere Pakete — vor allem log/ für Blätter und STHs —
-// dieselben Regeln verwenden, statt die Optionen zu kopieren. Zwei Kopien der
-// Kodierregeln laufen früher oder später auseinander, und die Folge wäre ein
-// Wert, der in einem Paket kanonisch ist und im anderen nicht.
+// Exported so that other packages — above all log/ for leaves and STHs — use
+// the same rules instead of copying the options. Two copies of the encoding
+// rules drift apart sooner or later, and the result would be a value that is
+// canonical in one package and not in the other.
 func MarshalCanonical(v any) ([]byte, error) {
 	return encMode.Marshal(v)
 }
 
-// UnmarshalCanonical dekodiert und prüft dabei, dass die Eingabe die kanonische
-// Kodierung des Ergebnisses ist.
+// UnmarshalCanonical decodes and checks along the way that the input is the
+// canonical encoding of the result.
 //
-// Die Prüfung ist mechanisch: neu kodieren und Byte für Byte vergleichen. Damit
-// gibt es zu jedem Wert genau eine zulässige Kodierung — sonst trüge eine
-// gültige Signatur am Ende zwei verschiedene Aussagen.
+// The check is mechanical: re-encode and compare byte for byte. That leaves
+// exactly one admissible encoding per value — otherwise a valid signature would
+// end up carrying two different statements.
 func UnmarshalCanonical(data []byte, v any) error {
 	if err := decMode.Unmarshal(data, v); err != nil {
 		return err
@@ -289,6 +281,12 @@ func UnmarshalCanonical(data []byte, v any) error {
 	return checkCanonical(data, v)
 }
 
+// checkCanonical makes sure the input was already encoded canonically.
+//
+// The check is mechanical — re-encode and compare bytes — and covers every
+// deviation: arguments that are not shortest possible, keys in the wrong order,
+// optional fields encoded explicitly. Without it, a valid signature could be
+// attached to a differently encoded version of the same entry.
 func checkCanonical(orig []byte, wire any) error {
 	re, err := encMode.Marshal(wire)
 	if err != nil {

@@ -10,23 +10,22 @@ import (
 	"fmt"
 )
 
-// SaltSize ist die Länge des Nutzlast-Salts in Byte.
+// SaltSize is the length of the payload salt in bytes.
 const SaltSize = 32
 
-// Salt ist der Zufallswert, der eine Nutzlast an ihr Commitment bindet.
+// Salt is the random value that binds a payload to its commitment.
 //
-// Der Salt ist ein Geheimnis und mit derselben Sorgfalt zu behandeln wie ein
-// privater Schlüssel. Er entscheidet darüber, ob eine Löschung wirklich
-// endgültig ist: Solange er irgendwo liegt — in einem Backup, einem Replikat,
-// einem Dateisystem-Snapshot — ist die Nutzlast nachweisbar und damit nicht
-// gelöscht.
+// The salt is a secret and must be handled with the same care as a private key.
+// It decides whether an erasure is really final: as long as it survives
+// somewhere — in a backup, a replica, a filesystem snapshot — the payload can
+// still be proven and is therefore not erased.
 type Salt [SaltSize]byte
 
-// NewSalt zieht einen frischen Salt.
+// NewSalt draws a fresh salt.
 //
-// Jede Nutzlast braucht einen eigenen. Ein wiederverwendeter Salt macht gleiche
-// Nutzlasten über Einträge hinweg erkennbar und überlebt die Löschung des einen
-// Eintrags im anderen.
+// Every payload needs its own. A reused salt makes identical payloads
+// recognisable across entries, and survives the erasure of one entry inside the
+// other.
 func NewSalt() (Salt, error) {
 	var s Salt
 	if _, err := rand.Read(s[:]); err != nil {
@@ -35,23 +34,23 @@ func NewSalt() (Salt, error) {
 	return s, nil
 }
 
-// Wipe überschreibt den Salt im Speicher. Kein Ersatz für das Löschen aus dem
-// Blob-Speicher, aber die richtige Geste am Ende einer Verarbeitung.
+// Wipe overwrites the salt in memory. No substitute for deleting it from the
+// blob store, but the right gesture at the end of processing.
 func (s *Salt) Wipe() {
 	for i := range s {
 		s[i] = 0
 	}
 }
 
-// Commit berechnet das Nutzlast-Commitment:
+// Commit computes the payload commitment:
 //
 //	HMAC-SHA-256( key = salt, msg = u8(len(label)) ‖ label ‖ payload )
 //
-// Bindend, weil eine zweite Nutzlast mit gleichem Commitment eine
-// SHA-256-Kollision erfordert. Verbergend, weil ohne den Salt jede Nutzlast
-// gleich plausibel ist — auch bei einem Wertebereich von wenigen
-// Möglichkeiten. Genau daran scheitert ein ungesalzener Hash: Eine
-// Postleitzahl oder eine GPS-Koordinate ließe sich schlicht durchprobieren.
+// Binding, because a second payload with the same commitment would require a
+// SHA-256 collision. Hiding, because without the salt every payload is equally
+// plausible — even with a value range of just a few possibilities. That is
+// exactly where an unsalted hash fails: a postcode or a GPS coordinate could
+// simply be enumerated.
 func Commit(salt Salt, payload []byte) Commitment {
 	m := hmac.New(sha256.New, salt[:])
 	m.Write([]byte{byte(len(labelCommit))})
@@ -62,7 +61,7 @@ func Commit(salt Salt, payload []byte) Commitment {
 	return c
 }
 
-// VerifyCommitment prüft, ob Salt und Nutzlast zum Commitment passen.
+// VerifyCommitment checks whether salt and payload match the commitment.
 func VerifyCommitment(c Commitment, salt Salt, payload []byte) bool {
 	got := Commit(salt, payload)
 	return hmac.Equal(c[:], got[:])

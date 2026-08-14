@@ -1,26 +1,23 @@
 // SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package node ist die Serversoftware einer OpenWaymark-Node.
+// Package node is the server software of an OpenWaymark node.
 //
-// Eine Node ist autoritativ für ihre eigenen Daten und für sonst nichts. Sie
-// führt ein lokales Merkle-Log (Paket log), hält die Nutzlasten off-chain, kennt
-// ihre eigenen Teilnehmer über ein Schlüsselverzeichnis und nimmt nur Einträge
-// mit Profilen an, die sie prüfen kann. Es gibt keinen globalen Zustand und
-// keinen Konsens — die Manipulationssicherheit entsteht aus signierten
-// Baumzuständen und deren Beobachtung von außen.
+// A node is authoritative for its own data and for nothing else. It maintains a
+// local Merkle log (package log), keeps payloads off-chain, knows its own
+// participants through a key directory, and accepts only entries with profiles
+// it can check. There is no global state and no consensus — tamper evidence
+// arises from signed tree states and their observation from the outside.
 //
-// Aufteilung der Schnittstellen:
+// How the interfaces are split:
 //
-//   - Die öffentliche API liest und nimmt Einträge entgegen. Sie ist für die
-//     Welt gedacht.
-//   - Die Verwaltungsschnittstelle löscht Nutzlasten, nimmt Schlüssel auf und
-//     stellt STHs aus. Sie kennt keine Authentifizierung und gehört deshalb an
-//     eine lokal gebundene Adresse.
+//   - The public API reads and accepts entries. It is meant for the world.
+//   - The admin interface erases payloads, admits keys and issues STHs. It knows
+//     no authentication and therefore belongs on a locally bound address.
 //
-// Dass die Löschung dort liegt und nicht in der öffentlichen API, ist keine
-// Bequemlichkeit: Nach Art. 17 DSGVO richtet sich das Begehren an die
-// Verantwortliche, und die entscheidet darüber — nicht ein anonymer Aufruf.
+// That erasure sits there and not in the public API is no convenience: under
+// Art. 17 GDPR the request is addressed to the controller, and the controller
+// decides on it — not an anonymous call.
 package node
 
 import (
@@ -36,20 +33,19 @@ import (
 	"openwaymark.org/owm/profiles/food"
 )
 
-// Fehler, die eine Einreichung ablehnen.
+// Errors that reject a submission.
 var (
-	// ErrPayloadRequired meldet einen Eintrag mit Commitment, aber ohne Nutzlast.
+	// ErrPayloadRequired reports an entry with a commitment but no payload.
 	ErrPayloadRequired = errors.New("owm/node: entry carries a commitment but no payload was supplied")
-	// ErrPayloadUnexpected meldet eine Nutzlast ohne zugehöriges Commitment.
+	// ErrPayloadUnexpected reports a payload without a matching commitment.
 	ErrPayloadUnexpected = errors.New("owm/node: payload without a commitment in the entry")
-	// ErrPayloadTooLarge meldet eine zu große Nutzlast.
+	// ErrPayloadTooLarge reports a payload that is too large.
 	ErrPayloadTooLarge = errors.New("owm/node: payload too large")
-	// ErrNotSubmittable meldet einen Eintragstyp, den nur die Node selbst
-	// erzeugen darf.
+	// ErrNotSubmittable reports an entry type only the node itself may create.
 	ErrNotSubmittable = errors.New("owm/node: this entry type is not accepted")
 )
 
-// Node bündelt Log, Schlüsselverzeichnis und Profile.
+// Node ties together log, key directory and profiles.
 type Node struct {
 	cfg      Config
 	identity *Identity
@@ -60,7 +56,7 @@ type Node struct {
 	now      func() time.Time
 }
 
-// Open öffnet Datenbank und Identität und baut daraus eine betriebsbereite Node.
+// Open opens database and identity and builds a node ready for operation.
 func Open(ctx context.Context, cfg Config) (*Node, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
@@ -82,9 +78,9 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 		store.Close()
 		return nil, err
 	}
-	// Die Node muss ihren eigenen Schlüssel kennen. Sie signiert damit die
-	// Löschbezeugungen, und die laufen durch dieselbe Einlasskontrolle wie jeder
-	// fremde Eintrag — ohne diesen Schritt könnte sie nichts löschen.
+	// The node has to know its own key. It signs erasure witnesses with it, and
+	// those pass through the same admission control as any foreign entry —
+	// without this step it could erase nothing.
 	if err := keys.Register(ctx, identity.Key.Public(), "node", nil); err != nil {
 		store.Close()
 		return nil, err
@@ -112,7 +108,7 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 	}, nil
 }
 
-// buildRegistry lädt die verlangten Profile.
+// buildRegistry loads the requested profiles.
 func buildRegistry(want []string) (*profiles.Registry, error) {
 	available := map[string]func() (*profiles.Profile, error){
 		food.ID: food.New,
@@ -146,37 +142,38 @@ func buildRegistry(want []string) (*profiles.Registry, error) {
 	return reg, nil
 }
 
-// Close schließt die Datenbank.
+// Close closes the database.
 func (n *Node) Close() error { return n.store.Close() }
 
-// Log liefert das Log der Node.
+// Log returns the node's log.
 func (n *Node) Log() *owmlog.Log { return n.log }
 
-// Keys liefert das Schlüsselverzeichnis.
+// Keys returns the key directory.
 func (n *Node) Keys() *KeyDirectory { return n.keys }
 
-// Profiles liefert die geladenen Profile.
+// Profiles returns the loaded profiles.
 func (n *Node) Profiles() *profiles.Registry { return n.profiles }
 
-// Identity liefert die Identität der Node.
+// Identity returns the node's identity.
 func (n *Node) Identity() *Identity { return n.identity }
 
-// Config liefert die Konfiguration.
+// Config returns the configuration.
 func (n *Node) Config() Config { return n.cfg }
 
-// Submit prüft einen eingereichten Eintrag und hängt ihn an.
+// Submit checks a submitted entry and appends it.
 //
-// Reihenfolge der Prüfungen, von billig nach teuer und von struktureller nach
-// inhaltlicher Aussage:
+// Order of the checks, from cheap to expensive and from structural to
+// substantive:
 //
-//  1. Eintragstyp — Löschbezeugungen erzeugt nur die Node selbst.
-//  2. Nutzlastgröße.
-//  3. Profil und Schema.
-//  4. Signatur und Aussteller (im Log, über das Schlüsselverzeichnis).
-//  5. Commitment gegen Nutzlast (im Log).
+//  1. Entry type — erasure witnesses are created by the node itself only.
+//  2. Payload size.
+//  3. Profile and schema.
+//  4. Signature and issuer (in the log, through the key directory).
+//  5. Commitment against payload (in the log).
 //
-// Was hier durchkommt, ist wohlgeformt und zurechenbar. Ob es wahr ist, sagt
-// keine dieser Prüfungen — das kann keine Software (OWM-9, Orakelproblem).
+// What gets through here is well formed and attributable. Whether it is true is
+// something none of these checks says — no software can (OWM-9, oracle
+// problem).
 func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt, payload []byte) (*owmlog.Leaf, error) {
 	if se == nil {
 		return nil, fmt.Errorf("%w: entry", owmlog.ErrMissingField)
@@ -185,9 +182,9 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 	if err != nil {
 		return nil, err
 	}
-	// Eine Löschbezeugung ist eine Tatsache über den Speicher dieser Node. Sie
-	// von außen anzunehmen hieße, jemanden behaupten zu lassen, hier sei etwas
-	// gelöscht worden.
+	// An erasure witness is a fact about this node's storage. Accepting one from
+	// the outside would mean letting somebody claim that something had been
+	// erased here.
 	if e.Type == core.EntryTypeErasure {
 		return nil, fmt.Errorf("%w: %s", ErrNotSubmittable, e.Type)
 	}
@@ -208,9 +205,9 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 			return nil, err
 		}
 	} else if e.Profile != "" {
-		// Ohne Nutzlast gibt es nichts zu prüfen, das Profil muss aber bekannt
-		// sein — sonst nähme die Node einen Eintrag an, dessen Regeln sie nicht
-		// kennt.
+		// Without a payload there is nothing to check, but the profile has to be
+		// known — otherwise the node would accept an entry whose rules it does
+		// not know.
 		if _, ok := n.profiles.Get(e.Profile); !ok {
 			return nil, fmt.Errorf("%w: %s", profiles.ErrUnknown, e.Profile)
 		}
@@ -223,9 +220,9 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 	if err != nil {
 		return nil, err
 	}
-	// Ein angenommener Rotationseintrag bleibt wirkungslos, solange der
-	// Nachfolger nicht im Verzeichnis steht. Erst jetzt, nach dem Anhängen:
-	// Nur was im Log steht, ist nachvollziehbar begründet.
+	// An accepted rotation entry stays without effect as long as the successor
+	// is not in the directory. Only now, after appending: only what is in the
+	// log has a traceable justification.
 	if e.Type == core.EntryTypeKeyRotation {
 		if err := n.applyRotation(ctx, e, payload); err != nil {
 			return leaf, err
@@ -234,22 +231,21 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 	return leaf, nil
 }
 
-// Erase löscht Nutzlast und Salt eines Eintrags und hängt die Löschbezeugung an.
+// Erase deletes payload and salt of an entry and appends the erasure witness.
 func (n *Node) Erase(ctx context.Context, entryID core.Digest) (*owmlog.Leaf, error) {
 	return n.log.Erase(ctx, entryID)
 }
 
-// IssueSTH stellt einen Signed Tree Head aus.
+// IssueSTH issues a Signed Tree Head.
 func (n *Node) IssueSTH(ctx context.Context) (*owmlog.SignedSTH, error) {
 	return n.log.IssueSTH(ctx)
 }
 
-// RunSTH stellt in festem Abstand STHs aus, bis der Kontext endet.
+// RunSTH issues STHs at a fixed interval until the context ends.
 //
-// Der Abstand ist die Obergrenze dafür, wie lange eine Manipulation unbemerkt
-// bleiben kann: Was nicht unterschrieben wurde, kann ein Beobachter nicht
-// festnageln. Beim Beenden wird noch einmal ausgestellt, damit der letzte
-// Zustand vor dem Herunterfahren bezeugt ist.
+// The interval is the upper bound on how long tampering can stay unnoticed:
+// what was never signed cannot be pinned down by an observer. On shutdown one
+// more is issued so that the last state before going down is witnessed.
 func (n *Node) RunSTH(ctx context.Context) error {
 	interval := n.cfg.STHInterval.Duration()
 	if interval <= 0 {
@@ -261,8 +257,9 @@ func (n *Node) RunSTH(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			// Eigener Kontext: der übergebene ist an dieser Stelle bereits
-			// abgelaufen, und ohne frischen käme der letzte STH nie zustande.
+			// A context of our own: the one passed in has already expired at
+			// this point, and without a fresh one the last STH would never
+			// come about.
 			last, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			_, err := n.log.IssueSTH(last)
 			cancel()

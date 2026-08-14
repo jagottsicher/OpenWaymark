@@ -36,7 +36,7 @@ func testLeaf(t *testing.T) (*Leaf, *core.PrivateKey) {
 		Subject:    subject,
 		IssuedAt:   1754049600000,
 		Issuer:     key.Public().ID(),
-		Commitment: core.Commit(salt, []byte("nutzlast")),
+		Commitment: core.Commit(salt, []byte("payload")),
 	})
 	if err != nil {
 		t.Fatalf("sign: %v", err)
@@ -95,8 +95,8 @@ func TestLeafVerifyRejectsForeignLog(t *testing.T) {
 
 func TestLeafVerifyRejectsTamperedEntry(t *testing.T) {
 	leaf, key := testLeaf(t)
-	// Ein gekipptes Bit in der Signatur des eingebetteten Eintrags. Genau
-	// deshalb steht der signierte Eintrag im Blatt und nicht nur seine Kennung.
+	// One flipped bit in the signature of the embedded entry. That is exactly
+	// why the signed entry sits in the leaf and not merely its identifier.
 	tampered := append([]byte(nil), leaf.Entry...)
 	tampered[len(tampered)-1] ^= 0x01
 	leaf.Entry = tampered
@@ -111,13 +111,13 @@ func TestLeafRejectsNonCanonical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	// a5 = Map mit 5 Paaren, dann Schlüssel 1 und Wert 1 in minimaler Form.
+	// a5 = map with 5 pairs, then key 1 and value 1 in minimal form.
 	if len(b) < 3 || b[0] != 0xa5 || b[1] != 0x01 || b[2] != 0x01 {
 		t.Fatalf("unexpected encoding: %x", b[:3])
 	}
-	// Dieselbe Zahl in nicht-minimaler Form (0x18 0x01). CBOR liest das als 1,
-	// aber es ist eine zweite Kodierung desselben Blattes — und damit ein
-	// zweiter Blatthash für denselben Inhalt.
+	// The same number in non-minimal form (0x18 0x01). CBOR reads that as 1,
+	// but it is a second encoding of the same leaf — and thereby a second leaf
+	// hash for the same content.
 	noncanon := make([]byte, 0, len(b)+1)
 	noncanon = append(noncanon, b[:2]...)
 	noncanon = append(noncanon, 0x18, 0x01)
@@ -160,7 +160,7 @@ func TestLeafValidate(t *testing.T) {
 			}
 		})
 	}
-	// Seq 0 ist gültig: Das erste Blatt eines Logs hat die Position 0.
+	// Seq 0 is valid: the first leaf of a log has position 0.
 	l := *base
 	l.Seq = 0
 	if err := l.Validate(); err != nil {
@@ -299,7 +299,7 @@ func TestSignSTHRejectsForeignSigner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("key: %v", err)
 	}
-	// Der STH nennt key als Unterzeichner, unterschreiben soll other.
+	// The STH names key as its signer, but other is meant to do the signing.
 	if _, err := SignSTH(other, testSTH(t, key)); !errors.Is(err, ErrSignerMismatch) {
 		t.Errorf("foreign signer accepted: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestSTHValidate(t *testing.T) {
 			}
 		})
 	}
-	// Der leere Baum ist bezeugbar: Größe 0 ist gültig.
+	// The empty tree can be witnessed: size 0 is valid.
 	s := *base
 	s.Size = 0
 	if err := s.Validate(); err != nil {

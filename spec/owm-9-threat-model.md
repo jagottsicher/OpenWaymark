@@ -3,293 +3,380 @@ SPDX-FileCopyrightText: 2026 OpenWaymark contributors
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OWM-9 — Angreifermodell
+# OWM-9 — Threat model
 
-**Status:** Entwurf · **Stand:** 2026-08-10
+**Status:** draft · **Date:** 2026-08-10
 
-Dieses Dokument benennt, wogegen OpenWaymark schützt, wogegen ausdrücklich nicht, und welche
-Restrisiken bewusst getragen werden. Es ist die Referenz für Sicherheitsentscheidungen im Code:
-Jede Gegenmaßnahme hier soll einen Test haben, der ihren Ausfall sichtbar macht.
+This document names what OpenWaymark protects against, what it expressly does not protect against,
+and which residual risks are deliberately carried. It is the reference for security decisions in
+the code: every countermeasure named here should have a test that makes its failure visible.
 
-Ein Satz vorweg, weil er alles andere einordnet: **OpenWaymark beweist nicht, dass eine Aussage
-wahr ist. Es beweist, wer sie wann gemacht hat, und dass sie seither nicht verändert wurde.**
-Wer das verwechselt, überschätzt das System.
+One sentence up front, because it puts everything else in order: **OpenWaymark does not prove that
+a statement is true. It proves who made it and when, and that it has not been altered since.**
+Anyone who confuses the two overestimates the system.
 
-## 1. Werte
+## 1. Assets
 
-| Wert | Warum schützenswert |
+| Asset | Why it is worth protecting |
 |---|---|
-| Integrität des Logs | Eine nachträglich änderbare Historie ist wertlos. |
-| Zurechenbarkeit von Aussagen | Ohne Zurechenbarkeit gibt es keine Verantwortung und keine Sanktion. |
-| Nicht-Äquivokation | Alle Beobachter müssen dieselbe Historie sehen, sonst ist jeder Beweis nur lokal gültig. |
-| Löschbarkeit personenbezogener Daten | Rechtliche Pflicht und Bedingung dafür, dass das System überhaupt betrieben werden darf. |
-| Verfügbarkeit der Nachweise | Ein Nachweis, der nicht abrufbar ist, hilft im Streitfall nicht. |
-| Vertraulichkeit der Nutzlast | Geschäftsgeheimnisse und Personendaten dürfen nicht mit dem Log öffentlich werden. |
+| Integrity of the log | A history that can be altered after the fact is worthless. |
+| Attributability of statements | Without attributability there is no responsibility and no sanction. |
+| Non-equivocation | All observers must see the same history, otherwise every proof holds only locally. |
+| Erasability of personal data | A legal duty, and the condition for being allowed to run the system at all. |
+| Availability of the evidence | Evidence that cannot be retrieved is no help in a dispute. |
+| Confidentiality of the payload | Trade secrets and personal data must not become public along with the log. |
 
-## 2. Sicherheitsziele
+## 2. Security goals
 
-1. **Anfügungsintegrität.** Ein Eintrag im Log kann nicht unbemerkt verändert oder entfernt werden.
-2. **Nicht-Äquivokation.** Eine Node kann nicht dauerhaft zwei verschiedene Historien zeigen, ohne
-   dass es auffällt.
-3. **Zurechenbarkeit.** Jeder Eintrag trägt eine prüfbare Signatur einer benannten Entität.
-4. **Löschbarkeit ohne Beweisverlust.** Nutzlasten sind löschbar, ohne dass ein einziger
-   ausgegebener Beweis ungültig wird.
-5. **Eigenständige Prüfbarkeit.** Ein Client muss Signaturen und Inklusionsbeweise selbst prüfen
-   können und darf dem Server nicht glauben müssen.
-6. **Post-Quantum-Haltbarkeit.** Aufgezeichnete Daten bleiben auch dann zurechenbar, wenn später
-   ein kryptographisch relevanter Quantenrechner existiert.
+1. **Append integrity.** An entry in the log cannot be altered or removed unnoticed.
+2. **Non-equivocation.** A node cannot show two different histories for long without it being
+   noticed.
+3. **Attributability.** Every entry carries a checkable signature of a named entity.
+4. **Erasure without loss of evidence.** Payloads can be erased without a single issued proof
+   becoming invalid.
+5. **Independent verifiability.** A client must be able to check signatures and inclusion proofs
+   itself, and must not have to take the server's word for anything.
+6. **Post-quantum durability.** Recorded data stays attributable even if a cryptographically
+   relevant quantum computer comes to exist later.
 
-## 3. Ausdrückliche Nicht-Ziele
+## 3. Explicit non-goals
 
-- **Wahrheit der Ersterfassung.** Siehe A4.
-- **Globale Konsistenz.** Es gibt kein globales Register aller Güter. Wer nach globalem Konsens
-  sucht, sucht das falsche System.
-- **Zensurresistenz gegen den eigenen Node-Betreiber.** Wer die Node betreibt, kann Einträge
-  verweigern. Siehe A3.
-- **Schutz vor physischer Substitution.** Siehe A8.
-- **Anonymität der Teilnehmer.** Das Trust-Level-System beruht gerade auf Identifizierbarkeit.
-  Anonym ist nur Level 0, und der ist per Definition nichts wert.
+- **Truth of the first capture.** See A4.
+- **Global consistency.** There is no global register of all goods. Anyone looking for global
+  consensus is looking at the wrong system.
+- **Censorship resistance against one's own node operator.** Whoever runs the node can refuse
+  entries. See A3.
+- **Protection against physical substitution.** See A8.
+- **Anonymity of participants.** The trust level system rests precisely on identifiability. Only
+  level 0 is anonymous, and by definition it is worth nothing.
 
-## 4. Angreifertypen
+## 4. Attacker types
 
-| Typ | Fähigkeiten |
+| Type | Capabilities |
 |---|---|
-| **N — Netzangreifer** | Liest, verzögert, verwirft und fälscht Nachrichten zwischen Teilnehmern. |
-| **B — Böswilliger Node-Betreiber** | Volle Kontrolle über eine Node, ihre Schlüssel und ihre Datenbank. |
-| **T — Böswilliger Teilnehmer** | Gültige Identität, will falsche Aussagen einbringen. |
-| **A — Außenstehender** | Kein Zugang, versucht Daten zu rekonstruieren oder Teilnehmer zu verknüpfen. |
-| **Q — Quantenangreifer** | Zeichnet heute auf, bricht klassische Krypto später. |
+| **N — network attacker** | Reads, delays, drops and forges messages between participants. |
+| **B — malicious node operator** | Full control over a node, its keys and its database. |
+| **T — malicious participant** | Holds a valid identity, wants to introduce false statements. |
+| **A — outsider** | No access, tries to reconstruct data or to link participants. |
+| **Q — quantum attacker** | Records today, breaks classical crypto later. |
 
-## 5. Angriffe und Gegenmaßnahmen
+## 5. Attacks and countermeasures
 
-| # | Angriff | Typ | Abgedeckt |
+| # | Attack | Type | Covered |
 |---|---|---|---|
-| A1 | Split-View | B | ja, durch Gossip und Monitore |
-| A2 | Nachträgliche Änderung des Logs | B | ja, kryptographisch |
-| A3 | Zurückhalten von Einträgen | B | teilweise |
-| A4 | Lüge bei der Ersterfassung | T | nein, nur gemildert |
-| A5 | Rekonstruktion gelöschter Nutzlast | A | ja, durch Salt |
-| A6 | Schlüsselkompromittierung | N, B, T | ja, durch Rotation |
-| A7 | Sybil-Angriff | T | ja, durch Verifikationskosten |
-| A8 | Physische Substitution oder Klonen | T | nein, nur gemildert |
-| A9 | Verknüpfung über Metadaten | A | teilweise |
-| A10 | Lügender Server gegenüber dem Client | B | ja, durch clientseitige Prüfung |
-| A11 | Ausfall einer Node | N, B | teilweise |
-| A12 | Heute aufzeichnen, später entschlüsseln | Q | ja, durch PQ-Verfahren |
+| A1 | Split view | B | yes, through gossip and monitors |
+| A2 | Retroactive alteration of the log | B | yes, cryptographically |
+| A3 | Withholding entries | B | partly |
+| A4 | Lying at first capture | T | no, only mitigated |
+| A5 | Reconstruction of erased payload | A | yes, through the salt |
+| A6 | Key compromise | N, B, T | yes, through rotation |
+| A7 | Sybil attack | T | yes, through the cost of verification |
+| A8 | Physical substitution or cloning | T | no, only mitigated |
+| A9 | Linking through metadata | A | partly |
+| A10 | Enumeration of subject identifiers | A | partly |
+| A11 | Server lying to the client | B | yes, through client-side checking |
+| A12 | Failure of a node | N, B | partly |
+| A13 | Record today, decrypt later | Q | yes, through PQ schemes |
 
-### A1 — Split-View · **der zentrale Angriff**
+### A1 — Split view · **the central attack**
 
-Eine böswillige Node zeigt zwei Beobachtern zwei verschiedene, jeweils in sich stimmige Bäume.
-Der Lieferant bekommt eine Historie, der Prüfer eine andere. Beide Historien sind korrekt
-signiert, beide Inklusionsbeweise gehen auf. Rein lokal ist der Angriff **nicht** erkennbar —
-und zwar prinzipiell nicht, nicht bloß mangels Aufwand.
+A malicious node shows two observers two different trees, each of them internally consistent. The
+supplier gets one history, the auditor another. Both histories are correctly signed, both
+inclusion proofs come out. Locally the attack is **not** detectable — and in principle not, not
+merely for want of effort.
 
-Das ist der Grund, warum Gossip in OpenWaymark **kein Synchronisationsverfahren, sondern eine
-Sicherheitsmaßnahme** ist. Im Konzeptdokument stand er unter „Synchronisation"; er gehört hierher.
+That is why gossip in OpenWaymark is **not a synchronisation mechanism but a security measure**.
+In the concept document it sat under "synchronisation"; it belongs here.
 
-Gegenmaßnahmen, beide nötig:
+Countermeasures, both of them needed:
 
-- **Gezieltes Partner-Gossip.** Nodes tauschen STHs mit ihren tatsächlichen
-  Lieferkettenpartnern aus und prüfen sie auf Konsistenz. Dort liegen Interesse und Kontext, und
-  der Aufwand bleibt proportional zur echten Geschäftsbeziehung.
-- **STH-Gossip an unabhängige Monitore.** Partner-Gossip allein erkennt keinen Split-View
-  *gegenüber Außenstehenden* — die Partner sehen ja beide dieselbe Sicht. Erst ein Monitor, der
-  von der Node nicht als solcher erkannt werden kann, schließt diese Lücke.
+- **Targeted partner gossip.** Nodes exchange STHs with their actual supply chain partners and
+  check them for consistency. That is where the interest and the context are, and the effort stays
+  proportional to the real business relationship.
+- **STH gossip to independent monitors.** Partner gossip alone detects no split view *towards
+  outsiders* — the partners do, after all, both see the same view. Only a monitor that the node
+  cannot recognise as one closes that gap.
 
-Was ein aufgedeckter Split-View bedeutet: Zwei STHs derselben Node zur selben Baumgröße mit
-verschiedenen Wurzelhashes sind ein signierter, nicht abstreitbarer Beweis für Fehlverhalten.
-Die Node hat ihn selbst unterschrieben.
+What an uncovered split view means: two STHs of the same node for the same tree size with
+different root hashes are a signed, non-repudiable proof of misbehaviour. The node signed it
+itself.
 
-**Grenze, die klar benannt gehört:** Erkennung ist nicht Verhinderung. Ein Split-View wird
-nachträglich aufgedeckt, nicht verhindert. Zwischen Angriff und Aufdeckung liegt die
-Gossip-Periode. Wer kürzere Fenster braucht, muss häufiger gossippen — es gibt keinen kostenlosen
-Weg daran vorbei.
+**A limit that belongs stated plainly:** detection is not prevention. A split view is uncovered
+after the fact, it is not prevented. Between the attack and its discovery lies the gossip period.
+Whoever needs shorter windows must gossip more often — there is no free way around that.
 
-**Test:** Eine absichtlich manipulierte Node, die zwei Beobachtern verschiedene Bäume zeigt, muss
-vom Monitor erkannt werden. Das ist der wichtigste Test des Projekts.
+**Test:** a deliberately manipulated node that shows two observers different trees must be
+detected by the monitor. That is the most important test in the project.
 
-### A2 — Nachträgliche Änderung des Logs
+### A2 — Retroactive alteration of the log
 
-Der Betreiber ändert einen alten Eintrag oder streicht ihn.
+The operator alters an old entry or strikes it out.
 
-Abgedeckt durch die Merkle-Struktur: Jede Änderung ändert den Wurzelhash. Ein bereits
-ausgegebenes STH ist eine Signatur des Betreibers über den alten Zustand; Konsistenzbeweise
-zwischen zwei STHs decken jede Abweichung auf. Die Sicherheit beruht darauf, dass alte STHs
-außerhalb der Node existieren — was wiederum A1 voraussetzt. **A1 und A2 hängen zusammen: ohne
-Gossip ist auch A2 nicht abgedeckt**, denn eine Node, die ihre eigene Historie allein verwahrt,
-kann sie samt aller STHs neu schreiben.
+Covered by the Merkle structure: every change changes the root hash. An STH already issued is a
+signature of the operator over the old state; consistency proofs between two STHs uncover any
+deviation. The security rests on old STHs existing outside the node — which in turn presupposes
+A1. **A1 and A2 belong together: without gossip, A2 is not covered either**, because a node that
+keeps its own history alone can rewrite it together with all its STHs.
 
-### A3 — Zurückhalten von Einträgen
+### A3 — Withholding entries
 
-Eine Node nimmt einen unbequemen Eintrag gar nicht erst an oder liefert ihn nicht aus.
+A node does not accept an inconvenient entry in the first place, or does not serve it.
 
-Nur teilweise abgedeckt, und das ist eine bewusste Folge der Föderation. Milderungen:
+Only partly covered, and that is a deliberate consequence of federation. Mitigations:
 
-- Wer einreicht, kann eine Quittung verlangen, die die Node zur Aufnahme innerhalb einer Frist
-  verpflichtet — das CT-Muster des Signed Certificate Timestamp. Eine nicht eingelöste Quittung
-  ist ein signierter Beweis für Vertragsbruch.
-- Ein Gegenüber kann denselben Eintrag bei der eigenen Node einreichen. Eine Lieferbeziehung hat
-  zwei Seiten, und beide dürfen dokumentieren.
-- Lücken in der Kette sind für den Endprüfer sichtbar: Ein Vorgängerverweis, der ins Leere zeigt,
-  ist ein Signal.
+- Whoever submits can demand a receipt that obliges the node to include the entry within a
+  deadline — the CT pattern of the Signed Certificate Timestamp. A receipt that is not honoured is
+  a signed proof of breach.
+- A counterparty can submit the same entry to its own node. A delivery relationship has two sides,
+  and both are entitled to document it.
+- Gaps in the chain are visible to the final verifier: a predecessor reference that points nowhere
+  is a signal.
 
-**Nicht abgedeckt:** Wer nie einreicht und keinen Partner hat, der es tut, hinterlässt keine Spur.
+**Not covered:** whoever never submits, and has no partner who does, leaves no trace.
 
-### A4 — Lüge bei der Ersterfassung · **das Orakelproblem**
+### A4 — Lying at first capture · **the oracle problem**
 
-Jemand scannt konventionelle Eier und trägt „bio" ein. Alles Nachgelagerte ist kryptographisch
-einwandfrei — und inhaltlich falsch.
+Somebody scans conventional eggs and enters "organic". Everything downstream is cryptographically
+impeccable — and factually false.
 
-**Nicht abgedeckt, und durch kein Protokolldesign abdeckbar.** Die Lücke sitzt zwischen
-physischer Realität und ihrer digitalen Erfassung, nicht in der Software.
+**Not covered, and not coverable by any protocol design.** The gap sits between physical reality
+and its digital capture, not in the software.
 
-Was das Restrisiko senkt, ohne es zu beseitigen:
+What lowers the residual risk without removing it:
 
-- **Zurechenbarkeit.** Die Lüge ist signiert und datiert. Das ist der Unterschied zwischen einem
-  Papierzettel und einer Beweisgrundlage.
-- **Ökonomischer Einsatz.** Pfandverlust bei bestätigtem Betrug (E7).
-- **Sensorik als Gegenprobe.** Ein GPS-Tracker widerspricht einer falschen Standortangabe
-  automatisch. Widersprüche zwischen menschlicher Selbstauskunft und Gerätedaten sind maschinell
-  auffindbar — genau darauf zielt der Eintragstyp `sensor_reading`.
-- **Stichprobenhafte physische Audits durch Dritte.** Dieser Teil bleibt durch Software
-  unersetzbar, unabhängig vom Protokolldesign.
+- **Attributability.** The lie is signed and dated. That is the difference between a slip of paper
+  and a basis for evidence.
+- **Economic stake.** Loss of deposit on confirmed fraud (E7).
+- **Sensors as a cross-check.** A GPS tracker contradicts a false location automatically.
+  Contradictions between human self-declaration and device data can be found by machine — which is
+  exactly what the entry type `sensor_reading` aims at.
+- **Sampled physical audits by third parties.** This part remains irreplaceable by software,
+  whatever the protocol design.
 
-Diese Grenze gehört in jede Außenkommunikation des Projekts. Ein System, das mehr verspricht,
-als es halten kann, verliert genau dann das Vertrauen, wenn es darauf ankommt.
+This limit belongs in every outward communication of the project. A system that promises more than
+it can keep loses trust at exactly the moment when it matters.
 
-### A5 — Rekonstruktion gelöschter Nutzlast
+### A5 — Reconstruction of erased payload
 
-Nach einer Löschung versucht jemand, aus dem verbliebenen Commitment die Nutzlast
-zurückzurechnen.
+After an erasure, somebody tries to compute the payload back out of the remaining commitment.
 
-Abgedeckt: Das Commitment ist `HMAC-SHA-256(Salt, …)` mit 32 Byte Zufallssalt. Ohne Salt ist
-jede Nutzlast gleich plausibel — auch wenn nur zehn Werte in Frage kommen. Der Salt liegt beim
-Blob und wird mit ihm gelöscht.
+Covered: the commitment is `HMAC-SHA-256(Salt, …)` with a 32-byte random salt. Without the salt
+every payload is equally plausible — even if only ten values come into question. The salt lies
+with the blob and is erased along with it.
 
-Ein ungesalzener Hash wäre hier ungenügend, und das ist der Punkt, an dem OpenWaymark von
-Certificate Transparency abweichen muss: CT braucht keine Salts, weil CT nie löscht.
+An unsalted hash would be insufficient here, and this is the point at which OpenWaymark has to
+depart from Certificate Transparency: CT needs no salts because CT never erases.
 
-**Voraussetzungen, die außerhalb der Krypto liegen:** Der Salt muss wirklich verschwinden — auch
-aus Backups, Replikaten und Dateisystem-Snapshots. Und Kopien der Nutzlast, die Partner
-rechtmäßig erhalten haben, kann keine Löschung bei der Ursprungsnode einholen. Beides sind
-Betriebs- und Vertragsfragen, keine Protokollfragen; die Spezifikation muss sie benennen, lösen
-kann sie sie nicht.
+**Preconditions that lie outside the crypto:** the salt must really disappear — from backups,
+replicas and filesystem snapshots as well. And copies of the payload that partners have lawfully
+received cannot be caught up with by an erasure at the originating node. Both are operational and
+contractual questions, not protocol questions; the specification must name them, it cannot solve
+them.
 
-**Test:** Nach der Löschung ist die Nutzlast auch bei einem Wertebereich von wenigen tausend
-Möglichkeiten nicht rekonstruierbar, und der Inklusionsbeweis des Blattes gilt weiter.
+**Test:** after the erasure the payload is not reconstructable even with a value range of a few
+thousand possibilities, and the inclusion proof of the leaf still holds.
 
-### A6 — Schlüsselkompromittierung
+### A6 — Key compromise
 
-Ein privater Schlüssel wird gestohlen. Was gilt für die Signaturen davor?
+A private key is stolen. What holds for the signatures made before that?
 
-Abgedeckt durch Key-Rotation als eigenen Eintragstyp:
+Covered by key rotation as an entry type of its own:
 
-- Ein `key_rotation`-Eintrag kündigt den Nachfolger an, signiert mit dem alten Schlüssel.
-- Gültigkeitsfenster überlappen, damit während der Umstellung nichts abreißt.
-- Bei Kompromittierung widerruft ein `revocation`-Eintrag den Schlüssel **mit Zeitpunkt**.
-  Signaturen davor bleiben gültig, spätere nicht — der Zeitpunkt ist aus dem Log belegbar, weil
-  die Baumposition eine Reihenfolge festlegt, die die Node nicht rückwirkend ändern kann.
-- Bei Verlust ohne Vorsorge bleibt nur Neuverifikation über die Node, gegenüber der die Entität
-  ursprünglich ihr Trust-Level nachgewiesen hat.
+- A `key_rotation` entry announces the successor, signed with the old key.
+- Validity windows overlap so that nothing tears during the changeover.
+- On compromise, a `revocation` entry revokes the key **with a point in time**. Signatures before
+  it stay valid, later ones do not — the point in time is provable from the log, because the
+  position in the tree fixes an order that the node cannot change retroactively.
+- On loss without provision, all that remains is re-verification through the node to which the
+  entity originally proved its trust level.
 
-**Nicht abgedeckt:** Der Zeitraum zwischen Diebstahl und Bemerken. Einträge daraus sind
-formal gültig. Das entspricht jeder PKI und ist der Grund, warum der Widerruf einen Zeitstempel
-trägt statt bloß eines Flags.
+**Not covered:** the period between the theft and noticing it. Entries from it are formally valid.
+That matches every PKI, and it is the reason a revocation carries a timestamp rather than merely a
+flag.
 
-### A7 — Sybil-Angriff
+### A7 — Sybil attack
 
-Ein Teilnehmer legt viele Identitäten an, um Anreize abzugreifen oder eine Streitschlichtung zu
-kippen.
+A participant creates many identities in order to skim incentives or to tip a dispute resolution.
 
-Die Verteidigung ist **nicht** die Bonusformel — die kann Splitting prinzipiell nicht
-verhindern, unabhängig von ihrer Konstruktion, weil `log(a)+log(b) > log(a+b)` gilt. Die
-Verteidigung sind die Kosten der Identitätsverifikation: Der Bonus-Cap ist an das Trust-Level
-gekoppelt. Auf Level 1–2 ist eine weitere Identität billig, aber der Cap niedrig; auf Level 5–6
-wäre der Cap hoch, aber eine weitere Identität erfordert eine echte behördliche Prüfung.
+The defence is **not** the bonus formula — that cannot prevent splitting in principle, whatever
+its construction, because `log(a)+log(b) > log(a+b)`. The defence is the cost of identity
+verification: the bonus cap is coupled to the trust level. At levels 1–2 a further identity is
+cheap, but the cap is low; at levels 5–6 the cap would be high, but a further identity requires a
+genuine official check.
 
-Für die Streitschlichtung gilt dasselbe Prinzip: Losverfahren nur unter hoch verifizierten
-Teilnehmern, die selbst Einsatz riskieren.
+The same principle holds for dispute resolution: drawing lots only among highly verified
+participants who risk a stake of their own.
 
-### A8 — Physische Substitution oder Klonen
+### A8 — Physical substitution or cloning
 
-Der Code wird von einer echten Ware abgelöst und auf eine gefälschte geklebt, oder ein QR-Code
-wird schlicht kopiert.
+The code is peeled off genuine goods and stuck onto counterfeit ones, or a QR code is simply
+copied.
 
-**Nicht abgedeckt** — die Bindung zwischen Bit und Ding ist physisch, nicht kryptographisch. Das
-Trust-Level der physisch-digitalen Bindung macht diese Schwäche wenigstens sichtbar statt sie zu
-verstecken: gedruckter QR-Code = leicht kopierbar; Einweg-Seriennummer = anfällig für ein
-Wettrennen; NFC mit Challenge-Response = praktisch nicht klonbar; PUF = physisch unklonbar.
+**Not covered** — the binding between the bit and the thing is physical, not cryptographic. The
+trust level of the physical-digital binding at least makes this weakness visible instead of hiding
+it: printed QR code = easily copied; one-time serial number = vulnerable to a race; NFC with
+challenge-response = practically unclonable; PUF = physically unclonable.
 
-Der Client MUSS das Bindungsniveau anzeigen. Ein gedruckter QR-Code an einer sonst lückenlosen
-Kette darf nicht aussehen wie ein Beweis.
+The client MUST display the binding level. A printed QR code on an otherwise unbroken chain must
+not look like a proof.
 
-### A9 — Verknüpfung über Metadaten
+### A9 — Linking through metadata
 
-Ein Außenstehender wertet öffentlich abrufbare Logdaten aus: Wer reicht wann wie viel ein? Damit
-lassen sich Liefermengen, Kundenbeziehungen und Betriebsauslastung schätzen — ohne eine einzige
-Nutzlast zu sehen.
+An outsider analyses publicly retrievable log data: who submits how much, and when? From that,
+delivery volumes, customer relationships and plant utilisation can be estimated — without seeing a
+single payload.
 
-Nur teilweise abgedeckt. Die Nutzlast ist geschützt, das **Kommunikationsmuster** nicht:
-Zeitstempel, Häufigkeit, Verweisstruktur und Aussteller-IDs stehen im Log. Milderungen:
-zufällige statt abgeleiteter Subjekt-IDs, Batch-Einreichung zur Verwischung der Zeitstruktur,
-selektive Verschlüsselung der Nutzlast per ML-KEM für ausgewählte Partner (E5).
+Only partly covered. The payload is protected, the **communication pattern** is not: timestamps,
+frequency, reference structure and issuer IDs stand in the log. Mitigations: random rather than
+derived subject IDs, batch submission to blur the time structure
+([OWM-2 §8](owm-2-log.md#8-batch-signing)), selective encryption of the payload by ML-KEM for
+chosen partners (E5).
 
-Restrisiko, das getragen wird: Ein Log, das nachprüfbar sein soll, muss beobachtbar sein.
-Vollständige Unbeobachtbarkeit und öffentliche Prüfbarkeit schließen einander aus.
+Residual risk carried: a log that is meant to be checkable must be observable. Complete
+unobservability and public verifiability exclude one another.
 
-### A10 — Lügender Server gegenüber dem Client
+### A10 — Enumeration of subject identifiers
 
-Der Server liefert der Web-App eine erfundene Kette samt hübscher Darstellung.
+A subject ID MAY be derived ([OWM-0 §4.2](owm-0-overview.md#42-subject-id)):
 
-Abgedeckt, aber nur wenn der Client wirklich selbst prüft. Deshalb ist der WASM-Verifier kein
-Komfortmerkmal, sondern die Bedingung dafür, dass die ganze Beweiskette überhaupt etwas wert
-ist: Der Client prüft Signaturen und Inklusionsbeweise gegen ein STH, das er unabhängig
-beziehen kann. Ein Client, der dem Server glaubt, macht A1 bis A3 gegenstandslos — dann hätte
-man sich das Log sparen können.
+```
+SubjectID = H("OWM/1 subject-id", namespace, value)
+```
 
-**Test:** Ein absichtlich manipulierter Server muss vom Client abgelehnt werden.
+For GS1 identifiers the input to that derivation is structured and carries little entropy: a GTIN
+plus a lot code that follows an obvious scheme. Whoever knows the GTIN and the naming convention
+for lots can compute the identifiers and walk the entire log of that producer — without possessing
+a single physical item, and without scanning anything.
 
-### A11 — Ausfall einer Node
+Only partly covered. What leaks is not the payload, which lies behind the commitment, but the
+traffic data that survives even an erasure
+([OWM-2 §7.4](owm-2-log.md#74-what-remains-and-what-that-means)): production volume, delivery
+frequency, the number of lots, the timing of the events, and — through `handover` entries — the
+structure of the customer relationships.
 
-Strom weg, Internet weg, Betreiber gibt auf.
+The other half of the picture belongs here too: derivation is a deliberate design decision, not an
+oversight. It is what makes lookup by GTIN and lot possible, and therefore what makes a printed
+code resolvable at all. This is a trade, not a bug.
 
-Teilweise abgedeckt. Bereits an Partner weitergegebene Einträge und STHs bleiben dort abrufbar.
-Neue Einträge sind während des Ausfalls nicht möglich — das ist der Preis der Föderation und
-derselbe wie bei einem ausgefallenen Mailserver.
+Mitigations:
 
-Für das Anreizsystem gilt asymmetrisch: Ausfall kostet **niemals** Bestand, sondern höchstens
-Nachschub. Ein System, das Kleinbetreiber für einen Stromausfall bestraft, schafft genau die
-Zentralisierung, die es vermeiden will.
+- **Random subject IDs wherever linkability does harm.** The cost is lookup by GTIN and lot: the
+  identifier then has to be printed on the item itself.
+- **Coarser subject granularity**
+  ([OWM-4 §10.1](owm-4-profiles.md#101-subject-granularity)). Lot level instead of item level
+  reduces the resolution of what can be inferred from a sweep.
+- **Rate limiting on the read API.**
 
-### A12 — Heute aufzeichnen, später brechen
+Residual risk carried: with derived identifiers the enumeration cannot be prevented, only rate
+limited. Rate limiting raises the cost and the duration of a sweep; it does not make the sweep
+impossible, and anyone patient enough will finish it.
 
-Ein Angreifer speichert heute alles und wartet auf einen Quantenrechner.
+### A11 — Server lying to the client
 
-Abgedeckt, weil es keine klassische Krypto im Protokoll gibt: ML-DSA-65 und ML-DSA-44 für
-Signaturen, ML-KEM-768 für Verschlüsselung, SHA-256 für Hashes (Begründung in
-[OWM-0 §3.1](owm-0-overview.md#31-warum-sha-256-trotz-post-quantum-anspruch)). Kein
-Hybridmodell, das später abgelegt werden müsste.
+The server serves the web app an invented chain, complete with a pretty presentation.
 
-Für Signaturen ist „heute aufzeichnen, später brechen" ohnehin weniger dringlich als für
-Verschlüsselung — eine später gefälschte Signatur nützt wenig, wenn ihre Position im Baum
-bereits durch alte STHs bezeugt ist. Für Nutzlasten, die vertraulich bleiben müssen, ist die
-Dringlichkeit real, und genau deshalb gilt PQ ab Tag 1 statt als Migrationsprojekt.
+Covered, but only if the client really does check for itself. That is why the WASM verifier is not
+a convenience feature but the condition for the whole chain of evidence being worth anything: the
+client checks signatures and inclusion proofs against an STH it can obtain independently. A client
+that believes the server makes A1 to A3 moot — and in that case the log could have been spared.
 
-## 6. Bewusst getragene Restrisiken
+**Test:** a deliberately manipulated server must be rejected by the client.
 
-| Restrisiko | Warum getragen |
+### A12 — Failure of a node
+
+Power gone, internet gone, operator gives up.
+
+Partly covered. Entries and STHs already passed on to partners stay retrievable there. New entries
+are not possible during the outage — that is the price of federation, and the same price as a mail
+server that is down.
+
+For the incentive system it holds asymmetrically: an outage **never** costs holdings, at most new
+supply. A system that punishes small operators for a power cut creates exactly the centralisation
+it set out to avoid.
+
+### A13 — Record today, break later
+
+An attacker stores everything today and waits for a quantum computer.
+
+Covered, because there is no classical crypto in the protocol: ML-DSA-65 and ML-DSA-44 for
+signatures, ML-KEM-768 for encryption, SHA-256 for hashes (reasoning in
+[OWM-0 §3.1](owm-0-overview.md#31-why-sha-256-despite-the-post-quantum-claim)). No hybrid model
+that would have to be shed later.
+
+For signatures, "record today, break later" is in any case less pressing than for encryption — a
+signature forged later helps little if its position in the tree is already attested by old STHs.
+For payloads that must stay confidential the urgency is real, and that is precisely why PQ applies
+from day one rather than as a migration project.
+
+## 6. Who watches — observer incentives
+
+The entire tamper-evidence argument rests on somebody actually comparing STHs. A single observer
+cannot detect a split view in principle
+([OWM-2 §9](owm-2-log.md#9-detection-of-misbehaviour)): both histories are internally consistent
+and correctly signed. Detection is therefore not a property of the log. It is a property of the
+observer population.
+
+Which makes the honest question not "is the log verifiable?" but "who runs a monitor, and why
+would they still be running it next year?" Monitoring costs bandwidth, storage and attention, and
+pays nothing back directly. It is the classic free-rider problem: everybody benefits from
+detection, nobody in particular is paid for it.
+
+Who has a self-interested reason to watch — as the realistic answer, not as a wish:
+
+- **Supply chain partners downstream of a node.** Their own evidence becomes worthless if the
+  upstream log is dishonest. This is the strongest and the most durable incentive in the system,
+  and it is why partner gossip (A1) is the load-bearing part rather than the polite one.
+- **Certification bodies whose seal is being displayed.** Their reputation is attached directly to
+  the entries; a forged organic attestation damages them, not only the producer.
+- **Competitors.** They have a motive to catch a rival cheating, and they are cheap to enlist
+  because they are watching anyway. An adversarial motive is still a motive.
+- **Consumer protection organisations and researchers.** Their incentive is real but episodic — a
+  campaign, a paper, a scandal. Valuable, but continuous coverage cannot be built on it.
+
+### 6.1 The client is also an auditor
+
+Every client that checks an inclusion proof against an STH holds, at that moment, one observation
+of the tree. It has already done the expensive part. If clients report the STHs they have seen —
+even a small, sampled fraction of them — then the observer population becomes the user population,
+and that is the only group that grows with the system.
+
+What this costs must be said in the same breath: it is a privacy trade. Reporting an STH discloses
+that this client looked at this log at this time. Reporting MUST therefore be sampled, batched or
+aggregated, and it MUST be optional. A verifier that reported silently would buy detection with
+exactly the observability that participants were promised protection from.
+
+### 6.2 Limits
+
+None of this is enforced by the protocol. The protocol supplies the primitives
+([OWM-2 §9](owm-2-log.md#9-detection-of-misbehaviour)) and nothing beyond them: an operator cannot
+be compelled to be watched, and nobody can be compelled to watch. Coverage is therefore uneven by
+construction. A log with commercially significant partners will be watched; a small log with no
+downstream partner may be watched by nobody at all. For the second kind the tamper-evidence claim
+is weaker than the design suggests — not wrong, but resting on an observer who may not exist.
+
+Whether observers can be paid rather than merely hoped for belongs to the deferred deposit and
+incentive system (E7/E8). It is deliberately not solved here: a mechanism that pays for monitoring
+must first know what a monitor's report is worth, and that cannot be calibrated before at least
+two independently operated nodes carry real data.
+
+## 7. Deliberately accepted residual risks
+
+| Residual risk | Why it is carried |
 |---|---|
-| Split-View wird erkannt, nicht verhindert | Verhinderung erforderte globalen Konsens — und damit genau das System, das aus guten Gründen verworfen wurde. |
-| Lüge bei der Ersterfassung | Physisch, nicht technisch lösbar. Milderung statt Lösung. |
-| Metadaten sind auswertbar | Prüfbarkeit setzt Beobachtbarkeit voraus. |
-| Node-Betreiber kann Einträge verweigern | Folge der Autonomie, die die Föderation ausmacht. |
-| Löschung erreicht keine rechtmäßig verteilten Kopien | Vertrags- und Betriebsfrage, keine Protokollfrage. |
-| Der Betreiber sieht die Nutzlasten seiner Teilnehmer | Community-Nodes erfordern Vertrauen in den Betreiber. Wer das nicht will, betreibt eine eigene Node — das ist der Sinn der Föderation. |
+| A split view is detected, not prevented | Prevention would require global consensus — and thereby exactly the system that was rejected for good reasons. |
+| Lying at first capture | Physical, not technically solvable. Mitigation instead of solution. |
+| Metadata can be analysed | Verifiability presupposes observability. |
+| Derived subject IDs are enumerable | The price of a printed GTIN being resolvable at all. Rate limiting slows a sweep down, it does not stop it. |
+| Monitoring coverage is uneven | Watching cannot be compelled, only made attractive. A log without downstream partners may go unwatched. |
+| A node operator can refuse entries | A consequence of the autonomy that makes up the federation. |
+| Erasure does not reach lawfully distributed copies | An operational and contractual question, not a protocol question. |
+| The operator sees the payloads of its participants | Community nodes require trust in the operator. Whoever does not want that runs a node of their own — that is what federation is for. |
 
-## 7. Was daraus für die Implementierung folgt
+## 8. What follows from this for the implementation
 
-1. Gossip ist eine Sicherheitsfunktion. Er darf nicht als optionale Bequemlichkeit gebaut werden.
-2. Der Monitor gehört zum Kern des Projekts, nicht zum Zubehör. Ohne ihn ist A1 offen.
-3. Der Client prüft selbst. Ein Server-Endpunkt „vertrau mir, ist gültig" darf nicht existieren.
-4. Der Salt wird als Geheimnis behandelt, mit demselben Ernst wie ein privater Schlüssel.
-5. Zu jeder Gegenmaßnahme in Abschnitt 5 gehört ein Test, der ihren Ausfall sichtbar macht.
+1. Gossip is a security function. It must not be built as an optional convenience.
+2. The monitor belongs to the core of the project, not to the accessories. Without it, A1 is open.
+3. The client checks for itself. A server endpoint that says "trust me, it is valid" must not
+   exist.
+4. The salt is treated as a secret, with the same seriousness as a private key.
+5. Every countermeasure in section 5 comes with a test that makes its failure visible.

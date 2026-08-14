@@ -9,38 +9,38 @@ import (
 	"time"
 )
 
-// FormatVersion ist die Version des Eintragsformats, die dieses Paket erzeugt
-// und akzeptiert.
+// FormatVersion is the version of the entry format this package produces and
+// accepts.
 const FormatVersion = 1
 
-// EntryType benennt die Art der Aussage.
+// EntryType names the kind of statement being made.
 type EntryType uint8
 
 const (
-	// EntryTypeAssertion ist die Selbstauskunft über ein Subjekt: Erzeugung,
-	// Transport, Verarbeitung, Übergabe.
+	// EntryTypeAssertion is a self-declaration about a subject: production,
+	// transport, processing, handover.
 	EntryTypeAssertion EntryType = 1
-	// EntryTypeAttestation ist eine Aussage über eine andere Entität oder einen
-	// Schlüssel, etwa eine Zertifizierung. Das Subjekt ist dann die
-	// Schlüsselkennung des Bestätigten.
+	// EntryTypeAttestation is a statement about another entity or key, such as
+	// a certification. The subject is then the key ID of the party being
+	// attested.
 	EntryTypeAttestation EntryType = 2
-	// EntryTypeRevocation widerruft einen früheren Eintrag: die Aussage war
-	// falsch oder gilt nicht mehr.
+	// EntryTypeRevocation withdraws an earlier entry: the statement was wrong
+	// or no longer holds.
 	EntryTypeRevocation EntryType = 3
-	// EntryTypeKeyRotation kündigt einen Nachfolgeschlüssel an. Die Nutzlast
-	// enthält den neuen öffentlichen Schlüssel und wird nicht gelöscht.
+	// EntryTypeKeyRotation announces a successor key. The payload carries the
+	// new public key and is never erased.
 	EntryTypeKeyRotation EntryType = 4
-	// EntryTypeSensorReading ist ein automatisch erfasster Messwert,
-	// ausgestellt von einem Geräteschlüssel.
+	// EntryTypeSensorReading is an automatically captured measurement, issued
+	// by a device key.
 	EntryTypeSensorReading EntryType = 5
-	// EntryTypeErasure bezeugt, dass Nutzlast und Salt eines früheren Eintrags
-	// gelöscht wurden — der Grabstein nach einer Löschung.
+	// EntryTypeErasure witnesses that the payload and salt of an earlier entry
+	// have been deleted — the tombstone left behind by an erasure.
 	//
-	// Ausdrücklich kein Widerruf: ein Widerruf ist eine Behauptung über die
-	// Welt, eine Löschung eine Tatsache über den Speicher. Die Aussage des
-	// gelöschten Eintrags bleibt gültig, nur ihr Beleg ist fort. Ohne diesen
-	// eigenen Typ ließe sich rechtmäßige Löschung nicht von böswilligem
-	// Zurückhalten unterscheiden (OWM-9 A3).
+	// Deliberately not a revocation: a revocation is a claim about the world,
+	// an erasure is a fact about storage. The statement of the erased entry
+	// still stands, only its evidence is gone. Without a type of its own,
+	// lawful erasure could not be told apart from malicious withholding
+	// (OWM-9 A3).
 	EntryTypeErasure EntryType = 6
 )
 
@@ -63,30 +63,30 @@ func (t EntryType) String() string {
 	}
 }
 
-// Valid meldet, ob der Typ von dieser Formatversion unterstützt wird.
+// Valid reports whether this format version supports the type.
 func (t EntryType) Valid() bool {
 	return t >= EntryTypeAssertion && t <= EntryTypeErasure
 }
 
-// RefersToEntry meldet, ob der Typ einen anderen Eintrag benennt und deshalb
-// tgt führen muss.
+// RefersToEntry reports whether the type names another entry and therefore has
+// to carry tgt.
 func (t EntryType) RefersToEntry() bool {
 	return t == EntryTypeRevocation || t == EntryTypeErasure
 }
 
-// maxProfileLen begrenzt die Profilkennung. Sie ist ein Bezeichner, kein
-// Freitextfeld.
+// maxProfileLen bounds the profile identifier. It is an identifier, not a
+// free-text field.
 const maxProfileLen = 64
 
-// MaxParents begrenzt die Zahl direkter Vorgänger eines Eintrags.
+// MaxParents bounds the number of direct predecessors of an entry.
 //
-// Ohne Grenze könnte ein einziger Eintrag beliebig viel Speicher und Rechenzeit
-// binden. Die Höhe ist an der Praxis bemessen: Eine Aggregation von tausend
-// Einzelstücken auf eine Palette ist ein normales Lieferkettenereignis, mehr als
-// tausend direkte Vorgänger in einem Schritt sind es nicht.
+// Without a limit a single entry could tie up arbitrary amounts of memory and
+// computation. The value is taken from practice: aggregating a thousand
+// individual items onto a pallet is an ordinary supply-chain event, more than a
+// thousand direct predecessors in one step is not.
 const MaxParents = 1024
 
-// ErrTooManyParents meldet die Überschreitung von MaxParents.
+// ErrTooManyParents reports that MaxParents was exceeded.
 var ErrTooManyParents = errors.New("owm: too many parents")
 
 var (
@@ -100,58 +100,56 @@ var (
 	ErrAlgMismatch    = errors.New("owm: signature algorithm does not match the key")
 )
 
-// EntryRef verweist auf einen anderen Eintrag.
+// EntryRef points at another entry.
 //
-// Log ist ein Hinweis für den Abruf und nicht Teil der Identität — derselbe
-// Eintrag kann in mehreren Logs liegen. Ist das Log unbekannt, bleibt das Feld
-// null.
+// Log is a hint for retrieval and not part of the identity — the same entry can
+// live in several logs. If the log is unknown, the field stays empty.
 type EntryRef struct {
 	Entry Digest `json:"entry"`
 	Log   LogID  `json:"log,omitempty"`
 }
 
-// Entry ist eine Aussage einer Entität über ein Subjekt.
+// Entry is a statement made by an entity about a subject.
 //
-// Die Nutzlast steht nicht hier, sondern off-chain; im Eintrag steht nur ihr
-// Commitment. Kein Feld dieses Typs darf Klartext-Personendaten enthalten —
-// auch Subject nicht, das ein opaker Bezeichner ist und kein Name, keine
-// Anschrift und keine Koordinate.
+// The payload does not live here but off-chain; the entry only carries its
+// commitment. No field of this type may contain personal data in the clear —
+// not even Subject, which is an opaque identifier and not a name, an address or
+// a coordinate.
 type Entry struct {
 	Version  uint16    `json:"v"`
 	Type     EntryType `json:"typ"`
 	Profile  string    `json:"prof,omitempty"`
 	Subject  SubjectID `json:"subj"`
-	IssuedAt int64     `json:"iat"` // Millisekunden seit Unix-Epoche, UTC
+	IssuedAt int64     `json:"iat"` // milliseconds since the Unix epoch, UTC
 	Issuer   KeyID     `json:"iss"`
 
-	// Commitment ist das gesalzene Commitment der Nutzlast. Nur bei revocation
-	// und erasure darf es fehlen — beide brauchen keine eigene Nutzlast.
+	// Commitment is the salted commitment to the payload. Only revocation and
+	// erasure may omit it — neither needs a payload of its own.
 	Commitment Commitment `json:"cmt,omitempty"`
 
-	// Parents bildet die Lieferkette als gerichteten azyklischen Graphen ab.
-	// Mehrere Vorgänger bedeuten Zusammenführung, mehrere Einträge mit
-	// demselben Vorgänger bedeuten Aufteilung. Die Ereignissemantik darauf
-	// legt das Profil fest.
+	// Parents model the supply chain as a directed acyclic graph. Several
+	// parents mean a merge, several entries sharing one parent mean a split.
+	// The event semantics on top of that are defined by the profile.
 	Parents []EntryRef `json:"par,omitempty"`
 
-	// Target benennt den betroffenen Eintrag: bei revocation den widerrufenen,
-	// bei erasure den, dessen Nutzlast gelöscht wurde.
+	// Target names the entry concerned: for a revocation the entry withdrawn,
+	// for an erasure the entry whose payload was deleted.
 	Target *EntryRef `json:"tgt,omitempty"`
 }
 
-// IssuedAtTime liefert den Ausstellungszeitpunkt als time.Time in UTC.
+// IssuedAtTime returns the issuance timestamp as a time.Time in UTC.
 func (e *Entry) IssuedAtTime() time.Time {
 	return time.UnixMilli(e.IssuedAt).UTC()
 }
 
-// SetIssuedAt setzt den Ausstellungszeitpunkt auf Millisekundengenauigkeit.
+// SetIssuedAt sets the issuance timestamp at millisecond resolution.
 func (e *Entry) SetIssuedAt(t time.Time) {
 	e.IssuedAt = t.UTC().UnixMilli()
 }
 
-// Validate prüft die strukturellen Regeln aus spec/owm-0-overview.md §6.
-// Ob der Inhalt zum Profil passt, prüft der Profilmechanismus, nicht dieses
-// Paket.
+// Validate checks the structural rules from spec/owm-0-overview.md §6. Whether
+// the content matches the profile is checked by the profile mechanism, not by
+// this package.
 func (e *Entry) Validate() error {
 	if e.Version != FormatVersion {
 		return fmt.Errorf("%w: %d", ErrVersion, e.Version)
@@ -172,8 +170,8 @@ func (e *Entry) Validate() error {
 		return err
 	}
 
-	// Widerruf und Löschbezeugung brauchen keine eigene Nutzlast; jeder andere
-	// Typ ohne Commitment sagt nichts aus.
+	// Revocation and erasure witness need no payload of their own; any other
+	// type without a commitment states nothing.
 	if e.Commitment.IsZero() && !e.Type.RefersToEntry() {
 		return fmt.Errorf("%w: cmt on %s", ErrMissingField, e.Type)
 	}
@@ -198,9 +196,9 @@ func (e *Entry) Validate() error {
 	return nil
 }
 
-// validateProfile beschränkt die Profilkennung auf einen Bezeichner-Zeichensatz.
-// Sonst landen dort früher oder später Freitext, Steuerzeichen oder
-// Pfadangaben.
+// validateProfile restricts the profile identifier to an identifier character
+// set. Otherwise free text, control characters or path names end up there
+// sooner or later.
 func validateProfile(p string) error {
 	if p == "" {
 		return nil
@@ -219,12 +217,12 @@ func validateProfile(p string) error {
 	return nil
 }
 
-// ID liefert die Inhaltsadresse des Eintrags.
+// ID returns the content address of the entry.
 //
-// Die Kennung deckt den Eintrag ab, nicht seine Signatur. Damit bleibt sie
-// stabil, wenn derselbe Eintrag erneut oder von mehreren Parteien signiert wird
-// — ML-DSA signiert im Normalfall randomisiert, eine signaturabhängige Kennung
-// wäre nicht reproduzierbar.
+// The identifier covers the entry, not its signature. That keeps it stable when
+// the same entry is signed again or by several parties — ML-DSA signs
+// randomised by default, so a signature-dependent identifier would not be
+// reproducible.
 func (e *Entry) ID() (Digest, error) {
 	b, err := e.Encode()
 	if err != nil {
@@ -233,28 +231,29 @@ func (e *Entry) ID() (Digest, error) {
 	return EntryIDFromBytes(b), nil
 }
 
-// EntryIDFromBytes berechnet die Inhaltsadresse aus der bereits kanonisch
-// kodierten Form.
+// EntryIDFromBytes computes the content address from the already canonically
+// encoded form.
 func EntryIDFromBytes(canonical []byte) Digest {
 	return hashLabeled(labelEntryID, canonical)
 }
 
-// SignedEntry ist ein Eintrag mit Signatur.
+// SignedEntry is an entry together with its signature.
 //
-// EntryBytes hält die kanonische Kodierung als opaken Bytestring. Signiert und
-// geprüft werden immer genau diese Bytes; eine erneute Kodierung, die abweichen
-// könnte, findet nie statt. Die Lehre stammt aus JWS und COSE, wo genau diese
-// Mehrdeutigkeit zu Sicherheitslücken geführt hat.
+// EntryBytes holds the canonical encoding as an opaque byte string. What is
+// signed and verified are always exactly those bytes; a re-encoding that might
+// differ never happens. The lesson comes from JWS and COSE, where precisely
+// this ambiguity led to security holes.
 type SignedEntry struct {
 	EntryBytes []byte `json:"e"`
 	Alg        SigAlg `json:"alg"`
 	Signature  []byte `json:"sig"`
 }
 
-// SignEntry kodiert den Eintrag kanonisch und signiert ihn.
+// SignEntry encodes the entry canonically and signs it.
 //
-// Der Aussteller im Eintrag muss zum Schlüssel passen; sonst entstünde ein
-// Eintrag, der zwar eine gültige Signatur trägt, aber niemandem zurechenbar ist.
+// The issuer named in the entry must match the key; otherwise the result would
+// be an entry that carries a valid signature but cannot be attributed to
+// anyone.
 func SignEntry(k *PrivateKey, e *Entry) (*SignedEntry, error) {
 	if k == nil {
 		return nil, fmt.Errorf("%w: private key", ErrMissingField)
@@ -273,21 +272,21 @@ func SignEntry(k *PrivateKey, e *Entry) (*SignedEntry, error) {
 	return &SignedEntry{EntryBytes: b, Alg: k.Alg(), Signature: sig}, nil
 }
 
-// Entry dekodiert den eingebetteten Eintrag und prüft dabei seine Kanonizität.
+// Entry decodes the embedded entry, checking its canonicity along the way.
 func (s *SignedEntry) Entry() (*Entry, error) {
 	return ParseEntry(s.EntryBytes)
 }
 
-// EntryID liefert die Inhaltsadresse des eingebetteten Eintrags.
+// EntryID returns the content address of the embedded entry.
 func (s *SignedEntry) EntryID() Digest {
 	return EntryIDFromBytes(s.EntryBytes)
 }
 
-// Verify prüft die Signatur gegen den angegebenen öffentlichen Schlüssel.
+// Verify checks the signature against the given public key.
 //
-// Geprüft wird ausdrücklich auch, dass der Aussteller im Eintrag die Kennung
-// dieses Schlüssels ist. Ohne diese Prüfung ließe sich jeder Eintrag mit einem
-// beliebigen Schlüssel „bestätigen" und die Zurechenbarkeit wäre dahin.
+// It explicitly also checks that the issuer named in the entry is the ID of
+// that key. Without this check any entry could be "confirmed" with an arbitrary
+// key and attribution would be lost.
 func (s *SignedEntry) Verify(pub *PublicKey) error {
 	if pub == nil {
 		return fmt.Errorf("%w: public key", ErrMissingField)

@@ -12,11 +12,10 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// Beweise werden nicht signiert und brauchen deshalb kein kanonisches Format.
-// Ihre Integrität ergibt sich vollständig daraus, dass sie gegen einen
-// signierten Wurzelhash aufgehen oder eben nicht. Ein manipulierter Beweis
-// schlägt fehl; ein Beweis in abweichender Kodierung, der aufgeht, ist ein
-// gültiger Beweis. Siehe OWM-2 §5.3.
+// Proofs are not signed and therefore need no canonical format. Their integrity
+// follows entirely from whether they check out against a signed root hash or
+// not. A tampered proof fails; a proof in a deviating encoding that checks out
+// is a valid proof. See OWM-2 §5.3.
 
 var (
 	ErrProofSize    = errors.New("owm/log: proof does not match the tree size")
@@ -25,20 +24,20 @@ var (
 	ErrShrunk       = errors.New("owm/log: tree has shrunk")
 )
 
-// InclusionProof belegt, dass ein Blatt an Position LeafIndex in einem Baum der
-// Größe TreeSize enthalten ist.
+// InclusionProof shows that a leaf is contained at position LeafIndex in a tree
+// of size TreeSize.
 type InclusionProof struct {
 	LeafIndex uint64        `json:"leaf_index"`
 	TreeSize  uint64        `json:"tree_size"`
 	Path      []core.Digest `json:"path"`
 }
 
-// VerifyAgainstRoot prüft den Beweis gegen einen Wurzelhash.
+// VerifyAgainstRoot checks the proof against a root hash.
 //
-// Wer diese Methode direkt aufruft, muss selbst dafür sorgen, dass der
-// Wurzelhash aus einer geprüften Quelle stammt. Ein Inklusionsbeweis für sich
-// allein sagt nichts aus — er rechnet nur eine Wurzel aus, und die könnte der
-// Angreifer mitgeliefert haben. Im Zweifel Verify verwenden.
+// Whoever calls this method directly has to make sure themselves that the root
+// hash comes from a checked source. An inclusion proof on its own says nothing
+// — it merely computes a root, and that root could have been supplied by the
+// attacker. When in doubt, use Verify.
 func (p *InclusionProof) VerifyAgainstRoot(leafHash, root core.Digest) error {
 	if p.LeafIndex >= p.TreeSize {
 		return fmt.Errorf("%w: index %d in a tree of size %d", ErrProofSize, p.LeafIndex, p.TreeSize)
@@ -51,10 +50,10 @@ func (p *InclusionProof) VerifyAgainstRoot(leafHash, root core.Digest) error {
 	return nil
 }
 
-// Verify prüft den Beweis gegen einen STH und stellt dabei sicher, dass der
-// Beweis für genau dessen Baumgröße gilt.
+// Verify checks the proof against an STH, making sure the proof applies to
+// exactly that tree size.
 //
-// Der Aufrufer MUSS den STH vorher signaturgeprüft haben.
+// The caller MUST have checked the signature of the STH beforehand.
 func (p *InclusionProof) Verify(leafHash core.Digest, sth *STH) error {
 	if sth == nil {
 		return fmt.Errorf("%w: sth", ErrMissingField)
@@ -65,16 +64,16 @@ func (p *InclusionProof) Verify(leafHash core.Digest, sth *STH) error {
 	return p.VerifyAgainstRoot(leafHash, sth.Root)
 }
 
-// ConsistencyProof belegt, dass ein Baum der Größe OldSize ein Präfix eines
-// Baums der Größe NewSize ist — dass also zwischen beiden nur angehängt und
-// nichts geändert oder entfernt wurde.
+// ConsistencyProof shows that a tree of size OldSize is a prefix of a tree of
+// size NewSize — that is, that between the two only appends happened and
+// nothing was changed or removed.
 type ConsistencyProof struct {
 	OldSize uint64        `json:"old_size"`
 	NewSize uint64        `json:"new_size"`
 	Path    []core.Digest `json:"path"`
 }
 
-// VerifyAgainstRoots prüft den Beweis gegen zwei Wurzelhashes.
+// VerifyAgainstRoots checks the proof against two root hashes.
 func (p *ConsistencyProof) VerifyAgainstRoots(oldRoot, newRoot core.Digest) error {
 	if p.OldSize > p.NewSize {
 		return fmt.Errorf("%w: %d > %d", ErrProofSize, p.OldSize, p.NewSize)
@@ -87,12 +86,12 @@ func (p *ConsistencyProof) VerifyAgainstRoots(oldRoot, newRoot core.Digest) erro
 	return nil
 }
 
-// Verify prüft den Beweis zwischen zwei STHs desselben Logs.
+// Verify checks the proof between two STHs of the same log.
 //
-// Der Aufrufer MUSS beide STHs vorher signaturgeprüft haben. Dass beide
-// dasselbe Log nennen, prüft diese Methode — ein Konsistenzbeweis zwischen zwei
-// verschiedenen Logs wäre bedeutungslos, und die Verwechslung ist leicht
-// gemacht.
+// The caller MUST have checked the signatures of both STHs beforehand. That
+// both name the same log is checked by this method — a consistency proof
+// between two different logs would be meaningless, and the mix-up is easily
+// made.
 func (p *ConsistencyProof) Verify(old, new *STH) error {
 	if old == nil || new == nil {
 		return fmt.Errorf("%w: sth", ErrMissingField)
@@ -107,17 +106,17 @@ func (p *ConsistencyProof) Verify(old, new *STH) error {
 	return p.VerifyAgainstRoots(old.Root, new.Root)
 }
 
-// CheckSTHPair vergleicht zwei STHs desselben Logs auf Widersprüche, die ohne
-// Konsistenzbeweis erkennbar sind.
+// CheckSTHPair compares two STHs of the same log for contradictions that are
+// detectable without a consistency proof.
 //
-// Das ist die Primitive, auf der der unabhängige Monitor aufsetzt (OWM-2 §9).
-// Sie meldet nur, was die Node selbst unterschrieben hat und deshalb nicht
-// abstreiten kann. Kein Befund bedeutet NICHT, dass alles in Ordnung ist —
-// dafür braucht es zusätzlich einen Konsistenzbeweis zwischen beiden.
+// This is the primitive the independent monitor builds on (OWM-2 §9). It only
+// reports what the node signed itself and therefore cannot deny. No finding
+// does NOT mean everything is in order — that additionally requires a
+// consistency proof between the two.
 //
-// Und die Vorbedingung, ohne die das Ganze nichts wert ist: Die beiden STHs
-// müssen von verschiedenen Beobachtern stammen. Ein einzelner Beobachter sieht
-// nur eine der beiden Historien, und die ist in sich stimmig.
+// And the precondition without which the whole thing is worthless: the two STHs
+// must come from different observers. A single observer only ever sees one of
+// the two histories, and that one is internally consistent.
 func CheckSTHPair(a, b *STH) error {
 	if a == nil || b == nil {
 		return fmt.Errorf("%w: sth", ErrMissingField)
@@ -128,8 +127,8 @@ func CheckSTHPair(a, b *STH) error {
 	if a.Size == b.Size && a.Root != b.Root {
 		return fmt.Errorf("%w: size %d, roots %s and %s", ErrSplitView, a.Size, a.Root, b.Root)
 	}
-	// Ein Baum darf nur wachsen. Der spätere STH mit der kleineren Größe ist
-	// ein Beweis, dass Blätter verschwunden sind.
+	// A tree may only grow. The later STH with the smaller size is proof that
+	// leaves have disappeared.
 	early, late := a, b
 	if late.IssuedAt < early.IssuedAt {
 		early, late = b, a

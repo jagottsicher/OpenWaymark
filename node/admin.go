@@ -9,17 +9,16 @@ import (
 	"openwaymark.org/owm/core"
 )
 
-// AdminHandler ist die Verwaltungsschnittstelle der Node.
+// AdminHandler is the node's admin interface.
 //
-// Sie kennt keine Authentifizierung. Das ist Absicht und keine Auslassung:
-// Zugangsschutz gehört an dieser Stelle in die Umgebung — eine lokal gebundene
-// Adresse, ein Unix-Socket hinter einem Reverse-Proxy, ein VPN. Ein selbst
-// gestricktes Token-Verfahren im Anwendungscode wäre schwächer als das, was das
-// Betriebssystem und ein ausgewachsener Proxy ohnehin können, und würde
-// vortäuschen, die Frage sei geklärt.
+// It knows no authentication. That is deliberate and not an omission: access
+// control belongs to the environment here — a locally bound address, a Unix
+// socket behind a reverse proxy, a VPN. A home-grown token scheme in application
+// code would be weaker than what the operating system and a grown-up proxy can
+// do anyway, and it would pretend the question had been settled.
 //
-// Wer diese Schnittstelle erreicht, kann Schlüssel aufnehmen und Nutzlasten
-// löschen. Sie gehört nicht ins offene Netz.
+// Whoever reaches this interface can add keys and erase payloads. It does not
+// belong on the open network.
 func (n *Node) AdminHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /admin/v1/keys", n.handleListKeys)
@@ -31,7 +30,7 @@ func (n *Node) AdminHandler() http.Handler {
 	return jsonRouterErrors(mux)
 }
 
-// keyInfoView ist KeyInfo mit ausgeschriebenem Algorithmusnamen.
+// keyInfoView is KeyInfo with the algorithm name spelled out.
 type keyInfoView struct {
 	ID         core.KeyID  `json:"key_id"`
 	Alg        string      `json:"alg"`
@@ -79,11 +78,11 @@ func (n *Node) handleKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, viewKey(info))
 }
 
-// addKeyRequest nimmt einen öffentlichen Schlüssel auf.
+// addKeyRequest takes in a public key.
 //
-// Der Schlüssel steht hexkodiert im Feld public, der Algorithmus ausgeschrieben
-// daneben. Beides wird gegeneinander geprüft: Eine Länge, die nicht zum
-// genannten Verfahren passt, wird abgelehnt, statt sie zu erraten.
+// The key sits hex-encoded in the public field, the algorithm spelled out next
+// to it. The two are checked against each other: a length that does not match
+// the named algorithm is rejected rather than guessed at.
 type addKeyRequest struct {
 	Alg    string      `json:"alg"`
 	Public hexBytes    `json:"public"`
@@ -139,20 +138,20 @@ func (n *Node) handleDisableKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, viewKey(info))
 }
 
-// eraseRequest benennt den Eintrag, dessen Nutzlast verschwinden soll.
+// eraseRequest names the entry whose payload is to disappear.
 type eraseRequest struct {
 	EntryID core.Digest `json:"entry_id"`
 }
 
-// handleErase löscht Nutzlast und Salt und hängt die Löschbezeugung an.
+// handleErase deletes payload and salt and appends the erasure witness.
 //
-// Was verschwindet, ist der Klartext samt Salt. Was bleibt, ist das Blatt im
-// Baum — und damit gelten alle je ausgestellten STHs und Inklusionsbeweise
-// weiter. Genau das macht Art. 17 DSGVO und Manipulationssicherheit
-// miteinander vereinbar (OWM-2 §7).
+// What disappears is the plaintext together with the salt. What remains is the
+// leaf in the tree — and with it every STH and inclusion proof ever issued stays
+// valid. That is precisely what makes Art. 17 GDPR and tamper evidence
+// compatible with each other (OWM-2 §7).
 //
-// Der Vorgang ist endgültig. Ohne Salt ist die Nutzlast auch bei winzigem
-// Wertebereich nicht mehr aus dem Commitment zurückzurechnen.
+// The operation is final. Without the salt the payload cannot be recovered from
+// the commitment even for a tiny range of possible values.
 func (n *Node) handleErase(w http.ResponseWriter, r *http.Request) {
 	var req eraseRequest
 	if err := decodeBody(w, r, &req); err != nil {

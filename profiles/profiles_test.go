@@ -76,9 +76,9 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-// Dieselben Bytes müssen überall dasselbe bedeuten. Nimmt eine Implementierung
-// bei doppeltem Schlüssel den letzten Wert und eine andere den ersten, sagt
-// dieselbe, durch das Commitment festgeschriebene Nutzlast zweierlei.
+// The same bytes have to mean the same thing everywhere. If one implementation
+// takes the last value for a duplicate key and another the first, the same
+// payload — pinned down by the commitment — says two different things.
 func TestDuplicateKeyRejected(t *testing.T) {
 	p := testProfile(t)
 	err := p.Validate([]byte(`{"a":"first","a":"second"}`))
@@ -90,8 +90,7 @@ func TestDuplicateKeyRejected(t *testing.T) {
 	}
 }
 
-// Eine tief verschachtelte Nutzlast darf den Prozess nicht über den Stapel
-// hinaustreiben.
+// A deeply nested payload must not drive the process off the stack.
 func TestDepthLimit(t *testing.T) {
 	p := testProfile(t)
 	deep := strings.Repeat(`{"a":`, 5000) + `"x"` + strings.Repeat(`}`, 5000)
@@ -120,8 +119,8 @@ func TestSchemaDigestStableAndSensitive(t *testing.T) {
 		t.Fatal("changed rules produce the same digest")
 	}
 
-	// Auch die Kennung geht ein: dasselbe Schema unter anderem Namen ist ein
-	// anderes Profil.
+	// The identifier goes in too: the same schema under a different name is a
+	// different profile.
 	d, err := profiles.Load(profiles.Options{ID: "test.v2", FS: testFS(), Root: "event.json"})
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -152,7 +151,7 @@ func TestLoadRejectsBadInput(t *testing.T) {
 		{"invalid character", profiles.Options{ID: "Food.v1", FS: testFS(), Root: "event.json"}},
 		{"no file system", profiles.Options{ID: "test.v1", Root: "event.json"}},
 		{"empty file system", profiles.Options{ID: "test.v1", FS: fstest.MapFS{}, Root: "event.json"}},
-		{"root missing", profiles.Options{ID: "test.v1", FS: testFS(), Root: "gibtsnicht.json"}},
+		{"root missing", profiles.Options{ID: "test.v1", FS: testFS(), Root: "doesnotexist.json"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -195,8 +194,8 @@ func TestRegistryCheck(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	// Ohne Profilkennung gibt es nichts zu prüfen — der Kern schreibt kein
-	// Profil vor.
+	// Without a profile identifier there is nothing to check — the core
+	// prescribes no profile.
 	if err := r.Check(&core.Entry{}, []byte("not json")); err != nil {
 		t.Fatalf("entry without a profile rejected: %v", err)
 	}
@@ -232,7 +231,7 @@ func TestRuleRunsAfterSchema(t *testing.T) {
 		t.Fatalf("load: %v", err)
 	}
 
-	// Schemafehler: die Regel darf gar nicht erst laufen.
+	// Schema error: the rule must not run at all.
 	if err := p.Check(&core.Entry{Type: core.EntryTypeAssertion}, []byte(`{}`)); !errors.Is(err, profiles.ErrSchema) {
 		t.Fatalf("expected ErrSchema, got %v", err)
 	}
@@ -256,7 +255,7 @@ func TestFilesAreCopies(t *testing.T) {
 	if files[0].Name != "event.json" || files[1].Name != "extra.json" {
 		t.Fatalf("unexpected names: %v, %v", files[0].Name, files[1].Name)
 	}
-	files[0].Name = "manipuliert"
+	files[0].Name = "tampered"
 	if p.Files()[0].Name != "event.json" {
 		t.Fatal("Files hands out the internal data")
 	}
