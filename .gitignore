@@ -22,6 +22,10 @@
 *.pem
 /secrets/
 
+# WordPress application password for editing openwaymark.org — a website
+# credential, unrelated to the protocol, never belongs in this repo.
+wp-app-password.txt
+
 # Editor and operating system
 .DS_Store
 *~
