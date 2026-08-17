@@ -57,6 +57,24 @@ func TestSigAlgUnknown(t *testing.T) {
 	}
 }
 
+func TestParseSigAlg(t *testing.T) {
+	for _, alg := range testAlgs {
+		got, err := ParseSigAlg(alg.String())
+		if err != nil {
+			t.Fatalf("ParseSigAlg(%q): %v", alg.String(), err)
+		}
+		if got != alg {
+			t.Errorf("ParseSigAlg(%q) = %v, want %v", alg.String(), got, alg)
+		}
+	}
+	cases := []string{"", "ml-dsa-65", "ML-DSA-87", "2", "SigAlg(2)"}
+	for _, s := range cases {
+		if _, err := ParseSigAlg(s); !errors.Is(err, ErrUnknownAlg) {
+			t.Errorf("ParseSigAlg(%q) = %v, want ErrUnknownAlg", s, err)
+		}
+	}
+}
+
 func TestSignVerifyRoundTrip(t *testing.T) {
 	msg := []byte("a statement about a batch of eggs")
 	for _, alg := range testAlgs {

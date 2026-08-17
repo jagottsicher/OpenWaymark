@@ -55,6 +55,23 @@ func (a SigAlg) String() string {
 	}
 }
 
+// ParseSigAlg is the inverse of String.
+//
+// Needed wherever an algorithm crosses the wire as a name instead of a number
+// — the node API does both: STH.alg (log/sth.go) travels as the bare uint16,
+// while the key views under /owm/v1/keys/{id} and .well-known/openwaymark
+// spell it out as e.g. "ML-DSA-65".
+func ParseSigAlg(s string) (SigAlg, error) {
+	switch s {
+	case "ML-DSA-44":
+		return SigAlgMLDSA44, nil
+	case "ML-DSA-65":
+		return SigAlgMLDSA65, nil
+	default:
+		return 0, fmt.Errorf("%w: %q", ErrUnknownAlg, s)
+	}
+}
+
 // Valid reports whether this format version supports the algorithm.
 func (a SigAlg) Valid() bool { return a == SigAlgMLDSA44 || a == SigAlgMLDSA65 }
 
