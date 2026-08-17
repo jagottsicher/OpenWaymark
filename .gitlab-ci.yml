@@ -82,4 +82,7 @@ fuzz-smoke:
     - go test ./log/ -run '^$' -fuzz FuzzParseLeaf -fuzztime 30s
     - go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 30s
     - go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 30s
+    # A TXT record's origin is not authenticated absent DNSSEC — the one other
+    # place foreign bytes are parsed by hand.
+    - go test ./discovery/ -run '^$' -fuzz FuzzParseRecord -fuzztime 15s
   allow_failure: false

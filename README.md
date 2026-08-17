@@ -210,6 +210,7 @@ wants to pull in `core/` on its own.
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
 | [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
+| [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
 | [`monitor/`](monitor/) | independent log monitor (planned) | AGPL-3.0-only |
 | [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
@@ -379,7 +380,7 @@ changes back:
 
 | Area | License |
 |---|---|
-| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `testdata/`, `demo/` | Apache-2.0 |
+| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `discovery/`, `testdata/`, `demo/` | Apache-2.0 |
 | `node/`, `monitor/` | AGPL-3.0-only |
 
 Whoever operates a node as a service gives their changes back to the network they run it in.
