@@ -25,6 +25,20 @@ cache:
     - go version
     - go mod download
 
+# main only receives merges from develop (README.md "Branching model") — enforced here rather
+# than left to convention, since branch protection alone cannot restrict where a merge request's
+# source branch comes from.
+guard-main-source:
+  stage: check
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+  script:
+    - |
+      if [ "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" != "develop" ]; then
+        echo "main only accepts merges from develop, not '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME'."
+        exit 1
+      fi
+
 build:
   extends: .go-base
   stage: check
