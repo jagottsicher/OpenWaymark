@@ -32,6 +32,7 @@ import (
 	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/aviation"
 	"openwaymark.org/owm/profiles/electronics"
+	"openwaymark.org/owm/profiles/eudr"
 	"openwaymark.org/owm/profiles/food"
 	"openwaymark.org/owm/profiles/minerals"
 	"openwaymark.org/owm/profiles/pharma"
@@ -132,6 +133,7 @@ func buildRegistry(want []string) (*profiles.Registry, error) {
 		electronics.ID: electronics.New,
 		minerals.ID:    minerals.New,
 		seafood.ID:     seafood.New,
+		eudr.ID:        eudr.New,
 	}
 	reg := profiles.NewRegistry()
 	if len(want) == 0 {
