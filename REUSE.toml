@@ -19,6 +19,15 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 OpenWaymark contributors"
 SPDX-License-Identifier = "AGPL-3.0-only"
 
+# Test-only glue that wraps node.Open directly, shared between node/'s and
+# monitor/'s own tests. Not a library anyone embeds, so it follows node/ and
+# monitor/'s license rather than the Apache-2.0 default.
+[[annotations]]
+path = "internal/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 OpenWaymark contributors"
+SPDX-License-Identifier = "AGPL-3.0-only"
+
 # Test vectors are part of the specification and are meant to be reusable by
 # third-party implementations without conditions.
 [[annotations]]

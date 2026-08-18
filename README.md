@@ -132,9 +132,10 @@ _openwaymark.example.com. IN TXT "v=owm1; node=https://provenance.example.com"
 
 The central attack on a log like this is the **split view**: a node shows two observers two
 different trees of the same size. Both signatures are valid — it can only be noticed by someone
-who sees both. Two things are planned against it: targeted gossip between actual supply chain
-partners, and STH gossip to independent monitors ([`monitor/`](monitor/), not built yet). The
-detection logic itself already exists in `log.CheckSTHPair`.
+who sees both. Against it: targeted gossip between actual supply chain partners (built into the
+node itself), and STH gossip to independent monitors ([`monitor/`](monitor/)). Both poll
+`GET /owm/v1/sth` through [`gossip/`](gossip/) and run the same detection primitive,
+`log.CheckSTHPair`; [`discovery/`](discovery/) resolves a partner's base URL from its domain.
 
 ### Profiles
 
@@ -210,8 +211,10 @@ wants to pull in `core/` on its own.
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
 | [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
+| [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
+| [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
-| [`monitor/`](monitor/) | independent log monitor (planned) | AGPL-3.0-only |
+| [`monitor/`](monitor/) | independent log monitor | AGPL-3.0-only |
 | [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
 | [`demo/`](demo/) | end-to-end demonstration against a real node | Apache-2.0 |
 | [`testdata/`](testdata/) | test vectors for third-party implementations | Apache-2.0 |
@@ -230,8 +233,8 @@ far is meant for production use.
 | E1 | core data model, cryptography, test vectors | done |
 | E2 | Merkle log, STH, proofs, erasure path | done |
 | E3 | node server, HTTP API, profile `food.v1` | done |
-| E4 | federation: DNS discovery, gossip, `monitor/` | next |
-| E5 | trust levels, attestations, sensor certificates | open |
+| E4 | federation: DNS discovery, gossip, `monitor/` | done |
+| E5 | trust levels, attestations, sensor certificates | next |
 | E6 | web app and WASM verifier | open |
 | E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
@@ -247,6 +250,7 @@ deliberately built so that it does not depend on them.
 | [OWM-2](spec/owm-2-log.md) | log, Merkle tree, signed tree heads, proofs, erasure path |
 | [OWM-3](spec/owm-3-keys.md) | keys, node identity, directory, rotation |
 | [OWM-4](spec/owm-4-profiles.md) | profile mechanism and the food profile `food.v1` |
+| [OWM-5](spec/owm-5-federation.md) | federation: DNS discovery, gossip, the independent monitor's contract |
 | [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
 | [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
 
@@ -262,8 +266,9 @@ what it expressly does not. The three most important limits:
 1. **The oracle problem remains.** Whoever lies at the point of first capture is not made honest
    by any signature. The protocol makes the lie attributable and tamper-evidently documented after
    the fact — it does not replace spot-check physical audits.
-2. **A split view is only noticed if somebody looks.** As long as no monitor runs, a node can sign
-   two truths. That is why E4 is the next stage.
+2. **A split view is only noticed if somebody looks.** `monitor/` exists now, but running one
+   cannot be compelled, only made attractive — coverage stays uneven by construction
+   ([OWM-9 §6](spec/owm-9-threat-model.md)).
 3. **The administration interface is unprotected.** It does not belong on the open internet.
 
 **Please do not report security vulnerabilities as public issues**, but confidentially through the
@@ -390,7 +395,7 @@ changes back:
 
 | Area | License |
 |---|---|
-| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `testdata/`, `demo/` | Apache-2.0 |
+| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `discovery/`, `gossip/`, `testdata/`, `demo/` | Apache-2.0 |
 | `node/`, `monitor/` | AGPL-3.0-only |
 
 Whoever operates a node as a service gives their changes back to the network they run it in.

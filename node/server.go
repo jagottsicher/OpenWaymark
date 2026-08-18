@@ -567,12 +567,13 @@ func (n *Node) Run(ctx context.Context) error {
 		WriteTimeout:      time.Minute,
 	}
 
-	errs := make(chan error, 3)
+	errs := make(chan error, 4)
 	go func() { errs <- serve(public) }()
 	if n.cfg.AdminListen != "" {
 		go func() { errs <- serve(admin) }()
 	}
 	go func() { errs <- n.RunSTH(ctx) }()
+	go func() { errs <- n.RunGossip(ctx) }()
 
 	var first error
 	select {

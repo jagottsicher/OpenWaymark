@@ -54,6 +54,37 @@ interface can add keys and erase payloads.
 The public API binds to localhost by default as well: reaching out onto the network of its own
 accord is not something a program should do unasked.
 
+## Running a node reachable from the internet
+
+Getting from "runs on `127.0.0.1`" to "answers `https://provenance.example.com`" has three moving
+parts, all outside this package on purpose — the node itself stays a plain HTTP server that trusts
+its environment for everything else:
+
+1. **Listen on an address the reverse proxy can actually reach.** If the proxy runs on the same
+   host, `127.0.0.1` is correct and nothing changes. If it runs elsewhere — its own machine, a
+   separate container — `listen` in the configuration has to name an address that host can route
+   to (the node's LAN-facing interface, not `0.0.0.0`: bind to the one address that is meant to be
+   reached, not to every address there happens to be). The node speaks plain HTTP only; it has no
+   TLS of its own to fall back on if this step is skipped or done differently than intended.
+2. **Restrict that address to the proxy**, at the firewall, not in application code. The public API
+   has no authentication in front of it (by design — see OWM-7), so binding it to a LAN address
+   without also restricting who may reach that address turns "behind a reverse proxy" into
+   "additionally reachable in plain HTTP by anyone who can route to that address." A per-host
+   firewall rule allowing only the proxy's address on the node's port is the whole fix.
+3. **Set `base_url` to the externally visible `https://` URL**, exactly as it should read in
+   `.well-known/openwaymark` (OWM-7 §4.1) — this is what a discovering client or gossip peer
+   compares the DNS record against (OWM-5 §2), so it has to match both the DNS name and the
+   certificate the reverse proxy actually terminates.
+
+None of this is specific to `owmnode`; it is the same shape as putting any plain-HTTP backend
+behind a TLS-terminating proxy. What is specific to a federated node is step 3 and what follows
+from it — the DNS side (the `_openwaymark` TXT record) is covered in
+[OWM-5](../spec/owm-5-federation.md#2-dns-discovery), including the point that is easy to miss: the
+domain's own A/CNAME record (however it resolves — directly, through a load balancer, whatever
+gets traffic to the proxy) and the `_openwaymark.<domain>` TXT record are two independent DNS
+names, and setting up one is not a substitute for the other. A node can be perfectly reachable and
+still be undiscoverable, if only the first one was done.
+
 ## Whose entries are accepted
 
 Only those from keys in its own directory. A node is authoritative for its own participants and
