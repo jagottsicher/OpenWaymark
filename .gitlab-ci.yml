@@ -125,15 +125,16 @@ fuzz-smoke:
     - eval $(ssh-agent -s)
     # SSH_PRIVATE_KEY is a plain multi-line Variable (not File, not Masked —
     # GitLab refuses to mask any value containing whitespace, which a key
-    # always has). printf, not echo: some /bin/sh implementations give echo
-    # its own opinions about backslashes and trailing newlines, printf '%s'
-    # does not. tr strips \r in case of a Windows-style paste. ssh-keygen
-    # -y then validates the result BEFORE ssh-add ever sees it — a bad
-    # variable fails here with an actual diagnostic (byte count, and the
-    # first line, which for a real key is only public boilerplate like
-    # "-----BEGIN OPENSSH PRIVATE KEY-----") instead of OpenSSL's opaque
-    # "error in libcrypto".
-    - printf '%s' "$SSH_PRIVATE_KEY" | tr -d '\r' > /tmp/deploy_key
+    # always has). Found by the diagnostic below: GitLab strips the value's
+    # trailing newline on save, and a PEM-style key without one after its
+    # "-----END...-----" line does not parse. echo (unlike printf '%s')
+    # always appends exactly one trailing newline, which is the actual fix
+    # — a harmless extra blank line if the value ever does keep its own.
+    # tr strips \r in case of a Windows-style paste on top of that.
+    # ssh-keygen -y then validates the result BEFORE ssh-add ever sees it —
+    # a bad variable fails here with an actual diagnostic instead of
+    # OpenSSL's opaque "error in libcrypto".
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > /tmp/deploy_key
     - chmod 600 /tmp/deploy_key
     - |
         if ! ssh-keygen -y -f /tmp/deploy_key > /dev/null 2>&1; then
