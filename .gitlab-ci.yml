@@ -123,11 +123,16 @@ fuzz-smoke:
   before_script:
     - apt-get update -qq && apt-get install -y -qq openssh-client
     - eval $(ssh-agent -s)
-    # SSH_PRIVATE_KEY is stored as the plain multi-line key, not masked —
-    # GitLab's "Masked" flag rejects any value containing whitespace/
-    # newlines outright, which a private key always has. "Protected" alone
-    # (private GitLab instance) is the tradeoff made here.
-    - echo "$SSH_PRIVATE_KEY" | ssh-add -
+    # SSH_PRIVATE_KEY is a File-type CI/CD variable, not a plain Variable —
+    # GitLab writes its value to a file on disk byte-for-byte and hands us
+    # the path here, rather than the content going through a shell pipe.
+    # Piping a multi-line secret through echo (the earlier approach) is
+    # exactly the kind of place stray \r or a mangled paste corrupts the
+    # key without any visible sign until ssh-add rejects it — File type
+    # sidesteps the whole class of problem. "Masked" isn't offered for File
+    # variables at all; "Protected" (private GitLab instance) is the
+    # tradeoff made here.
+    - ssh-add "$SSH_PRIVATE_KEY"
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - ssh-keyscan -H "$OWM_HOST" >> ~/.ssh/known_hosts
   script:
