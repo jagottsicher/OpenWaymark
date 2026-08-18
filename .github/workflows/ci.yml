@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: 2026 OpenWaymark contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Mirror of the check/test stages in .gitlab-ci.yml — GitLab remains the
+# source of truth and the only place that deploys anything (owm-dev and
+# owm-community are only reachable from there, and duplicating deploy
+# credentials into a second CI system for no benefit is a needless
+# increase in attack surface). This workflow exists so that a PR opened
+# directly on GitHub — the natural path for a contributor who has no
+# account on the project's self-hosted GitLab — gets real CI feedback
+# without needing one.
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  # main only receives merges from develop (README.md "Branching model"),
+  # mirroring .gitlab-ci.yml's guard-main-source — GitLab enforces this for
+  # merge requests there, this covers a pull request opened on GitHub
+  # directly.
+  guard-main-source:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: main only accepts merges from develop
+        run: |
+          if [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "main only accepts merges from develop, not '${{ github.head_ref }}'."
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go build ./...
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: test -z "$(gofmt -l .)" || { gofmt -d .; echo 'gofmt deviations, see above'; exit 1; }
+
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go vet ./...
+
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go test -race -coverprofile=coverage.out ./...
+      - run: go tool cover -func=coverage.out | tail -1
+
+  # Shorter than .gitlab-ci.yml's fuzz-smoke (10-15s per target instead of
+  # 30-60s) — this is meant to catch an obviously bad parser change on a
+  # PR quickly, not to be the thorough run; GitLab's own pipeline still
+  # does the longer one before anything reaches develop or main.
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 15s -parallel=2
+      - run: go test ./core/ -run '^$' -fuzz FuzzParseSignedEntry -fuzztime 15s -parallel=2
+      - run: go test ./log/ -run '^$' -fuzz FuzzParseLeaf -fuzztime 10s -parallel=2
+      - run: go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 10s -parallel=2
+      - run: go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 10s -parallel=2
+      - run: go test ./discovery/ -run '^$' -fuzz FuzzParseRecord -fuzztime 10s -parallel=2
