@@ -125,7 +125,11 @@ fuzz-smoke:
   before_script:
     - apt-get update -qq && apt-get install -y -qq openssh-client
     - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    # SSH_PRIVATE_KEY is stored base64-encoded (`base64 -w0 owm_deploy_key`)
+    # — a plain multi-line key pasted into a CI/CD variable is a common
+    # source of whitespace/newline corruption; one base64 line sidesteps
+    # that entirely.
+    - echo "$SSH_PRIVATE_KEY" | base64 -d | ssh-add -
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - ssh-keyscan -H "$OWM_HOST" >> ~/.ssh/known_hosts
   script:
