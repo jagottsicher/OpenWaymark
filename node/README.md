@@ -24,6 +24,16 @@ go run ./node/cmd/owmnode serve -config owm.json
 identity would mean continuing the log under a new ID — every STH issued so far would then come
 from a key nobody has any more.
 
+**`serve` does not require `init` to have run first**, and that is worth knowing before it
+surprises you: given a `-config` path that does not exist, `serve` falls back to built-in defaults
+silently rather than failing, and the first `Open` call creates a fresh identity and database at
+the default paths if none exist yet — no `owm.json` is ever written by `serve` itself. That is
+convenient for a five-second local check, but on anything meant to last it means a `serve` run
+before `init` commits the log to an identity, a listen address and a database path you never
+chose. Run `show -config owm.json` right after the first start if you are not certain which one
+happened — it prints the log ID, the identity and database paths, and the addresses actually in
+use.
+
 Day-to-day operation — adding keys, erasing payloads, issuing STHs — goes through the admin
 interface of the running node, not through further subcommands. Two processes on the same SQLite
 file would be one good way to take the database apart.
