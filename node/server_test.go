@@ -18,6 +18,7 @@ import (
 	"openwaymark.org/owm/core"
 	owmlog "openwaymark.org/owm/log"
 	"openwaymark.org/owm/profiles/food"
+	"openwaymark.org/owm/profiles/pharma"
 )
 
 // api is a terse test client for the HTTP interfaces.
@@ -383,11 +384,12 @@ func TestPublicMetadata(t *testing.T) {
 	if meta.Operator.Name == "" || meta.Operator.Contact == "" {
 		t.Fatal("the operator is missing from the metadata")
 	}
-	if len(meta.Profiles) != 1 || meta.Profiles[0].ID != food.ID {
+	// Sorted by identifier (profiles.Registry.All): food.v1 before pharma.v1.
+	if len(meta.Profiles) != 2 || meta.Profiles[0].ID != food.ID || meta.Profiles[1].ID != pharma.ID {
 		t.Fatalf("profiles = %+v", meta.Profiles)
 	}
-	if meta.Profiles[0].SchemaDigest.IsZero() {
-		t.Fatal("the schema hash is missing")
+	if meta.Profiles[0].SchemaDigest.IsZero() || meta.Profiles[1].SchemaDigest.IsZero() {
+		t.Fatal("a schema hash is missing")
 	}
 
 	// The schema files can be fetched — otherwise a client could not check what
