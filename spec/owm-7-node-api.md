@@ -101,6 +101,7 @@ was answered with everything that is left of the entry.
 | GET | `/owm/v1/proof/consistency?old=…&new=…` | consistency proof |
 | GET | `/owm/v1/subjects/{subject_id}` | history of a subject |
 | GET | `/owm/v1/keys/{key_id}` | public key of an issuer |
+| GET | `/owm/v1/keys/{key_id}/trust` | computed entity trust level (OWM-6) |
 | GET | `/owm/v1/profiles` | loaded profiles |
 | GET | `/owm/v1/schema?profile=…&file=…` | a single schema file |
 
@@ -387,6 +388,33 @@ identifier ends.
 The `schema_digest` makes it verifiable which rules the node checks against (OWM-4 §3). Two nodes
 that name the same profile but report different digests check differently — and that belongs in
 plain sight.
+
+### 4.11 Trust level of a key
+
+`GET /owm/v1/keys/{key_id}/trust` computes and returns the entity trust level of a key (OWM-6 §6),
+walked from this node's own log against its own configured accreditation roots.
+
+```json
+{ "key_id": "…", "level": 4, "level_name": "certified",
+  "chain": [
+    { "issuer": "…", "kind": "entity", "level": 4 },
+    { "issuer": "…", "kind": "sensor" }
+  ] }
+```
+
+`chain` is the sequence of attestations that justify the level, root side first. A `kind: "sensor"`
+hop carries no `level` — it inherits its issuer's level directly and makes no claim of its own
+(OWM-6 §4, §6).
+
+**The answer is unauthenticated, exactly like §4.1: it describes what this node's own log currently
+contains, it proves nothing.** It is a convenience only — everything behind it is already derivable
+by anyone from repeated `GET /owm/v1/subjects/{id}` calls (§4.8) plus the node's own root list, which
+is local operator configuration and not published anywhere (OWM-6 §8). A client unwilling to take
+this node's word for its own computation is free to walk the same chain itself; that is what the
+`trust` package exists for.
+
+An unknown key computes to level 0, not an error: absence of evidence is this computation's
+completely ordinary base case (OWM-6 §6), not a failure of it.
 
 ## 5. Ancestor mirroring
 

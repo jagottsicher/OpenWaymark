@@ -186,6 +186,12 @@ unrelated key.
 directly (§4) — it does not go through the `min(claimed, issuer)` step above, since it makes no
 level claim of its own to cap.
 
+**Implementation.** Package `trust` (Apache-2.0) implements this algorithm as a pure function over
+caller-supplied data — no I/O, no state of its own (OWM-9 A11's trusted-local-data split). A node
+optionally exposes it as a convenience over its own log at
+[`GET /owm/v1/keys/{id}/trust`](owm-7-node-api.md#411-trust-level-of-a-key), with the same
+unauthenticated, non-evidentiary status as every other node-computed answer.
+
 ## 7. Minimum principle
 
 The overall trust level of a supply chain is the **lowest** level among every participating

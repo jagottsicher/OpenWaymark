@@ -60,7 +60,7 @@ Post-quantum schemes exclusively. No RSA, no ECC, no hybrid model.
 |---|---|---|
 | Signatures, node and entity keys | ML-DSA-65 (FIPS 204) | public key 1952 B, signature 3309 B |
 | Signatures, sensors and bulk entries | ML-DSA-44 (FIPS 204) | public key 1312 B, signature 2420 B |
-| Key encapsulation (from stage E5) | ML-KEM-768 (FIPS 203) | — |
+| Key encapsulation (a later, not yet numbered stage) | ML-KEM-768 (FIPS 203) | — |
 | Hash, commitment, Merkle tree | SHA-256 | 32 B |
 | Serialisation | CBOR, Core Deterministic (RFC 8949 §4.2.1) | — |
 
