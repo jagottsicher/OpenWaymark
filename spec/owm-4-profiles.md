@@ -297,6 +297,12 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   batch-release certification, a unit decommissioning) needed nothing from the core either — only
   new profile-level payload shape. No core change either time is starting to look less like luck
   and more like the mechanism actually working as designed.
+- [`aviation.v1`](owm-4-aviation.md) — **implemented**, `profiles/aviation/`. A third data point,
+  and the first to need *fewer* events than `food.v1` (no `processing`, no `storage`) rather than
+  more — nothing in an aircraft part's own back-to-birth record transforms it into a structurally
+  different part, unlike milk into cheese or API into tablets. Also the first profile with a fixed
+  answer to OWM-4 §10.1's subject-granularity question: always instance-level, no lot stage exists
+  to model at all.
 
 ## 15. Security considerations
 

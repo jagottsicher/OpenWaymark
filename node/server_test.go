@@ -384,17 +384,26 @@ func TestPublicMetadata(t *testing.T) {
 	if meta.Operator.Name == "" || meta.Operator.Contact == "" {
 		t.Fatal("the operator is missing from the metadata")
 	}
-	// Sorted by identifier (profiles.Registry.All): food.v1 before pharma.v1.
-	if len(meta.Profiles) != 2 || meta.Profiles[0].ID != food.ID || meta.Profiles[1].ID != pharma.ID {
-		t.Fatalf("profiles = %+v", meta.Profiles)
+	// Every compiled-in profile is loaded by default (node.buildRegistry) and
+	// reported here, each with a non-zero schema digest.
+	byID := make(map[string]profileView, len(meta.Profiles))
+	for _, p := range meta.Profiles {
+		if p.SchemaDigest.IsZero() {
+			t.Fatalf("profile %s: schema hash is missing", p.ID)
+		}
+		byID[p.ID] = p
 	}
-	if meta.Profiles[0].SchemaDigest.IsZero() || meta.Profiles[1].SchemaDigest.IsZero() {
-		t.Fatal("a schema hash is missing")
+	foodProfile, ok := byID[food.ID]
+	if !ok {
+		t.Fatalf("profiles = %+v, want %s among them", meta.Profiles, food.ID)
+	}
+	if _, ok := byID[pharma.ID]; !ok {
+		t.Fatalf("profiles = %+v, want %s among them", meta.Profiles, pharma.ID)
 	}
 
 	// The schema files can be fetched — otherwise a client could not check what
 	// the node validates against.
-	code := a.call(http.MethodGet, a.public+"/owm/v1/schema?profile="+food.ID+"&file="+meta.Profiles[0].Files[0], nil, nil)
+	code := a.call(http.MethodGet, a.public+"/owm/v1/schema?profile="+food.ID+"&file="+foodProfile.Files[0], nil, nil)
 	if code != http.StatusOK {
 		t.Fatalf("schema file: %d", code)
 	}
