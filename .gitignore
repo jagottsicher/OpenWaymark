@@ -34,3 +34,6 @@ wp-app-password.txt
 *~
 .idea/
 .vscode/
+
+# Local code-indexing tool state, not project data.
+/.tokensave/
