@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Measurement",
+  "description": "Automatically recorded series of measurements, above all the cold chain during transport or storage (EU GDP temperature monitoring). Has to be submitted with entry type sensor_reading and to come from a device key. The value of these entries lies in their being able to contradict a human self-declaration (OWM-9, oracle problem).",
+  "type": "object",
+  "required": ["sensor", "quantity_kind", "unit", "readings"],
+  "properties": {
+    "sensor": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "defs.json#/$defs/text" },
+        "key": {
+          "description": "Key identifier of the device. A sensor's trust level is capped by that of its operator.",
+          "$ref": "defs.json#/$defs/keyid"
+        },
+        "model": { "$ref": "defs.json#/$defs/text" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "quantity_kind": {
+      "enum": ["temperature", "humidity", "shock", "pressure", "light"]
+    },
+    "unit": {
+      "description": "Unit per UN/CEFACT Recommendation 20, e.g. CEL for degrees Celsius or P1 for percent.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8
+    },
+    "readings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "properties": {
+          "t": { "$ref": "defs.json#/$defs/timestamp" },
+          "v": { "type": "number" }
+        },
+        "required": ["t", "v"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

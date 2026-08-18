@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aggregation",
+  "description": "Combining or dissolving a unit - cases into a pallet, or the first packaging step that assigns individual serials to a lot (spec Sec.6). The subject of the entry is the parent unit; the components are listed in children.",
+  "type": "object",
+  "required": ["action", "children"],
+  "properties": {
+    "action": {
+      "enum": ["add", "delete"]
+    },
+    "container": {
+      "description": "The container itself, e.g. the case or the pallet.",
+      "$ref": "defs.json#/$defs/product"
+    },
+    "children": {
+      "description": "The units contained. The upper limit matches core.MaxParents: more than a thousand components in one step is no longer a real event.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

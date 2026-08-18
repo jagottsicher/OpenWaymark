@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # OWM-4 Profile — Pharmaceutical supply chain `pharma.v1`
 
-**Status:** draft, not yet implemented · **Prerequisite:** [OWM-0](owm-0-overview.md),
+**Status:** implemented (`profiles/pharma/`) · **Prerequisite:** [OWM-0](owm-0-overview.md),
 [OWM-4 Part A](owm-4-profiles.md#part-a--the-mechanism) (the mechanism this profile is built on) ·
 **See also:** [OWM-6](owm-6-trust.md) (claim vs. confirmation), [OWM-9](owm-9-threat-model.md)
 
@@ -18,9 +18,11 @@ That the extension turns out small is itself a finding: it is further evidence, 
 `food.v1`, that Part A's promise — "new industries arrive as a new profile, without anything in the
 data model changing" — holds.
 
-**Implementation status: none.** No `profiles/pharma/` package, no JSON Schema, no code. This
-document fixes the event taxonomy and field-level design so that implementation, when it happens,
-does not have to re-derive it.
+**Implementation status: shipped.** [`profiles/pharma/`](../profiles/pharma/) — JSON Schema, the
+`checkEntryType` rule, and a full test suite, mirroring `profiles/food/` exactly; wired into
+`node.buildRegistry` alongside `food.v1`. This document was written first specifically so that
+implementation would not have to re-derive the event taxonomy and field-level design on its own —
+it did not.
 
 ## 1. Purpose and scope
 
@@ -175,8 +177,8 @@ key (§8), not by the release entry's type.
 
 ## 5. Structure of the schemas
 
-Not implemented (see the implementation-status note above), but the shape to build: a root
-`event.json` switching on `event` exactly as
+Implemented in [`profiles/pharma/schema/`](../profiles/pharma/schema/): a root `event.json`
+switching on `event` exactly as
 `food.v1`'s does, `unevaluatedProperties: false`, and its own `defs.json` — **not** shared with
 `food.v1`'s. OWM-4 §4.3 forbids a `$ref` to a foreign source, and a profile's schema files are
 pinned by the schema digest as a set (OWM-4 §3); reaching into a different profile's files would

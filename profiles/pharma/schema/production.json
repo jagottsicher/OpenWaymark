@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production",
+  "description": "A starting material batch, an intermediate, an API batch, or a finished dosage-form batch comes into being (ICH Q7). The subject of the entry is the batch or unit that came into being.",
+  "type": "object",
+  "required": ["product"],
+  "properties": {
+    "product": { "$ref": "defs.json#/$defs/product" },
+    "quantity": { "$ref": "defs.json#/$defs/quantity" }
+  }
+}

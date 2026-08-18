@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decommission",
+  "description": "A specific serialized unit's physical life ends - administered, destroyed, expired or withdrawn (GS1 EPCIS 2.0's own decommissioning bizStep; DSCSA/FMD unit lifecycle). Never patient-linked: the issuer is the administering or destroying entity as a business, never a patient (spec Sec.1, Sec.9, Sec.11). A subject that already carries a decommission reappearing afterward is a structural contradiction a client or monitor can flag.",
+  "type": "object",
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "enum": ["administered", "destroyed", "expired", "withdrawn"]
+    }
+  }
+}

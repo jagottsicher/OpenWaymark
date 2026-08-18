@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "A Qualified Person certifies a batch fit for release (ICH Q7 / EU GMP Annex 16). This is a claim, not a confirmation - whether the QP is who they claim to be, and how far their accreditation reaches, is answered by their entity trust level (OWM-6), not by this schema (spec Sec.8.1).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "lot": { "$ref": "defs.json#/$defs/text" },
+    "certified": {
+      "description": "false is representable and meaningful: a QP declining to certify a batch is itself a statement worth logging.",
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the decision, e.g. \"eu-gmp-annex16\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": {
+      "description": "A reference number for the release record, held off-chain.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

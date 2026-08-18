@@ -152,9 +152,10 @@ handover — so that industry can connect without a translation layer.
 A profile version never changes: were `food.v1` different today from yesterday, an entry from
 yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
-A second profile, [`pharma.v1`](spec/owm-4-pharma.md), is specified but not yet implemented —
+A second profile, [`pharma.v1`](spec/owm-4-pharma.md) (implemented, [`profiles/pharma/`](profiles/pharma/)) —
 pharmaceutical supply chains from starting material through dispensing, built to interoperate with
-DSCSA (US), the EU's FMD/EMVS and GDP guidelines, and ICH Q7. Six of its eight events are `food.v1`'s,
+DSCSA (US), the EU's FMD/EMVS and GDP guidelines, ICH Q7, and the GS1 US implementation guideline
+that already bridges DSCSA to EPCIS in production. Six of its nine events are `food.v1`'s,
 unchanged; the mechanism did not have to change to fit a second, legally regulated industry.
 
 ### Trust levels and attestation
@@ -231,7 +232,7 @@ wants to pull in `core/` on its own.
 | [`spec/`](spec/) | protocol specification, normative | Apache-2.0 |
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
-| [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
+| [`profiles/`](profiles/) | schema profiles: [`food/`](profiles/food/), [`pharma/`](profiles/pharma/) | Apache-2.0 |
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
 | [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |

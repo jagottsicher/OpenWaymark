@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Storage",
+  "description": "A batch or unit enters or leaves a temperature-mapped, qualified storage facility (EU GDP; WHO TRS 961 Annex 9 Supplement 8). Unlike transport, location is a single place, not an origin and a destination - conditions is asserted by the facility operator, once per stay (spec Sec.7.2).",
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "enum": ["enter", "leave"]
+    },
+    "conditions": {
+      "description": "Storage conditions promised for this stay. Whether they were kept is what measurement entries taken during the stay say - not this field (spec Sec.7.2, Sec.7.3).",
+      "type": "object",
+      "properties": {
+        "temperature_c": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  }
+}
