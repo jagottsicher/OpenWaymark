@@ -56,7 +56,19 @@ standard," it is "digitizing paper trails multiple jurisdictions already require
 | ICH Q7 | Global (adopted by FDA, EMA, and others) | GMP for APIs: starting material → intermediate → API, batch documentation, traceability | In force |
 | WHO TRS 961, Annex 9, Supplement 8 | Global (WHO GDP guidance) | Temperature mapping of storage areas, methodologically distinct from transport mapping | In force, widely adopted as reference practice |
 | GS1 "Applying GS1 System of Standards for DSCSA and Traceability" | US (GS1 US implementation guideline) | The actual, already-published bridge between DSCSA's legal text and EPCIS/CBV events — lot-level and serialized-item event specifications both covered | Current release in active use |
+| 21 CFR Part 11 / EU GMP Annex 11 | US / EU | Whether an electronic record and signature are legally equivalent to paper and wet ink at all — audit trails, non-repudiable signatures, record integrity | In force; governs the log itself, not any one event, discussed below |
+| DEA ARCOS + Form 222 | US | Additional monitoring for Schedule I–IV controlled substances: monthly distributor reporting, a dedicated transfer form for Schedule I/II | In force, layered on top of DSCSA for controlled substances specifically (§5) |
 | EU Pharmaceutical Package (recast of Directive 2001/83/EC and Regulation (EC) No 726/2004) | EU | Comprehensive reform of EU pharma law | Political agreement Dec. 2025, texts confirmed by COREPER I March 2026. **Not analyzed here** — nothing found in this research pass details its traceability/serialization provisions specifically. Tracked as an open point (§12), not a design input yet. |
+
+Serialization regimes outside the US and EU converge on the same shape rather than diverging from
+it: Russia's Chestny ZNAK — one of the most demanding in the world — requires the identical
+GTIN + serial + batch + expiry 2D data matrix per unit this profile already carries (§10); Saudi
+Arabia's Track & Trace and the UAE's Tatmeen follow the same pattern. India briefly ran a
+parallel DGFT-administered layer (DAVA) alongside its own CDSCO serialization rules before
+formally withdrawing it in February 2025 as duplicative — a real, recent data point for building
+one interoperable shape instead of a fresh national compliance layer per jurisdiction, which is
+this profile's own premise applied at the country-regime level rather than the vendor-platform
+level (below).
 
 **None of these regimes is reproduced normatively here.** This profile's schema is checked, per
 OWM-4 §5, against *form*, not against legal compliance — a schema-conformant entry can still be a
@@ -76,6 +88,34 @@ processing billions of DSCSA transactions for the large majority of top global p
 manufacturers, alongside SAP ATTP, rfxcel/Antares Vision, Systech and others — all exchanging
 EPCIS-shaped data today. `pharma.v1` is not proposing a data model the industry would have to
 learn; it is proposing a tamper-evident log for the shape of data it already produces.
+
+**A federated, permissioned network for exactly this problem already exists at real scale, and its
+own documented limit is informative.** MediLedger Network — built by a consortium of major
+manufacturers and wholesalers on a permissioned ledger, membership vetted, only licensed
+pharmaceutical entities able to read or write — now processes upward of 1.6 billion pharmaceutical
+supply-chain transactions a year across 27 manufacturers (representing roughly 80% of US
+prescription volume), 18 wholesale distributors and hundreds of dispensers. That is not a pilot; it
+is proof the industry already trusts a federated, vetted-participant architecture for the DSCSA
+verification problem this profile targets. Its own documented limitation is exactly the shape of
+gap this project's federation model (OWM-5) exists to close: several competing, mutually
+non-interoperable platforms already run side by side — MediLedger, IBM Food Trust, SAP's
+Information Collaboration Hub for Life Sciences — each a closed network with its own membership
+rules and technical specifics, not interoperable with one another. A node speaking `pharma.v1`
+answers to the same DNS-discoverable, openly specified protocol any other OpenWaymark node does;
+nobody has to be admitted to a consortium to read or verify it.
+
+**Whether any of this counts as a legally valid electronic record at all is a separate question,
+governed by 21 CFR Part 11 (US) and GMP Annex 11 (EU) — worth checking the core's actual properties
+against, not assuming.** Part 11 requires secure, computer-generated, time-stamped audit trails for
+every action on a record, and an electronic signature non-repudiably linked to the individual who
+applied it. OWM-2's Merkle log of signed entries and Signed Tree Heads is exactly that audit trail;
+an ML-DSA signature resolved through the key directory (OWM-3) and, since OWM-6, an entity trust
+level is exactly that signature binding; the standing split between `iat` (the issuer's claimed
+time) and `ts` (when the node actually took the entry in, OWM-4 §9.1) is the same
+distinguishable-not-merely-trusted backdating detection an audit trail requirement is written to
+force. This is not a Part 11 compliance certification — no document can be — but the overlap
+between what Part 11 asks an audit trail to do and what this log already structurally does is
+closer than coincidence, and worth stating rather than leaving implicit.
 
 **Vaccines are a flagship case within this profile, not a separate one.** They fit as ordinary
 `finished_product`-stage doses — nothing about the model changes for them — but the fraud patterns
@@ -157,6 +197,15 @@ New building blocks `food.v1` has no equivalent of:
   `finished_product`. Makes explicit which regulatory regime governs this specific entry (ICH Q7
   for the first three, DSCSA/FMD once `finished_product` is reached) without the schema having to
   encode that regime split itself.
+- `controlled_substance_schedule` — optional on `product`, a DEA schedule (`I`–`V`) or absent for
+  an uncontrolled drug. Controlled substances carry a genuinely separate US regime on top of DSCSA:
+  DEA ARCOS requires distributors to report Schedule I–II (and narcotic/GHB Schedule III) movement
+  monthly, by the 15th of the following month, and Schedule I/II specifically requires its own
+  transfer instrument (DEA Form 222 or its electronic equivalent) rather than an ordinary
+  commercial transaction record. This profile does not model ARCOS reporting or Form 222 as new
+  events — both are additional paperwork *about* the same `production`/`handover` chain this
+  profile already carries, not a different chain — but the field lets an implementation recognise
+  which batches that additional regime applies to without inferring it from the product name.
 
 ## 6. Subject granularity — two tiers, not one
 
@@ -398,6 +447,15 @@ of dispensing, where the serial is available anyway.
   `processing` chain. Revisit if the two sides turn out to need incompatible schema evolution
   cadences — `food.v1`'s immutability rule (OWM-4 §3) means a split later is a new profile, not a
   patch.
+- **21 CFR Part 11 / EU Annex 11 fit is argued, not certified.** §2 maps the log's actual
+  properties onto Part 11's audit-trail and signature-binding requirements; nobody involved in
+  writing this document is a regulatory affairs professional, and an implementation intending to
+  rely on this for an actual submission needs that review independently, not this document's word
+  for it.
+- **ARCOS reporting and DEA Form 222 are not modeled as events** — deliberately, per §5: they are
+  additional paperwork about the same chain this profile already carries, not a second chain. If
+  operator experience shows that judgment wrong (e.g. a real need to log the Form 222 transaction
+  number itself, not just flag the schedule), revisit.
 
 ## 13. Security considerations
 
@@ -410,5 +468,7 @@ of dispensing, where the serial is available anyway.
 | Patient identity added to `party` "for convenience" | supply chain log becomes a health record | no patient field exists in the schema; out of scope at the profile boundary, not just discouraged (§1, §11) |
 | Release claim mistaken for confirmed compliance | false sense of regulatory assurance | claim/confirmation split enforced the same way as `food.v1` certifications (§8, OWM-4 §11) |
 | Emptied unit refilled and reintroduced under its own identity | a real, reported vaccine-fraud pattern (§2) goes undetected | `decommission` makes the same subject ID reappearing afterward a structural contradiction (§9) |
+| A controlled substance treated identically to an ordinary drug | Schedule I–IV monitoring (ARCOS, DEA Form 222) silently skipped | `controlled_substance_schedule` flags which batches carry the additional regime (§5) |
+| Closed, membership-vetted consortium platforms (MediLedger et al.) as the only precedent | mistaken belief that interoperability requires joining one specific network | this profile targets an open, DNS-discoverable protocol any node can speak — the gap those platforms document, not their design (§2) |
 | Storage facility never actually temperature-mapped, `storage.conditions` asserted anyway | an unqualified facility looks identical to a qualified one from the log alone | the promise is checkable against `measurement` evidence during the stay, same as transport (§7.2) |
 | `handover` accepted from an unlicensed wholesaler | a covered drug moves through a party DSCSA prohibits from handling it | entity trust level of the counterparty's key, computed via OWM-6, not the entry's mere presence (§8.2) |
