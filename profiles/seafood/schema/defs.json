@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the seafood profile seafood.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party or vessel involved. Names of natural persons - crew, buyer - do not belong in here (spec Sec.6).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/keyid" },
+        "imo": {
+          "description": "IMO number, or a national registration number if none exists (spec Sec.5).",
+          "$ref": "#/$defs/text"
+        },
+        "flag": {
+          "description": "Flag state, ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "geo": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+            "lon": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "required": ["lat", "lon"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "quantity": {
+      "description": "Quantity with a unit per UN/CEFACT Recommendation 20, e.g. KGM.",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "description": "A catch or a processed seafood lot (spec Sec.5).",
+      "type": "object",
+      "properties": {
+        "gtin": { "type": "string", "pattern": "^[0-9]{8,14}$" },
+        "name": { "$ref": "#/$defs/text" },
+        "lot": { "$ref": "#/$defs/text" },
+        "species": {
+          "description": "Free text - the FAO 3-alpha ASFIS code by convention, not a closed enum.",
+          "$ref": "#/$defs/text"
+        },
+        "catch_zone": {
+          "description": "Free text - an FAO fishing area code by convention.",
+          "$ref": "#/$defs/text"
+        },
+        "gear": { "$ref": "#/$defs/text" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with quantity and product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

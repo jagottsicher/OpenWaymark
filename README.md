@@ -163,6 +163,7 @@ its industry rather than inventing new ones:
 | [`vehicle.v1`](profiles/vehicle/) | used cars/motorcycles, incl. classic-car provenance | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
 | [`electronics.v1`](profiles/electronics/) | components (RAM, SSDs) to finished devices | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
 | [`minerals.v1`](profiles/minerals/) | ore/3TG through smelting to a manufacturer | EU Conflict Minerals Regulation, OECD Due Diligence Guidance, EU Critical Raw Materials Act |
+| [`seafood.v1`](profiles/seafood/) | vessel to plate | EU CATCH, US Seafood Import Monitoring Program |
 
 Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 
