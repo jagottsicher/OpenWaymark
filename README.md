@@ -117,8 +117,8 @@ STH and every inclusion proof ever issued remains valid unchanged**. Without the
 cannot be reconstructed even if its value range is small and the attacker guesses the plaintext;
 that is the difference from a bare hash.
 
-The historical counter-example is in [CLAUDE.md](CLAUDE.md) §2: the old SKS keyserver network,
-append-only without any way to delete, rendered practically unusable in 2019 by poisoned entries.
+The historical counter-example: the old SKS keyserver network, append-only without any way to
+delete, rendered practically unusable in 2019 by poisoned entries.
 
 ### Federation instead of a global chain
 
@@ -253,7 +253,6 @@ deliberately built so that it does not depend on them.
 | [OWM-5](spec/owm-5-federation.md) | federation: DNS discovery, gossip, the independent monitor's contract |
 | [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
 | [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
-| [CLAUDE.md](CLAUDE.md) | concept document: fundamental decisions with reasoning, rejected approaches |
 
 Package-level explanations live in the README files of the directories
 ([`node/`](node/README.md), [`profiles/`](profiles/README.md), [`demo/`](demo/README.md)) and in
