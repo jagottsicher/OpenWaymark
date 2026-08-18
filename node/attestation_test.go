@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -201,6 +203,69 @@ func TestNodeTrustSourceComputesLevel(t *testing.T) {
 			t.Fatalf("level = %s, want %s (a same-issuer revocation must defeat the attestation)", lvl, trust.LevelNone)
 		}
 	})
+}
+
+// TestKeyTrustEndpoint exercises a real two-hop chain through the HTTP
+// layer: an accreditation root attests an operator (hop 1), the operator
+// attests a sensor (hop 2), and GET /owm/v1/keys/{id}/trust for the sensor
+// has to reflect the level and the full two-hop chain.
+func TestKeyTrustEndpoint(t *testing.T) {
+	ctx := context.Background()
+
+	accreditorKey := mustKey(t, core.SigAlgMLDSA65)
+	rootsPath := filepath.Join(t.TempDir(), "trust-roots.json")
+	rootsJSON := `[{"id":"` + accreditorKey.Public().ID().String() + `","name":"ISO body","max_level":6}]`
+	if err := os.WriteFile(rootsPath, []byte(rootsJSON), 0o600); err != nil {
+		t.Fatalf("write trust roots: %v", err)
+	}
+
+	cfg := testConfig(t)
+	cfg.TrustRootsFile = rootsPath
+	n, err := Open(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open node: %v", err)
+	}
+	t.Cleanup(func() { n.Close() })
+	a := newAPI(t, n)
+
+	if err := n.Keys().Register(ctx, accreditorKey.Public(), "ISO body", nil); err != nil {
+		t.Fatalf("admit accreditor key: %v", err)
+	}
+	accreditor := &participant{key: accreditorKey}
+	operator := newParticipant(t, n, core.SigAlgMLDSA65, "Hof Sonnenblick")
+	sensorKey := mustKey(t, core.SigAlgMLDSA44)
+	if err := n.Keys().Register(ctx, sensorKey.Public(), "cool-77", nil); err != nil {
+		t.Fatalf("admit sensor key: %v", err)
+	}
+
+	se, salt, payload := accreditor.signAttestation(t,
+		core.SubjectID(operator.key.Public().ID()),
+		`{"kind":"entity","level":4,"scheme":"iso17065","evidence_url":"https://example.org/cert/1"}`)
+	a.submit(se, salt, payload)
+
+	se, salt, payload = operator.signAttestation(t,
+		core.SubjectID(sensorKey.Public().ID()),
+		`{"kind":"sensor","label":"Cold-chain logger, unit TW-7"}`)
+	a.submit(se, salt, payload)
+
+	var got trustResponse
+	a.mustGet("/owm/v1/keys/"+sensorKey.Public().ID().String()+"/trust", &got)
+	if got.Level != int(trust.LevelCertified) {
+		t.Fatalf("level = %d, want %d", got.Level, trust.LevelCertified)
+	}
+	if got.Name != trust.LevelCertified.String() {
+		t.Fatalf("level_name = %q, want %q", got.Name, trust.LevelCertified.String())
+	}
+	if len(got.Chain) != 2 {
+		t.Fatalf("chain length = %d, want 2 (root->operator, operator->sensor)", len(got.Chain))
+	}
+	if got.Chain[0].Issuer != accreditorKey.Public().ID() || got.Chain[0].Kind != "entity" ||
+		got.Chain[0].Level == nil || *got.Chain[0].Level != int(trust.LevelCertified) {
+		t.Fatalf("chain[0] = %+v", got.Chain[0])
+	}
+	if got.Chain[1].Issuer != operator.key.Public().ID() || got.Chain[1].Kind != "sensor" || got.Chain[1].Level != nil {
+		t.Fatalf("chain[1] = %+v", got.Chain[1])
+	}
 }
 
 func TestLoadTrustRootsMissingFileIsEmpty(t *testing.T) {

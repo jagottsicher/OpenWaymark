@@ -12,6 +12,7 @@ import (
 
 	"openwaymark.org/owm/core"
 	owmlog "openwaymark.org/owm/log"
+	"openwaymark.org/owm/trust"
 )
 
 // maxHistory caps a history response. A subject can carry thousands of
@@ -35,6 +36,7 @@ func (n *Node) PublicHandler() http.Handler {
 	mux.HandleFunc("GET /owm/v1/proof/consistency", n.handleConsistency)
 	mux.HandleFunc("GET /owm/v1/subjects/{id}", n.handleSubject)
 	mux.HandleFunc("GET /owm/v1/keys/{id}", n.handlePublicKey)
+	mux.HandleFunc("GET /owm/v1/keys/{id}/trust", n.handleKeyTrust)
 	mux.HandleFunc("GET /owm/v1/profiles", n.handleProfiles)
 	mux.HandleFunc("GET /owm/v1/schema", n.handleSchema)
 	return jsonRouterErrors(mux)
@@ -444,6 +446,62 @@ func (n *Node) handlePublicKey(w http.ResponseWriter, r *http.Request) {
 		AddedAt:    info.AddedAt,
 		DisabledAt: info.DisabledAt,
 		Parent:     info.Parent,
+	})
+}
+
+// trustLinkView is one hop of the chain trust.Compute used to justify a
+// level. Level is absent for a kind:"sensor" hop — it inherits its issuer's
+// level directly and makes no claim of its own (OWM-6 §4, §6).
+type trustLinkView struct {
+	Issuer core.KeyID `json:"issuer"`
+	Kind   string     `json:"kind"`
+	Level  *int       `json:"level,omitempty"`
+}
+
+// trustResponse is the answer to a trust-level query.
+type trustResponse struct {
+	KeyID core.KeyID      `json:"key_id"`
+	Level int             `json:"level"`
+	Name  string          `json:"level_name"`
+	Chain []trustLinkView `json:"chain"`
+}
+
+// handleKeyTrust computes and returns the entity trust level of a key
+// (OWM-6 §6), walking this node's own log against its configured
+// accreditation roots (Config.TrustRootsFile).
+//
+// Unauthenticated, like .well-known — it describes what this node's own log
+// currently contains, it proves nothing. It is a convenience only:
+// everything here is derivable by anyone from GET /owm/v1/subjects/{id}
+// directly, and a caller unwilling to take this node's word for its own
+// computation is free to walk the same chain themselves with package
+// trust — which is exactly the point (OWM-9: a client that trusts an
+// answer without computing for itself has given away the entire point).
+func (n *Node) handleKeyTrust(w http.ResponseWriter, r *http.Request) {
+	id, err := parseDigestParam(r, "id")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	keyID := core.KeyID(id)
+	lvl, chain, err := trust.Compute(r.Context(), n.TrustSource(), n.trustRoots, keyID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	links := make([]trustLinkView, len(chain))
+	for i, a := range chain {
+		links[i] = trustLinkView{Issuer: a.Entry.Issuer, Kind: string(a.Payload.Kind)}
+		if a.Payload.Kind == trust.KindEntity {
+			l := int(a.Payload.Level)
+			links[i].Level = &l
+		}
+	}
+	writeJSON(w, http.StatusOK, trustResponse{
+		KeyID: keyID,
+		Level: int(lvl),
+		Name:  lvl.String(),
+		Chain: links,
 	})
 }
 
