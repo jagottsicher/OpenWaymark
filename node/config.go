@@ -100,6 +100,12 @@ type Config struct {
 	// GossipInterval is the gap between two polls of a partner's STH. Zero
 	// switches partner gossip off.
 	GossipInterval Duration `json:"gossip_interval,omitempty"`
+
+	// TrustRootsFile is the path of the locally recognised accreditation
+	// root list (OWM-6 §8). Empty, or naming a file that does not exist,
+	// means no roots are recognised — the safe default: everyone computes
+	// to trust level 0 until an operator actively configures otherwise.
+	TrustRootsFile string `json:"trust_roots_file,omitempty"`
 }
 
 // DefaultConfig returns the defaults.
