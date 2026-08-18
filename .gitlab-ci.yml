@@ -7,6 +7,7 @@ image: golang:1.25
 stages:
   - check
   - test
+  - deploy
 
 variables:
   GOPATH: $CI_PROJECT_DIR/.gocache/go
@@ -110,3 +111,38 @@ fuzz-smoke:
     - go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 30s
     - go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 30s
   allow_failure: false
+
+# Deploy: develop -> owm-dev, main -> owm-community, matching README.md's
+# "Branching model". Uploads as a .new file and mv's it into place — mv
+# within the same filesystem is atomic, so a service restart never catches
+# a half-written binary. The remote user is owmnode; the restart itself
+# goes through a narrowly scoped sudoers rule (owmnode may run exactly
+# `systemctl restart owmnode.service` and nothing else), not a broader sudo
+# grant.
+.deploy-base:
+  image: golang:1.25
+  stage: deploy
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H "$OWM_HOST" >> ~/.ssh/known_hosts
+  script:
+    - GOOS=linux GOARCH=amd64 go build -o owmnode ./node/cmd/owmnode
+    - scp owmnode "owmnode@$OWM_HOST:/opt/openwaymark/bin/owmnode.new"
+    - ssh "owmnode@$OWM_HOST" "mv /opt/openwaymark/bin/owmnode.new /opt/openwaymark/bin/owmnode && chmod +x /opt/openwaymark/bin/owmnode && sudo systemctl restart owmnode.service"
+
+deploy-dev:
+  extends: .deploy-base
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  variables:
+    OWM_HOST: $OWM_DEV_HOST
+
+deploy-community:
+  extends: .deploy-base
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  variables:
+    OWM_HOST: $OWM_COMMUNITY_HOST
