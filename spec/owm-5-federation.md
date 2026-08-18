@@ -59,6 +59,13 @@ _openwaymark.example.com.  IN TXT  "v=owm1; node=https://provenance.example.com"
   at most point discovery at the wrong `https://` URL, which then fails to present a log whose
   `.well-known` matches what the caller already expected (log ID, if pinned) or is caught by TLS
   certificate validation for a URL the attacker does not control.
+- **The TXT record's own name is independent of however the domain itself resolves.** A domain
+  commonly reached through a CNAME — to a load balancer, a CDN, a shared reverse-proxy tier — can
+  still carry its own `_openwaymark.<domain>` TXT record without conflict: RFC 1034's rule that
+  nothing else may share a name with a CNAME applies only to the exact name holding the CNAME, and
+  `_openwaymark.<domain>` is a different name from `<domain>` itself. Setting up one is not a
+  substitute for the other, in either direction — a domain can resolve and serve the node perfectly
+  well over HTTPS while remaining entirely undiscoverable, if only the A/CNAME side was done.
 
 ### 2.2 Node description
 
