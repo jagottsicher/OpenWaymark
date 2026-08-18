@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Inspection",
+  "description": "A body certifies roadworthiness, or declares salvage or total-loss. A claim, not a confirmation - whether the inspecting body is legitimately accredited is answered by its entity trust level (OWM-6), not by this schema (spec Sec.8).",
+  "type": "object",
+  "required": ["result"],
+  "properties": {
+    "result": {
+      "enum": ["pass", "fail", "salvage", "total_loss"]
+    },
+    "body": {
+      "description": "The inspecting authority.",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": { "$ref": "defs.json#/$defs/text" },
+    "odometer": { "$ref": "defs.json#/$defs/odometer" }
+  }
+}

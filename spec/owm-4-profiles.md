@@ -303,6 +303,13 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   different part, unlike milk into cheese or API into tablets. Also the first profile with a fixed
   answer to OWM-4 §10.1's subject-granularity question: always instance-level, no lot stage exists
   to model at all.
+- [`vehicle.v1`](owm-4-vehicle.md) — **implemented**, `profiles/vehicle/`. A fourth data point,
+  sharing `aviation.v1`'s always-instance-level answer (a VIN, like a serial number, never has a
+  lot stage) and adding one genuinely new pattern: two independent paths to the same fact
+  (`measurement` for device-sourced odometer data, a plain `odometer` field on `inspection`/
+  `handover` for a human-witnessed reading), both feeding the identical rollback-detection logic —
+  proof that the claim/confirmation split generalises to "which of several sources is this," not
+  only to "is this claim backed."
 
 ## 15. Security considerations
 

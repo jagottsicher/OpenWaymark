@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aggregation",
+  "description": "A component installed into, or removed from, the vehicle - an engine or transmission swap. The subject of the entry is the vehicle; the components are listed in children. Comparing this against the vehicle's original production-time aggregation is how matching-numbers provenance works, without a dedicated mechanism (spec Sec.6).",
+  "type": "object",
+  "required": ["action", "children"],
+  "properties": {
+    "action": {
+      "enum": ["install", "remove"]
+    },
+    "children": {
+      "description": "The components installed or removed. The upper limit matches core.MaxParents.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}
