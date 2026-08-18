@@ -276,6 +276,14 @@ the release notes, if desired.
 Contributions are welcome — bug reports, criticism of the specification, code, profiles for
 further industries, implementations in other languages.
 
+### Branching model
+
+`develop` is where active work lands; `main` reflects what is actually released and stays the
+default branch, so a first-time visitor sees the current, stable state rather than work in
+progress. Branch a feature off `develop`, open the merge/pull request back into `develop` — not
+into `main`. `main` only ever receives merges from `develop`, at release time; on GitLab, CI
+enforces this directly — a merge request into `main` from any other source branch fails.
+
 ### Prerequisites
 
 Go 1.25 or newer (CIRCL requires it). Nothing else.
