@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenWaymark
 
-[![CI (develop)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml?query=branch%3Adevelop)
-[![CI (main)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI develop](https://img.shields.io/github/actions/workflow/status/jagottsicher/OpenWaymark/ci.yml?branch=develop&label=CI%20develop)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml?query=branch%3Adevelop)
+[![CI main](https://img.shields.io/github/actions/workflow/status/jagottsicher/OpenWaymark/ci.yml?branch=main&label=CI%20main)](https://github.com/jagottsicher/OpenWaymark/actions/workflows/ci.yml?query=branch%3Amain)
 
 **An open, federated protocol for cryptographically verifiable provenance and supply chain
 evidence.**
