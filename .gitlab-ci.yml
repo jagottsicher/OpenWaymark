@@ -12,6 +12,13 @@ stages:
 variables:
   GOPATH: $CI_PROJECT_DIR/.gocache/go
   GOMODCACHE: $CI_PROJECT_DIR/.gocache/mod
+  # GOCACHE (compiled build artifacts, not downloaded module source) was
+  # missing here — it defaults to a path outside $CI_PROJECT_DIR and was
+  # therefore never cached, so every job across every pipeline recompiled
+  # the whole module graph (including the ML-DSA crypto libraries) from
+  # scratch. This is the single biggest win available: build, vet,
+  # staticcheck, test and fuzz-smoke all benefit from it simultaneously.
+  GOCACHE: $CI_PROJECT_DIR/.gocache/build
   GOFLAGS: -mod=readonly
 
 cache:
@@ -28,8 +35,10 @@ cache:
 
 # main only receives merges from develop (README.md "Branching model") — enforced here rather
 # than left to convention, since branch protection alone cannot restrict where a merge request's
-# source branch comes from.
+# source branch comes from. A plain string comparison needs no Go toolchain at all — alpine
+# instead of the ~800MB default golang:1.25 image is a much smaller pull.
 guard-main-source:
+  image: alpine:latest
   stage: check
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
@@ -46,8 +55,10 @@ build:
   script:
     - go build ./...
 
+# Does not extend .go-base: gofmt only parses source, it never resolves
+# imports or needs the module graph, so `go mod download` here would be
+# pure wasted network time.
 format:
-  extends: .go-base
   stage: check
   script:
     - |
@@ -118,10 +129,14 @@ fuzz-smoke:
 # `systemctl restart owmnode.service` and nothing else), not a broader sudo
 # grant.
 .deploy-base:
-  image: golang:1.25
+  # Alpine, not Debian: still needs the Go toolchain to build owmnode in
+  # this same job, but apk (no separate "update the index" round trip
+  # needed the way apt-get has) installing openssh-client is consistently
+  # faster than apt-get update + install on the much larger Debian base.
+  image: golang:1.25-alpine
   stage: deploy
   before_script:
-    - apt-get update -qq && apt-get install -y -qq openssh-client
+    - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
     # SSH_PRIVATE_KEY is a plain multi-line Variable (not File, not Masked —
     # GitLab refuses to mask any value containing whitespace, which a key
