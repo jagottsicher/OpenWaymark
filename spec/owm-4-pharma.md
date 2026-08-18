@@ -54,6 +54,8 @@ standard," it is "digitizing paper trails multiple jurisdictions already require
 | FMD (Falsified Medicines Directive, 2011/62/EU) + EMVS | EU | 2D data-matrix per pack (GTIN, serial, batch, expiry) plus an anti-tampering device, verified against a central repository at dispensing | In force since 2019 |
 | EU GDP Guidelines (2013/C 343/01) | EU | Good Distribution Practice: temperature-controlled transport, validated equipment, deviation/CAPA handling | In force |
 | ICH Q7 | Global (adopted by FDA, EMA, and others) | GMP for APIs: starting material → intermediate → API, batch documentation, traceability | In force |
+| WHO TRS 961, Annex 9, Supplement 8 | Global (WHO GDP guidance) | Temperature mapping of storage areas, methodologically distinct from transport mapping | In force, widely adopted as reference practice |
+| GS1 "Applying GS1 System of Standards for DSCSA and Traceability" | US (GS1 US implementation guideline) | The actual, already-published bridge between DSCSA's legal text and EPCIS/CBV events — lot-level and serialized-item event specifications both covered | Current release in active use |
 | EU Pharmaceutical Package (recast of Directive 2001/83/EC and Regulation (EC) No 726/2004) | EU | Comprehensive reform of EU pharma law | Political agreement Dec. 2025, texts confirmed by COREPER I March 2026. **Not analyzed here** — nothing found in this research pass details its traceability/serialization provisions specifically. Tracked as an open point (§12), not a design input yet. |
 
 **None of these regimes is reproduced normatively here.** This profile's schema is checked, per
@@ -61,6 +63,19 @@ OWM-4 §5, against *form*, not against legal compliance — a schema-conformant 
 regulatory violation the schema cannot see. What this profile aims for is a shape into which the
 data these regimes already require can be put, verifiably and tamper-evidently, not a compliance
 engine for any one of them.
+
+**The GS1 guideline is worth dwelling on, because it changes the nature of the claim `food.v1`
+already made for EPCIS alignment.** `food.v1` argued that building on EPCIS avoids inventing a
+translation layer for an industry that already speaks it. For pharma, that argument is no longer
+just plausible — GS1 US has already published the concrete cross-walk from DSCSA's legal
+requirements to EPCIS/CBV events, covering both lot-level and fully serialized item-level cases.
+`pharma.v1`'s event set is deliberately shaped to be expressible against that same cross-walk, not
+against a from-scratch reading of the statute. That this is also where the commercial market
+already lives reinforces the point rather than being a separate one: TraceLink alone reports
+processing billions of DSCSA transactions for the large majority of top global pharma
+manufacturers, alongside SAP ATTP, rfxcel/Antares Vision, Systech and others — all exchanging
+EPCIS-shaped data today. `pharma.v1` is not proposing a data model the industry would have to
+learn; it is proposing a tamper-evident log for the shape of data it already produces.
 
 **Vaccines are a flagship case within this profile, not a separate one.** They fit as ordinary
 `finished_product`-stage doses — nothing about the model changes for them — but the fraud patterns
@@ -81,7 +96,7 @@ vials** is what `decommission` (§3, §9) exists to make detectable.
 
 ## 3. Events
 
-Eight events, sharing one profile identifier (`pharma.v1`) in the payload's `event` field — the
+Nine events, sharing one profile identifier (`pharma.v1`) in the payload's `event` field — the
 same reasoning as `food.v1` §8: keeping the event type out of `prof` means an erasure still leaves
 only "at some point there was a pharma event concerning a subject," nothing more specific.
 
@@ -90,14 +105,16 @@ only "at some point there was a pharma event concerning a subject," nothing more
 | `production` | A starting material batch, an intermediate, an API batch, or a finished dosage-form batch comes into being | ICH Q7 (batch genesis) |
 | `aggregation` | Units packed into cases, cases onto pallets — and the reverse | GS1 pharma packaging hierarchy; DSCSA aggregation |
 | `transport` | Departure or arrival of a shipment | EU GDP |
+| `storage` | **New.** A batch or unit enters or leaves a temperature-mapped, qualified storage facility | EU GDP; WHO TRS 961 Annex 9 Supplement 8 |
 | `processing` | Starting material → intermediate → API → finished dosage form | ICH Q7 |
-| `handover` | Change of ownership or responsibility | DSCSA T3 trigger; FMD chain of custody |
+| `handover` | Change of ownership or responsibility | DSCSA T3 trigger; FMD chain of custody; DSCSA Authorized Trading Partner |
 | `measurement` | A series of readings from a device — the cold chain, above all | EU GDP temperature monitoring |
 | `release` | **New.** A Qualified Person certifies a batch fit for release | ICH Q7 / EU GMP Annex 16 (qualified person certification) |
 | `decommission` | **New.** A specific serialized unit's physical life ends — administered, destroyed, withdrawn | GS1 EPCIS 2.0's own `decommissioning` bizStep; DSCSA/FMD unit lifecycle |
 
-Six of the eight are `food.v1`'s events, unchanged in shape. `release` and `decommission` are new,
-each for a specific, arguable reason (§8, §9) — not because the other six were found wanting.
+Six of the nine are `food.v1`'s events, unchanged in shape. `storage`, `release` and `decommission`
+are new, each for a specific, arguable reason (§7, §8, §9) — not because the other six were found
+wanting.
 
 ## 4. Event type and entry type
 
@@ -106,7 +123,7 @@ The same binding rule as `food.v1` §8, extended by one row:
 | `event` | required `typ` |
 |---|---|
 | `measurement` | `sensor_reading` (5) |
-| all others, including `release` and `decommission` | `assertion` (1) |
+| all others, including `storage`, `release` and `decommission` | `assertion` (1) |
 
 `release` is `assertion`, not `attestation` (core type 2). This is worth being precise about,
 because the two are easy to conflate here: `attestation`'s `subj` is a **KeyID**, the identifier of
@@ -176,11 +193,19 @@ for `food.v1`'s own granularity choice, resolved here by aggregation rather than
 coarser identifiers, because DSCSA specifically forecloses the coarser option for the finished
 product.
 
-## 7. Cold chain and transport requirements
+## 7. Cold chain, storage and transport requirements
 
-Directly reuses `food.v1`'s `transport.conditions` \/ `measurement` pair (OWM-4 §11: conditions are
-**promised**, a `measurement` entry is what actually happened, and only the two together, compared,
-say whether the promise was kept), extended by one field:
+GDP treats storage and transport as two related but administratively distinct qualification
+exercises — "warehouse and transport temperature mapping methodologies should be consistent," in
+current GDP guidance, precisely because they are not the same exercise. This profile follows that
+split: `transport` for movement between two places, `storage` for a stay at one, both built on the
+same promise/observation pair `food.v1`'s `transport.conditions` \/ `measurement` already
+establishes (OWM-4 §11: conditions are **promised**, a `measurement` entry is what actually
+happened, and only the two together, compared, say whether the promise was kept).
+
+### 7.1 Transport
+
+`transport.conditions`, extended by one field beyond `food.v1`'s:
 
 - `conditions.temperature_c: {min, max}` — unchanged from `food.v1`. EU GDP's own reference ranges
   are commonly 2–8 °C (refrigerated) or 15–25 °C (controlled room temperature); this profile does
@@ -197,14 +222,40 @@ say whether the promise was kept), extended by one field:
   derived actual is checked, the same asymmetry `temperature_c` already has between promise and
   observation.
 
-**Excursion handling is deliberately not a new mechanism.** An excursion is discovered exactly the
-way a broken cold chain already is in `food.v1`: a `measurement` entry (or the derived transit
-time) that contradicts a `transport.conditions` promise. What GDP requires next — quarantine,
-investigation, a CAPA record — is an operational process outside this log's concern; if that
-investigation concludes the batch may not be released, that is expressed the same way any other
-withdrawn statement is (§9), not through a bespoke "excursion" entry.
+### 7.2 Storage
 
-## 8. Batch release and the claim/confirmation boundary
+A batch or unit does not stop existing between two `transport` legs — it typically sits in a
+distribution center for days to weeks, and GDP requires that stay to be just as accounted for as
+the trip either side of it. `storage` is the entry that says so:
+
+```json
+{ "event": "storage", "action": "enter", "time": "…",
+  "location": { "gln": "…" }, "conditions": { "temperature_c": { "min": 2, "max": 8 } } }
+```
+
+`action` is `enter` or `leave`, the same shape `aggregation`'s add/delete pair already uses (OWM-4
+§10). Unlike `transport`, `location` is a single place, not an origin and a destination —
+`conditions` is asserted **by the facility operator**, once per stay, not derived from a lane
+qualification. What backs that promise is a distinct exercise: WHO's own guidance recommends
+**temperature mapping a storage area for at least 7 to 10 consecutive days** before it is qualified
+for use, a duration mapping exercise this log does not itself record (it is a one-time
+qualification of the *facility*, not a per-batch event) — but the `measurement` entries taken
+during an actual stay, subject to the same `storage.conditions` promise, are exactly what OWM-4
+§11's claim/confirmation split already handles: the facility's qualification is the operator's
+claim, an ongoing `measurement` series is the evidence.
+
+### 7.3 Excursion handling
+
+**Deliberately not a new mechanism, for either.** An excursion is discovered exactly the way a
+broken cold chain already is in `food.v1`: a `measurement` entry (or a derived transit/dwell time)
+that contradicts a `transport.conditions` or `storage.conditions` promise. What GDP requires next —
+quarantine, investigation, a CAPA record — is an operational process outside this log's concern; if
+that investigation concludes the batch may not be released, that is expressed the same way any
+other withdrawn statement is (§9), not through a bespoke "excursion" entry.
+
+## 8. Batch release, trading partners and the claim/confirmation boundary
+
+### 8.1 Batch release
 
 `release` is its own event, not a field on `production`, for the same reason `food.v1` §10 gives
 for why `handover` is its own event and not a side field of `transport`: it is typically issued by
@@ -231,6 +282,27 @@ anchored at level 5 ("state/official accreditation with regular inspection," CLA
 example row), since QPs are themselves subject to regulatory licensing in most jurisdictions. A
 `release` entry from an unaccredited key is exactly as informative as an unconfirmed organic seal in
 `food.v1` — worth exactly nothing until backed.
+
+### 8.2 Trading partners — wholesalers and intermediaries
+
+`handover` (§3) is reused unchanged from `food.v1`, but who may legitimately appear on either side
+of one is a materially higher-stakes question here than in food: DSCSA requires every wholesale
+distributor and third-party logistics provider to be an **Authorized Trading Partner (ATP)** —
+licensed under state law or federal registration, *verified before the first transaction*, with
+verification records kept a minimum of six years, and annual licensure reporting to the FDA every
+January–March. A wholesaler who is not an ATP may not legally receive or pass on a covered drug at
+all.
+
+This profile does not, and structurally cannot, enforce that a `handover` counterparty is
+licensed — a node accepts a well-formed entry from a known key, not a judgment about that key's
+regulatory standing (OWM-4 §5's own division of labour: the schema checks form, not truth). What it
+*can* do is make the standing checkable the same way batch release already is (§8.1): a
+wholesaler's key carries an entity trust level (OWM-6), backed by `attestation` entries from
+whichever accreditation root the verifier recognises — a state pharmacy board, for instance, at
+level 5 or 6 depending on jurisdiction. A `handover` naming an unaccredited key is not rejected by
+the node, but it is visibly, checkably unaccredited to anyone who looks — exactly the claim/
+confirmation split this profile already applies to release and to `food.v1`'s own certifications,
+extended to the parties in the chain rather than only to the goods.
 
 ## 9. Decommissioning, recall and quarantine
 
@@ -316,6 +388,11 @@ of dispensing, where the serial is available anyway.
 - **Payload form for bundled series of readings** (temperature logs at fine resolution) — not
   laid down, same open point as `food.v1` §14; a cold-chain logger on a multi-day transatlantic
   shipment is exactly the case OWM-2 §8's batch-signing mechanism exists for.
+- **Facility-level temperature-mapping evidence is out of scope.** `storage.conditions` is the
+  operator's promise for a given stay; the underlying WHO-recommended 7–10-day mapping exercise
+  that qualifies the facility in the first place is a one-time, operational qualification this
+  profile does not model as its own event — an operator MAY back it with an `attestation` if a
+  recognised inspection body issues one, but nothing requires it yet.
 - **No API/finished-product split into two profiles was chosen**, deliberately: one `pharma.v1`
   spanning ICH Q7's manufacturing side and DSCSA/FMD's distribution side, linked by the same
   `processing` chain. Revisit if the two sides turn out to need incompatible schema evolution
@@ -333,3 +410,5 @@ of dispensing, where the serial is available anyway.
 | Patient identity added to `party` "for convenience" | supply chain log becomes a health record | no patient field exists in the schema; out of scope at the profile boundary, not just discouraged (§1, §11) |
 | Release claim mistaken for confirmed compliance | false sense of regulatory assurance | claim/confirmation split enforced the same way as `food.v1` certifications (§8, OWM-4 §11) |
 | Emptied unit refilled and reintroduced under its own identity | a real, reported vaccine-fraud pattern (§2) goes undetected | `decommission` makes the same subject ID reappearing afterward a structural contradiction (§9) |
+| Storage facility never actually temperature-mapped, `storage.conditions` asserted anyway | an unqualified facility looks identical to a qualified one from the log alone | the promise is checkable against `measurement` evidence during the stay, same as transport (§7.2) |
+| `handover` accepted from an unlicensed wholesaler | a covered drug moves through a party DSCSA prohibits from handling it | entity trust level of the counterparty's key, computed via OWM-6, not the entry's mere presence (§8.2) |

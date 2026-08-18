@@ -292,8 +292,9 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   the real test of whether the mechanism is industry-agnostic: if the core has to be touched for
   it, part A has failed.
 - [`pharma.v1`](owm-4-pharma.md) — spec drafted, not implemented. A second, independent data point
-  for the same test: six of its eight events are `food.v1`'s, unchanged, and the two genuinely new
-  ones (a batch-release certification, a unit decommissioning) needed nothing from the core either
+  for the same test: six of its nine events are `food.v1`'s, unchanged, and the three genuinely new
+  ones (facility storage, a batch-release certification, a unit decommissioning) needed nothing
+  from the core either
   — only new profile-level payload shape. No core change either time is starting to look less like
   luck and more like the mechanism actually working as designed.
 
