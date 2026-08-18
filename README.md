@@ -152,6 +152,11 @@ handover — so that industry can connect without a translation layer.
 A profile version never changes: were `food.v1` different today from yesterday, an entry from
 yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
+A second profile, [`pharma.v1`](spec/owm-4-pharma.md), is specified but not yet implemented —
+pharmaceutical supply chains from starting material through dispensing, built to interoperate with
+DSCSA (US), the EU's FMD/EMVS and GDP guidelines, and ICH Q7. Six of its eight events are `food.v1`'s,
+unchanged; the mechanism did not have to change to fit a second, legally regulated industry.
+
 ### Trust levels and attestation
 
 Two separate dimensions, never collapsed into one number: how verified is the entity behind a key
