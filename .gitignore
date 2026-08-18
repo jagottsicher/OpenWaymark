@@ -26,9 +26,7 @@
 # credential, unrelated to the protocol, never belongs in this repo.
 wp-app-password.txt
 
-# Project-internal working notes. Deliberately never version-controlled —
-# purged from history 2026-08-17/18. Stays on disk for local use; a CI job
-# (guard-no-claude-md) additionally fails the build if this is ever tracked.
+# Local project notes, not for the repository.
 /CLAUDE.md
 
 # Editor and operating system
