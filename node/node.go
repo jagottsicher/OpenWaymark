@@ -31,6 +31,7 @@ import (
 	"openwaymark.org/owm/log/sqlite"
 	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/aviation"
+	"openwaymark.org/owm/profiles/electronics"
 	"openwaymark.org/owm/profiles/food"
 	"openwaymark.org/owm/profiles/pharma"
 	"openwaymark.org/owm/profiles/vehicle"
@@ -122,10 +123,11 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 // buildRegistry loads the requested profiles.
 func buildRegistry(want []string) (*profiles.Registry, error) {
 	available := map[string]func() (*profiles.Profile, error){
-		food.ID:     food.New,
-		pharma.ID:   pharma.New,
-		aviation.ID: aviation.New,
-		vehicle.ID:  vehicle.New,
+		food.ID:        food.New,
+		pharma.ID:      pharma.New,
+		aviation.ID:    aviation.New,
+		vehicle.ID:     vehicle.New,
+		electronics.ID: electronics.New,
 	}
 	reg := profiles.NewRegistry()
 	if len(want) == 0 {

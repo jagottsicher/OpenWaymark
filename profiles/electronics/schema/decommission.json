@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decommission",
+  "description": "The unit's life ends. A subject that already carries a decommission reappearing afterward in production, aggregation or handover is a structural contradiction a client or monitor can flag.",
+  "type": "object",
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "enum": ["recycled", "destroyed", "lost", "disposed"]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aggregation",
+  "description": "Components assembled into a board or device - a bill of materials - or the reverse. The subject of the entry is the assembly; the components are listed in children.",
+  "type": "object",
+  "required": ["action", "children"],
+  "properties": {
+    "action": {
+      "enum": ["add", "delete"]
+    },
+    "container": {
+      "description": "The assembly itself, e.g. the board or the finished device.",
+      "$ref": "defs.json#/$defs/product"
+    },
+    "children": {
+      "description": "The components. The upper limit matches core.MaxParents.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}
