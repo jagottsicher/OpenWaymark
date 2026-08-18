@@ -51,6 +51,20 @@ token scheme in application code would be weaker than what the operating system 
 proxy can do anyway, and it would pretend the question had been settled. Anyone who reaches this
 interface can add keys and erase payloads.
 
+In practice, on a node whose operator does not log into it directly — the usual case once it runs
+as a service somewhere — that means reaching the admin interface over an SSH tunnel rather than
+opening it up:
+
+```sh
+ssh -L 8481:127.0.0.1:8481 <user>@<host>
+# then, in a second terminal, against your own machine:
+curl http://127.0.0.1:8481/admin/v1/keys
+```
+
+Nothing about the node needs to know this is happening; the tunnel just makes the operator's own
+machine act as if it were on `localhost` on the node's side, which is exactly the trust boundary
+this interface was designed around.
+
 The public API binds to localhost by default as well: reaching out onto the network of its own
 accord is not something a program should do unasked.
 
