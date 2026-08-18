@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the vehicle profile vehicle.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here - the profile knows only operations, never who was driving (spec Sec.10).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "odometer": {
+      "description": "A human-witnessed odometer reading - a claim, not device evidence (spec Sec.5).",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "enum": ["km", "mi"] }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "description": "The vehicle itself, or a major component tracked as its own subject (spec Sec.3).",
+      "type": "object",
+      "properties": {
+        "vin": {
+          "description": "ISO 3779 vehicle identification number, 17 characters.",
+          "type": "string",
+          "pattern": "^[A-HJ-NPR-Z0-9]{17}$"
+        },
+        "serial": {
+          "description": "A component's own serial number (engine, transmission), when it is not the vehicle itself.",
+          "$ref": "#/$defs/text"
+        },
+        "name": {
+          "description": "Free-text description, e.g. for a recovered material with no VIN or serial of its own.",
+          "$ref": "#/$defs/text"
+        },
+        "make": { "$ref": "#/$defs/text" },
+        "model": { "$ref": "#/$defs/text" },
+        "model_year": { "type": "integer", "minimum": 1900, "maximum": 2100 },
+        "component_type": {
+          "enum": ["vehicle", "engine", "transmission", "other"]
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

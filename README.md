@@ -160,6 +160,7 @@ its industry rather than inventing new ones:
 | [`food.v1`](profiles/food/) | farm to consumer | GS1 EPCIS 2.0 |
 | [`pharma.v1`](profiles/pharma/) | starting material to dispensing | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
 | [`aviation.v1`](profiles/aviation/) | aircraft parts, back-to-birth | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
+| [`vehicle.v1`](profiles/vehicle/) | used cars/motorcycles, incl. classic-car provenance | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
 
 Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 
@@ -237,7 +238,7 @@ wants to pull in `core/` on its own.
 | [`spec/`](spec/) | protocol specification, normative | Apache-2.0 |
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
-| [`profiles/`](profiles/) | schema profiles: [`food/`](profiles/food/), [`pharma/`](profiles/pharma/), [`aviation/`](profiles/aviation/) | Apache-2.0 |
+| [`profiles/`](profiles/) | schema profiles — see the table above | Apache-2.0 |
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
 | [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |
