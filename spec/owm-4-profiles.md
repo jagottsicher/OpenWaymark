@@ -330,6 +330,15 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   "catch" as an example of, even though each profile still pins its own, independently versioned
   schema file — §4.3's no-cross-profile-`$ref` rule applies here as everywhere. The reuse is at the
   level of concept and vocabulary, not shared bytes, and that already turns out to be enough.
+- [`eudr.v1`](owm-4-eudr.md) — **implemented**, `profiles/eudr/`. An eighth data point, and the
+  only one named after a regulation rather than an industry — timber, cocoa, coffee, palm oil, soy,
+  rubber and cattle have essentially nothing else in common, but the EU Deforestation Regulation's
+  geolocation requirement applies identically across all of them, which turned out to matter more
+  for how the profile is shaped than any one commodity's own processing steps. Also carries the
+  field closest to personal data anywhere in this project's profile set: a precise plot coordinate
+  can identify a single smallholder's land, an erasability case OWM-2 §7 already covers, but a
+  reminder that "no field for a natural person" (OWM-4 §13) is not the same guarantee as "no field
+  that can single one out."
 
 ## 15. Security considerations
 

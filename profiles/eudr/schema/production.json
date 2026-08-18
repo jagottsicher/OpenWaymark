@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production",
+  "description": "Harvest at the plot - carries the geolocation and the deforestation-free claim. The subject of the entry is the harvested batch.",
+  "type": "object",
+  "required": ["product"],
+  "properties": {
+    "product": { "$ref": "defs.json#/$defs/product" },
+    "quantity": { "$ref": "defs.json#/$defs/quantity" }
+  }
+}

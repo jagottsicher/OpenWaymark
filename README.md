@@ -164,6 +164,7 @@ its industry rather than inventing new ones:
 | [`electronics.v1`](profiles/electronics/) | components (RAM, SSDs) to finished devices | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
 | [`minerals.v1`](profiles/minerals/) | ore/3TG through smelting to a manufacturer | EU Conflict Minerals Regulation, OECD Due Diligence Guidance, EU Critical Raw Materials Act |
 | [`seafood.v1`](profiles/seafood/) | vessel to plate | EU CATCH, US Seafood Import Monitoring Program |
+| [`eudr.v1`](profiles/eudr/) | timber, cocoa, coffee, palm oil, soy, rubber, cattle | EU Deforestation Regulation |
 
 Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the deforestation-free commodities profile eudr.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here (spec Sec.7).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "latlon": {
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 }
+      },
+      "required": ["lat", "lon"],
+      "additionalProperties": false
+    },
+    "geolocation": {
+      "description": "A point for plots <= 4 ha and cattle establishments, a polygon above that - the regulation's own split (spec Sec.4).",
+      "type": "object",
+      "properties": {
+        "point": { "$ref": "#/$defs/latlon" },
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/latlon" }
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "quantity": {
+      "description": "Quantity with a unit per UN/CEFACT Recommendation 20, e.g. KGM.",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "description": "A harvested batch of a deforestation-regulated commodity (spec Sec.4, Sec.6).",
+      "type": "object",
+      "properties": {
+        "commodity": {
+          "description": "Free text, e.g. \"cocoa\", \"palm_oil\", \"cattle\" - not a closed enum.",
+          "$ref": "#/$defs/text"
+        },
+        "name": { "$ref": "#/$defs/text" },
+        "lot": { "$ref": "#/$defs/text" },
+        "geolocation": { "$ref": "#/$defs/geolocation" },
+        "deforestation_free": {
+          "description": "The producer's own claim at the point of harvest, not a confirmation (spec Sec.4).",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with quantity and product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}
