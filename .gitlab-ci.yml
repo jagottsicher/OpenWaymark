@@ -137,6 +137,9 @@ fuzz-smoke:
     - scp owmnode "owmnode@$OWM_HOST:/opt/openwaymark/bin/owmnode.new"
     - ssh "owmnode@$OWM_HOST" "mv /opt/openwaymark/bin/owmnode.new /opt/openwaymark/bin/owmnode && chmod +x /opt/openwaymark/bin/owmnode && sudo systemctl restart owmnode.service"
 
+# Automatic: every push to develop that passes check/test deploys to
+# owm-dev right away, no button to press. $CI_COMMIT_BRANCH is unset on a
+# tag pipeline, so this never fires for a tag by itself.
 deploy-dev:
   extends: .deploy-base
   rules:
@@ -144,9 +147,14 @@ deploy-dev:
   variables:
     OWM_HOST: $OWM_DEV_HOST
 
+# Manual and tag-gated: the deploy button only exists on a tag pipeline
+# (a release), and even then has to be clicked — a push to main by itself
+# deploys nothing. GitLab only shows/allows the button once every job in an
+# earlier stage has succeeded, so this can't jump ahead of check/test.
 deploy-community:
   extends: .deploy-base
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG'
+      when: manual
   variables:
     OWM_HOST: $OWM_COMMUNITY_HOST
