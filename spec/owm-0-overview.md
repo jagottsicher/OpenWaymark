@@ -282,6 +282,6 @@ raise it. As long as version 1 counts as a draft, the format can change without 
 | OWM-3 | [keys, node identity, directory and rotation](owm-3-keys.md) | draft |
 | OWM-4 | [profile mechanism and food profile](owm-4-profiles.md) | draft |
 | OWM-5 | [federation, discovery, gossip](owm-5-federation.md) | draft |
-| OWM-6 | trust levels and attestation | planned |
+| OWM-6 | [trust levels and attestation](owm-6-trust.md) | draft |
 | OWM-7 | [node API](owm-7-node-api.md) | draft |
 | OWM-9 | [threat model](owm-9-threat-model.md) | draft |
