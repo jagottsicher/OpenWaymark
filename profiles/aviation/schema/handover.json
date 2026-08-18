@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Handover",
+  "description": "Change of ownership or operator (ATA Spec 2000 ch. 15, Aircraft Transfer Parts List).",
+  "type": "object",
+  "required": ["to"],
+  "properties": {
+    "from": { "$ref": "defs.json#/$defs/party" },
+    "to": { "$ref": "defs.json#/$defs/party" },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "Kind of document: bill of sale, lease, other.",
+          "enum": ["sale", "lease", "other"]
+        },
+        "id": { "$ref": "defs.json#/$defs/text" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  }
+}

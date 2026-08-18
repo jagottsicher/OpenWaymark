@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transport",
+  "description": "Departure or arrival of a shipment between operators or repair stations.",
+  "type": "object",
+  "required": ["step"],
+  "properties": {
+    "step": {
+      "enum": ["departure", "arrival"]
+    },
+    "carrier": { "$ref": "defs.json#/$defs/party" },
+    "from": { "$ref": "defs.json#/$defs/location" },
+    "to": { "$ref": "defs.json#/$defs/location" },
+    "consignment": {
+      "description": "Identifier of the consignment, e.g. waybill number.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

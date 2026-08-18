@@ -152,11 +152,16 @@ handover — so that industry can connect without a translation layer.
 A profile version never changes: were `food.v1` different today from yesterday, an entry from
 yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
-A second profile, [`pharma.v1`](spec/owm-4-pharma.md) (implemented, [`profiles/pharma/`](profiles/pharma/)) —
-pharmaceutical supply chains from starting material through dispensing, built to interoperate with
-DSCSA (US), the EU's FMD/EMVS and GDP guidelines, ICH Q7, and the GS1 US implementation guideline
-that already bridges DSCSA to EPCIS in production. Six of its nine events are `food.v1`'s,
-unchanged; the mechanism did not have to change to fit a second, legally regulated industry.
+Further profiles reuse the same mechanism, each interoperating with the regimes that already govern
+its industry rather than inventing new ones:
+
+| Profile | Covers | Interoperates with |
+|---|---|---|
+| [`food.v1`](profiles/food/) | farm to consumer | GS1 EPCIS 2.0 |
+| [`pharma.v1`](profiles/pharma/) | starting material to dispensing | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
+| [`aviation.v1`](profiles/aviation/) | aircraft parts, back-to-birth | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
+
+Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 
 ### Trust levels and attestation
 
@@ -232,7 +237,7 @@ wants to pull in `core/` on its own.
 | [`spec/`](spec/) | protocol specification, normative | Apache-2.0 |
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
-| [`profiles/`](profiles/) | schema profiles: [`food/`](profiles/food/), [`pharma/`](profiles/pharma/) | Apache-2.0 |
+| [`profiles/`](profiles/) | schema profiles: [`food/`](profiles/food/), [`pharma/`](profiles/pharma/), [`aviation/`](profiles/aviation/) | Apache-2.0 |
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
 | [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |

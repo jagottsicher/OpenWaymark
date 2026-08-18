@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "A Part-145 organization re-certifies the part fit for service after repair or overhaul (FAA 8130-3 / EASA Form 1). A claim, not a confirmation - whether the organization's own approval backs it is answered by its entity trust level (OWM-6), not by this schema (spec Sec.6).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "certificate_ref": { "$ref": "defs.json#/$defs/text" },
+    "cycles_used": {
+      "description": "Cumulative flight cycles as of this release, for a life-limited part.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
