@@ -33,6 +33,35 @@ func init() {
 	if err != nil {
 		panic("owm: CBOR encoder: " + err.Error())
 	}
+
+	// Simple values null (22) and undefined (23) are rejected outright,
+	// for every field of every wire type, not merely at the top level.
+	// Nothing in this format ever legitimately encodes either: an absent
+	// optional field is omitted from the map, never present-but-null (see
+	// entryWire's own comment on this), and a fixed-length array element
+	// such as refWire.Log stands for "no value" as an empty byte string,
+	// never as null.
+	//
+	// Without this, null and Go's nil slice collide: decoding null into a
+	// []byte field yields the same nil as decoding an absent field would,
+	// and the two are indistinguishable afterwards. checkCanonical below
+	// only catches this at the wire-struct level (decode, re-encode the
+	// SAME struct, compare) — a nil slice marshals back to null just as
+	// faithfully as it was read, so that self-check passes. The break only
+	// surfaces one layer up, when the *domain* type (Entry, not entryWire)
+	// is re-encoded through its own accessor (refToWire always emits an
+	// explicit empty byte string for "no log", never null) — exactly what
+	// FuzzParseEntry checks and what caught this. Closing it at the
+	// decoder removes the second representation before it can appear at
+	// all, instead of trying to detect the mismatch after the fact for
+	// every optional field individually.
+	simpleValues, err := cbor.NewSimpleValueRegistryFromDefaults(
+		cbor.WithRejectedSimpleValue(cbor.SimpleValue(22)), // null
+		cbor.WithRejectedSimpleValue(cbor.SimpleValue(23)), // undefined
+	)
+	if err != nil {
+		panic("owm: CBOR decoder: " + err.Error())
+	}
 	decMode, err = cbor.DecOptions{
 		DupMapKey:         cbor.DupMapKeyEnforcedAPF,
 		IndefLength:       cbor.IndefLengthForbidden,
@@ -40,6 +69,7 @@ func init() {
 		ExtraReturnErrors: cbor.ExtraDecErrorUnknownField,
 		UTF8:              cbor.UTF8RejectInvalid,
 		MaxNestedLevels:   8,
+		SimpleValues:      simpleValues,
 	}.DecMode()
 	if err != nil {
 		panic("owm: CBOR decoder: " + err.Error())
