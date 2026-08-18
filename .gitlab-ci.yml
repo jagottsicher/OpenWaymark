@@ -188,14 +188,14 @@ deploy-dev:
   variables:
     OWM_HOST: $OWM_DEV_HOST
 
-# Manual and tag-gated: the deploy button only exists on a tag pipeline
-# (a release), and even then has to be clicked — a push to main by itself
-# deploys nothing. GitLab only shows/allows the button once every job in an
-# earlier stage has succeeded, so this can't jump ahead of check/test.
+# Automatic, tag-gated: fires on any tag (a release, per README.md's
+# "Releases and versioning" — an annotated vX.Y.Z tag on main), no button
+# to click. A plain push to main by itself still deploys nothing — only a
+# tag does. Runs after check/test the same way deploy-dev does: this stage
+# only starts once every job in an earlier one has succeeded.
 deploy-community:
   extends: .deploy-base
   rules:
     - if: '$CI_COMMIT_TAG'
-      when: manual
   variables:
     OWM_HOST: $OWM_COMMUNITY_HOST

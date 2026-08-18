@@ -370,8 +370,8 @@ in this order:
 3. Everything else.
 
 The tag also gates the community node deploy: pushing a tag runs the same checks as any other
-pipeline, and only then offers a manual "deploy-community" button — a plain push to `main` deploys
-nothing by itself.
+pipeline, and only once those pass does it deploy to the community node automatically — a plain
+push to `main` deploys nothing by itself, only a tag does.
 
 Builds are made from the tag:
 
