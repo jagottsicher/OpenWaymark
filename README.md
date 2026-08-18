@@ -364,6 +364,10 @@ in this order:
 2. **Security-relevant matters.**
 3. Everything else.
 
+The tag also gates the community node deploy: pushing a tag runs the same checks as any other
+pipeline, and only then offers a manual "deploy-community" button — a plain push to `main` deploys
+nothing by itself.
+
 Builds are made from the tag:
 
 ```sh
