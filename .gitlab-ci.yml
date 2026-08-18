@@ -25,6 +25,19 @@ cache:
     - go version
     - go mod download
 
+# CLAUDE.md is project-internal working notes, deliberately never committed
+# (it was purged from history on 2026-08-17/18) — .gitignore keeps an
+# ordinary "git add ." from picking it back up, this catches an explicit
+# "git add -f" or a fresh commit made without the ignore file in place.
+guard-no-claude-md:
+  stage: check
+  script:
+    - |
+      if git ls-files --error-unmatch CLAUDE.md >/dev/null 2>&1; then
+        echo "CLAUDE.md must never be committed to this repository — see .gitignore."
+        exit 1
+      fi
+
 build:
   extends: .go-base
   stage: check
