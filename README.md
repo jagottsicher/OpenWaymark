@@ -161,6 +161,7 @@ its industry rather than inventing new ones:
 | [`pharma.v1`](profiles/pharma/) | starting material to dispensing | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
 | [`aviation.v1`](profiles/aviation/) | aircraft parts, back-to-birth | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
 | [`vehicle.v1`](profiles/vehicle/) | used cars/motorcycles, incl. classic-car provenance | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
+| [`electronics.v1`](profiles/electronics/) | components (RAM, SSDs) to finished devices | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
 
 Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 

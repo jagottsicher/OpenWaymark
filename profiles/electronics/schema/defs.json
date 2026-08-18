@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the electronics profile electronics.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here; end-user ownership is out of scope entirely (spec Sec.1, Sec.8).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "quantity": {
+      "description": "Quantity with a unit per UN/CEFACT Recommendation 20, e.g. H87 (pieces).",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "description": "A component lot or a finished device (spec Sec.3, Sec.5, Sec.7).",
+      "type": "object",
+      "properties": {
+        "gtin": { "type": "string", "pattern": "^[0-9]{8,14}$" },
+        "part_number": {
+          "description": "Manufacturer part number (MPN).",
+          "$ref": "#/$defs/text"
+        },
+        "name": { "$ref": "#/$defs/text" },
+        "lot": {
+          "description": "Batch/date code - component-level, IPC-1782 M-level traceability.",
+          "$ref": "#/$defs/text"
+        },
+        "serial": {
+          "description": "Individual serial number of a finished device - instance-level.",
+          "$ref": "#/$defs/text"
+        },
+        "recycled_content_pct": {
+          "description": "DPP key data field: percentage recycled material content.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "repairability_index": {
+          "type": "number",
+          "minimum": 0
+        },
+        "warranty_months": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with quantity and product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Handover",
+  "description": "Change of ownership - manufacturer to distributor to OEM to retailer.",
+  "type": "object",
+  "required": ["to"],
+  "properties": {
+    "from": { "$ref": "defs.json#/$defs/party" },
+    "to": { "$ref": "defs.json#/$defs/party" },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["po", "desadv", "inv", "other"]
+        },
+        "id": { "$ref": "defs.json#/$defs/text" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "items": {
+      "description": "The units handed over, if they are more than the subject of the entry.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

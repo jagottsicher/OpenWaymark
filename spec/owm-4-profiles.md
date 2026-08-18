@@ -310,6 +310,12 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   `handover` for a human-witnessed reading), both feeding the identical rollback-detection logic —
   proof that the claim/confirmation split generalises to "which of several sources is this," not
   only to "is this claim backed."
+- [`electronics.v1`](owm-4-electronics.md) — **implemented**, `profiles/electronics/`. A fifth
+  data point, and the second (after `pharma.v1`) with the same two-tier subject-granularity shape —
+  lot-level components, instance-level finished devices, distinguished purely by which field a
+  `product` carries rather than a dedicated flag. Aligned with IPC-1782 rather than GS1 EPCIS, the
+  clearest evidence yet that the mechanism does not assume EPCIS specifically — only that *some*
+  existing industry vocabulary exists to align with.
 
 ## 15. Security considerations
 
