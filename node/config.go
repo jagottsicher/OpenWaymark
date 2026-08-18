@@ -31,6 +31,20 @@ const (
 	DefaultSTHInterval = time.Minute
 )
 
+// Partner is a supply chain partner whose log this node gossips with —
+// polling its STH so a self-contradiction becomes detectable. Targeted
+// partner gossip, not global broadcast (OWM-5 §3.2).
+type Partner struct {
+	// Name identifies this partner in log lines. Required.
+	Name string `json:"name"`
+	// BaseURL is the partner's base URL, when known directly. Exactly one of
+	// BaseURL and Domain MUST be set.
+	BaseURL string `json:"base_url,omitempty"`
+	// Domain is resolved via package discovery, once, when gossip with this
+	// partner starts.
+	Domain string `json:"domain,omitempty"`
+}
+
 // Operator describes the responsible body.
 //
 // Not decoration: in the federated model every operator is the data controller
@@ -78,6 +92,14 @@ type Config struct {
 	// STHInterval is the gap between two Signed Tree Heads. Zero switches
 	// automatic issuance off; the route through the admin interface remains.
 	STHInterval Duration `json:"sth_interval,omitempty"`
+
+	// Partners are the supply chain partners this node gossips with
+	// (OWM-5 §3.2).
+	Partners []Partner `json:"partners,omitempty"`
+
+	// GossipInterval is the gap between two polls of a partner's STH. Zero
+	// switches partner gossip off.
+	GossipInterval Duration `json:"gossip_interval,omitempty"`
 }
 
 // DefaultConfig returns the defaults.
@@ -125,6 +147,17 @@ func (c *Config) Check() error {
 	}
 	if c.STHInterval < 0 {
 		return fmt.Errorf("owm/node: sth_interval is negative")
+	}
+	if c.GossipInterval < 0 {
+		return fmt.Errorf("owm/node: gossip_interval is negative")
+	}
+	for i, p := range c.Partners {
+		if p.Name == "" {
+			return fmt.Errorf("owm/node: partner %d: name is required", i)
+		}
+		if (p.BaseURL == "") == (p.Domain == "") {
+			return fmt.Errorf("owm/node: partner %q: must set exactly one of base_url or domain", p.Name)
+		}
 	}
 	return nil
 }

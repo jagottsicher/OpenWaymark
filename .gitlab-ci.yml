@@ -37,6 +37,11 @@ cache:
 # than left to convention, since branch protection alone cannot restrict where a merge request's
 # source branch comes from. A plain string comparison needs no Go toolchain at all — alpine
 # instead of the ~800MB default golang:1.25 image is a much smaller pull.
+#
+# (There used to be a second guard job here checking that CLAUDE.md was never committed. Removed
+# deliberately: a public CI job named after that file is itself a hint that it was ever
+# significant — exactly the kind of trace the 2026-08-17/18 history purge was meant to remove.
+# .gitignore alone covers the ordinary case; see git history if the check is ever wanted back.)
 guard-main-source:
   image: alpine:latest
   stage: check
@@ -119,6 +124,9 @@ fuzz-smoke:
     - go test ./log/ -run '^$' -fuzz FuzzParseLeaf -fuzztime 30s -parallel=2
     - go test ./log/ -run '^$' -fuzz FuzzParseSTH -fuzztime 30s -parallel=2
     - go test ./log/ -run '^$' -fuzz FuzzParseSignedSTH -fuzztime 30s -parallel=2
+    # A TXT record's origin is not authenticated absent DNSSEC — the one other
+    # place foreign bytes are parsed by hand.
+    - go test ./discovery/ -run '^$' -fuzz FuzzParseRecord -fuzztime 15s -parallel=2
   allow_failure: false
 
 # Deploy: develop -> owm-dev, main -> owm-community, matching README.md's
