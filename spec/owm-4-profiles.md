@@ -316,6 +316,14 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   `product` carries rather than a dedicated flag. Aligned with IPC-1782 rather than GS1 EPCIS, the
   clearest evidence yet that the mechanism does not assume EPCIS specifically — only that *some*
   existing industry vocabulary exists to align with.
+- [`minerals.v1`](owm-4-minerals.md) — **implemented**, `profiles/minerals/`. A sixth data point,
+  and the first to drop an event other profiles keep: no `decommission`, because a mineral batch
+  never has a life that ends the way a device or vehicle does — `processing` already retires an
+  input into its output. `release` here is a facility-level conformance claim (RMAP-style), not a
+  per-batch one, but the mechanism needs nothing new for that distinction — the smelter's own key
+  still self-declares it, exactly like a QP or a Part-145 org elsewhere, and it is that key's own
+  OWM-6 trust level, backed by whatever accreditation chain a verifier recognises, that decides
+  whether the claim is worth anything.
 
 ## 15. Security considerations
 
