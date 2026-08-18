@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transport",
+  "description": "Departure or arrival of a shipment.",
+  "type": "object",
+  "required": ["step"],
+  "properties": {
+    "step": {
+      "enum": ["departure", "arrival"]
+    },
+    "carrier": { "$ref": "defs.json#/$defs/party" },
+    "from": { "$ref": "defs.json#/$defs/location" },
+    "to": { "$ref": "defs.json#/$defs/location" },
+    "consignment": {
+      "description": "Identifier of the consignment, e.g. container number.",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "conditions": {
+      "description": "Cold-chain conditions promised. Whether they were kept is what measurement entries say - not this field.",
+      "type": "object",
+      "properties": {
+        "temperature_c": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  }
+}

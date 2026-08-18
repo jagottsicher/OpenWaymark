@@ -324,6 +324,12 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   still self-declares it, exactly like a QP or a Part-145 org elsewhere, and it is that key's own
   OWM-6 trust level, backed by whatever accreditation chain a verifier recognises, that decides
   whether the claim is worth anything.
+- [`seafood.v1`](owm-4-seafood.md) — **implemented**, `profiles/seafood/`. A seventh data point,
+  and the first defined as a direct sibling of `food.v1` rather than an independent design: its
+  `production` event carries the same name and meaning `food.v1`'s own doc comment already named
+  "catch" as an example of, even though each profile still pins its own, independently versioned
+  schema file — §4.3's no-cross-profile-`$ref` rule applies here as everywhere. The reuse is at the
+  level of concept and vocabulary, not shared bytes, and that already turns out to be enough.
 
 ## 15. Security considerations
 
