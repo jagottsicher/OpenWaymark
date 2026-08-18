@@ -289,6 +289,22 @@ progress. Branch a feature off `develop`, open the merge/pull request back into 
 into `main`. `main` only ever receives merges from `develop`, at release time; on GitLab, CI
 enforces this directly — a merge request into `main` from any other source branch fails.
 
+The full cycle, tied to what the pipeline actually does at each step:
+
+1. **Branch off `develop`** for anything more than a one-line fix — `feature/<name>` for a feature,
+   `docs/<name>` for documentation-only work. A small fix can go straight to `develop`; nothing
+   about the workflow requires a branch for every single commit.
+2. **Merge request back into `develop`.** Once it lands — whether through a merge request or a
+   direct commit — a passing pipeline deploys to the dev node automatically, no button to press.
+   That is the point of having it: check the actual change against a real, publicly reachable node
+   before it goes anywhere near production.
+3. **Merge request `develop` → `main`**, once `develop` is where it should be. This is the only
+   path into `main` there is; CI rejects any other source branch for a merge request targeting it.
+   Landing on `main` by itself deploys nothing.
+4. **Tag the release** — `git tag -a vX.Y.Z -m "…" && git push origin vX.Y.Z` on `main`. The tag is
+   what triggers the community node deploy, automatically, once the same checks that run on every
+   pipeline pass on it too.
+
 ### Prerequisites
 
 Go 1.25 or newer (CIRCL requires it). Nothing else.
