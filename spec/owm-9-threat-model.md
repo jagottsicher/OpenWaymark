@@ -230,7 +230,7 @@ Only partly covered. The payload is protected, the **communication pattern** is 
 frequency, reference structure and issuer IDs stand in the log. Mitigations: random rather than
 derived subject IDs, batch submission to blur the time structure
 ([OWM-2 §8](owm-2-log.md#8-batch-signing)), selective encryption of the payload by ML-KEM for
-chosen partners (E5).
+chosen partners (a later, not yet numbered stage).
 
 Residual risk carried: a log that is meant to be checkable must be observable. Complete
 unobservability and public verifiability exclude one another.

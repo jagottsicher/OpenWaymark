@@ -31,6 +31,7 @@ import (
 	"openwaymark.org/owm/log/sqlite"
 	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/food"
+	"openwaymark.org/owm/trust"
 )
 
 // Errors that reject a submission.
@@ -47,13 +48,14 @@ var (
 
 // Node ties together log, key directory and profiles.
 type Node struct {
-	cfg      Config
-	identity *Identity
-	store    *sqlite.Store
-	log      *owmlog.Log
-	keys     *KeyDirectory
-	profiles *profiles.Registry
-	now      func() time.Time
+	cfg        Config
+	identity   *Identity
+	store      *sqlite.Store
+	log        *owmlog.Log
+	keys       *KeyDirectory
+	profiles   *profiles.Registry
+	trustRoots trust.RootSet
+	now        func() time.Time
 }
 
 // Open opens database and identity and builds a node ready for operation.
@@ -97,14 +99,20 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 		store.Close()
 		return nil, err
 	}
+	roots, err := loadTrustRoots(cfg.TrustRootsFile)
+	if err != nil {
+		store.Close()
+		return nil, err
+	}
 	return &Node{
-		cfg:      cfg,
-		identity: identity,
-		store:    store,
-		log:      l,
-		keys:     keys,
-		profiles: reg,
-		now:      time.Now,
+		cfg:        cfg,
+		identity:   identity,
+		store:      store,
+		log:        l,
+		keys:       keys,
+		profiles:   reg,
+		trustRoots: roots,
+		now:        time.Now,
 	}, nil
 }
 
@@ -154,6 +162,13 @@ func (n *Node) Keys() *KeyDirectory { return n.keys }
 // Profiles returns the loaded profiles.
 func (n *Node) Profiles() *profiles.Registry { return n.profiles }
 
+// TrustRoots returns the locally recognised accreditation roots (OWM-6 §8).
+func (n *Node) TrustRoots() trust.RootSet { return n.trustRoots }
+
+// TrustSource returns a trust.Source that walks this node's own log —
+// what trust.Compute needs to recompute an entity's trust level.
+func (n *Node) TrustSource() trust.Source { return &logSource{n: n} }
+
 // Identity returns the node's identity.
 func (n *Node) Identity() *Identity { return n.identity }
 
@@ -167,7 +182,7 @@ func (n *Node) Config() Config { return n.cfg }
 //
 //  1. Entry type — erasure witnesses are created by the node itself only.
 //  2. Payload size.
-//  3. Profile and schema.
+//  3. Profile and schema; an attestation payload's shape (OWM-6 §3).
 //  4. Signature and issuer (in the log, through the key directory).
 //  5. Commitment against payload (in the log).
 //
@@ -201,6 +216,11 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 	}
 
 	if hasCommitment {
+		if e.Type == core.EntryTypeAttestation {
+			if err := checkAttestationPayload(payload); err != nil {
+				return nil, err
+			}
+		}
 		if err := n.profiles.Check(e, payload); err != nil {
 			return nil, err
 		}

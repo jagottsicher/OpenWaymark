@@ -152,13 +152,24 @@ handover — so that industry can connect without a translation layer.
 A profile version never changes: were `food.v1` different today from yesterday, an entry from
 yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
+### Trust levels and attestation
+
+Two separate dimensions, never collapsed into one number: how verified is the entity behind a key
+(0, unverified, through 6, a state body itself), and how forgery-resistant is a product's
+physical-digital binding (a printed QR code through a PUF-backed chip). A level is never
+self-declared — [`trust/`](trust/) computes it by walking `attestation` entries back to a locally
+recognised accreditation root, the same trust-anchor idea as a browser's root-CA store, kept local
+to each operator and never gossiped. The overall trust of a supply chain is the *minimum* across
+every participant and binding involved: one weak link drags the whole chain down to its own level.
+Full description: [OWM-6](spec/owm-6-trust.md).
+
 ### Cryptography
 
 | | |
 |---|---|
 | Signatures (nodes, entities) | ML-DSA-65 — 1952 B public key, 3309 B signature |
 | Signatures (sensors, bulk entries) | ML-DSA-44 — 1312 B public key, 2420 B signature |
-| Encryption (planned, E5) | ML-KEM via `crypto/mlkem` from the standard library |
+| Encryption (planned, a later stage) | ML-KEM via `crypto/mlkem` from the standard library |
 | Hash | SHA-256, everywhere with domain separation (`OWM/1 entry`, `OWM/1 commit`, …) |
 | Serialisation | deterministic CBOR, RFC 8949 §4.2 |
 
@@ -218,6 +229,7 @@ wants to pull in `core/` on its own.
 | [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
+| [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
 | [`monitor/`](monitor/) | independent log monitor | AGPL-3.0-only |
 | [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
@@ -239,8 +251,8 @@ far is meant for production use.
 | E2 | Merkle log, STH, proofs, erasure path | done |
 | E3 | node server, HTTP API, profile `food.v1` | done |
 | E4 | federation: DNS discovery, gossip, `monitor/` | done |
-| E5 | trust levels, attestations, sensor certificates | next |
-| E6 | web app and WASM verifier | open |
+| E5 | trust levels, attestations, sensor certificates | done |
+| E6 | web app and WASM verifier | next |
 | E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
 E7/E8 wait until at least two independently operated nodes carry real data. Only then can cap
@@ -256,6 +268,7 @@ deliberately built so that it does not depend on them.
 | [OWM-3](spec/owm-3-keys.md) | keys, node identity, directory, rotation |
 | [OWM-4](spec/owm-4-profiles.md) | profile mechanism and the food profile `food.v1` |
 | [OWM-5](spec/owm-5-federation.md) | federation: DNS discovery, gossip, the independent monitor's contract |
+| [OWM-6](spec/owm-6-trust.md) | trust levels, attestation entries, sensor certificates |
 | [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
 | [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
 

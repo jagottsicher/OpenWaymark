@@ -60,7 +60,7 @@ Post-quantum schemes exclusively. No RSA, no ECC, no hybrid model.
 |---|---|---|
 | Signatures, node and entity keys | ML-DSA-65 (FIPS 204) | public key 1952 B, signature 3309 B |
 | Signatures, sensors and bulk entries | ML-DSA-44 (FIPS 204) | public key 1312 B, signature 2420 B |
-| Key encapsulation (from stage E5) | ML-KEM-768 (FIPS 203) | — |
+| Key encapsulation (a later, not yet numbered stage) | ML-KEM-768 (FIPS 203) | — |
 | Hash, commitment, Merkle tree | SHA-256 | 32 B |
 | Serialisation | CBOR, Core Deterministic (RFC 8949 §4.2.1) | — |
 
@@ -282,6 +282,6 @@ raise it. As long as version 1 counts as a draft, the format can change without 
 | OWM-3 | [keys, node identity, directory and rotation](owm-3-keys.md) | draft |
 | OWM-4 | [profile mechanism and food profile](owm-4-profiles.md) | draft |
 | OWM-5 | [federation, discovery, gossip](owm-5-federation.md) | draft |
-| OWM-6 | trust levels and attestation | planned |
+| OWM-6 | [trust levels and attestation](owm-6-trust.md) | draft |
 | OWM-7 | [node API](owm-7-node-api.md) | draft |
 | OWM-9 | [threat model](owm-9-threat-model.md) | draft |

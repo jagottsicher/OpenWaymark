@@ -109,6 +109,36 @@ unchecked.
 Erasure attestations (`erasure`) are produced by the node itself and by nobody else. Accepting
 them from outside would let somebody claim that something had been erased here.
 
+## Trust levels and attestation
+
+Full description: [OWM-6](../spec/owm-6-trust.md).
+
+An `attestation` entry (certifications, accreditation, sensor certificates) is accepted like any
+other entry from a known key, with one extra check: the payload's shape is validated before append
+(`{"kind":"entity",...}` or `{"kind":"sensor",...}`) — a malformed one never reaches the log at all.
+Nothing else about submission changes; an attestation is self-contained evidence, and computing what
+it adds up to is left entirely to a reader walking the chain, the node itself included.
+
+**`trust_roots_file`** in the configuration names a JSON file of locally recognised accreditation
+roots — the same idea as a browser's root-CA store, kept local to this node's own operator, never
+published or gossiped:
+
+```json
+[
+  { "id": "…KeyID, hex…", "name": "Deutsche Akkreditierungsstelle", "max_level": 6 }
+]
+```
+
+Unset, or naming a file that does not exist, is not an error: it is the safe default of an empty
+root list, under which every key computes to trust level 0 until the operator actively configures
+otherwise.
+
+`GET /owm/v1/keys/{key_id}/trust` computes and returns a key's trust level against this node's own
+log and root list — a convenience, and, like `.well-known`, unauthenticated and non-evidentiary: a
+client that needs the answer to actually hold recomputes it, either by walking
+`GET /owm/v1/subjects/{id}` itself or by importing package `trust` directly (it is Apache-2.0 and
+has no dependency on `node/`).
+
 ## Storage
 
 `modernc.org/sqlite` — pure Go, no cgo. That is not a detail: it is the only way to build binaries
