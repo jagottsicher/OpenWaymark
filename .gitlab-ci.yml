@@ -138,9 +138,11 @@ fuzz-smoke:
     - |
         if ! ssh-keygen -y -f /tmp/deploy_key > /dev/null 2>&1; then
           echo "SSH_PRIVATE_KEY does not parse as a valid private key."
-          echo "length: $(wc -c < /tmp/deploy_key) bytes"
+          echo "length: $(wc -c < /tmp/deploy_key) bytes, lines: $(wc -l < /tmp/deploy_key)"
           echo "first line (boilerplate only, not secret):"
           head -n1 /tmp/deploy_key
+          echo "last line (boilerplate only, not secret):"
+          tail -n1 /tmp/deploy_key
           exit 1
         fi
     - ssh-add /tmp/deploy_key
