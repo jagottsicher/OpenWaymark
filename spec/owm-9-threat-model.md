@@ -77,6 +77,8 @@ Anyone who confuses the two overestimates the system.
 | A11 | Server lying to the client | B | yes, through client-side checking |
 | A12 | Failure of a node | N, B | partly |
 | A13 | Record today, decrypt later | Q | yes, through PQ schemes |
+| A14 | Full payload disclosure, business collapsing into person | A | no |
+| A15 | Entity succession has no durable, attributable statement | A, B | partly, only the compromise case |
 
 ### A1 — Split view · **the central attack**
 
@@ -308,6 +310,64 @@ signature forged later helps little if its position in the tree is already attes
 For payloads that must stay confidential the urgency is real, and that is precisely why PQ applies
 from day one rather than as a migration project.
 
+### A14 — Full payload disclosure, and business collapsing into person
+
+`GET /owm/v1/entries/{id}/payload` serves the complete payload to anyone who has the entry ID —
+no authentication, no field-level filtering, no access tier between "public metadata" and
+"public everything" ([confirmed against `node/server.go`'s `handlePayload`: it forwards the
+stored payload whole, or 410 if erased — nothing in between]). That is a deliberate, reasoned
+trade for the corporate case: §3 names "anonymity of participants" as an explicit non-goal,
+because the trust level system rests on identifiability. Every profile's `party` definition
+follows from that reasoning — it forbids naming a natural person while permitting a named
+business, on the assumption that the two are separable.
+
+That assumption does not hold for an independent smallholder — precisely the participant
+`community/default nodes` exist for. For a sole proprietor, the business *is* the person; there
+is no second identity to fall back on. Combined with a profile like `eudr.v1`, whose geolocation
+field is point-level for plots ≤4ha specifically (the regulation's own threshold, not this
+project's choice), an unauthenticated reader gets a named individual at a specific coordinate,
+no login required, no different from reading a public company's registered address.
+
+Erasure does not retroactively fix this: erasure is a deletion the data holder chooses to make
+later, at their own discretion. It does not change that the payload was fully public, to anyone
+who asked, from the moment it was submitted until that choice was made — and nothing obliges the
+choice to be made at all.
+
+**Not covered today.** Possible mitigations, none built: field-level access tiers on the payload
+endpoint (in tension with the "unauthenticated, for the world" design of the public API
+elsewhere); coarser aggregation for small holdings at the profile level (a cooperative-level
+identifier instead of a per-farmer one — a profile choice, not a protocol one); selective
+payload encryption via ML-KEM, the same later, not-yet-numbered stage already named under A9.
+
+### A15 — Entity succession has no durable, attributable statement
+
+A legal-form conversion (GmbH → AG), an IPO, or an acquisition where the surviving entity keeps
+its own key all fall out of the existing mechanism cleanly: the accreditation body that attested
+the old status issues a `revocation` for the stale attestation and a fresh one for the new — the
+ordinary claim/confirmation split (OWM-6) doing exactly what it is for. **Not a gap.** Trust
+levels are never inherited automatically either way, which is the correct default, not a missing
+feature: a buyer does not acquire a seller's accreditation by acquiring the seller.
+
+The gap sits one case over: an entity is absorbed into an *already independently operating*
+different entity, and its own key's participation ends for good. `key_rotation` (A6) does not fit
+this shape — it is a statement by an identity about its own successor key, for continuity of the
+*same* identity, not a statement that a *different*, pre-existing identity now continues the
+business. Nothing in the protocol has that second vocabulary. What remains is silence: whoever
+operates the node stops accepting entries under that key, a decision `node/rotation.go` itself
+notes is "a separate step taken by the operator" — locally, not as a signed, logged, public
+statement.
+
+That silence is exactly what A3 (withholding) and A12 (node failure) already discuss, from a
+different angle each. Neither distinguishes a legitimate, voluntary wind-down from those two. An
+outside reader sees the same thing in all three cases — a key that stopped signing — and has no
+way to tell "the business was sold, ask the successor" from "the operator is hiding something"
+from "the lights went out." A `decommission` event exists per profile, for a *product's* ending;
+there is nothing equivalent at the *entity* level in `core` or `trust/`.
+
+**Partly covered:** only the involuntary case (A6, key compromise, with a timestamped revocation)
+is. The voluntary, ordinary case — a business concluding on its own terms — has no channel to say
+so on the record.
+
 ## 6. Who watches — observer incentives
 
 The entire tamper-evidence argument rests on somebody actually comparing STHs. A single observer
@@ -371,6 +431,8 @@ two independently operated nodes carry real data.
 | A node operator can refuse entries | A consequence of the autonomy that makes up the federation. |
 | Erasure does not reach lawfully distributed copies | An operational and contractual question, not a protocol question. |
 | The operator sees the payloads of its participants | Community nodes require trust in the operator. Whoever does not want that runs a node of their own — that is what federation is for. |
+| Full payload disclosure to any reader (A14) | The public-API-for-the-world non-goal (§3) was reasoned through for organisations, not sole proprietors; narrowing it needs profile-level field discipline or the encryption stage under A9, neither built yet. |
+| Entity succession leaves no public trace (A15) | Key retirement is a local operator decision, not a logged statement; readers cannot distinguish a legitimate wind-down from A3's withholding or A12's failure. |
 
 ## 8. What follows from this for the implementation
 
