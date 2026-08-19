@@ -155,21 +155,23 @@ yesterday would be invalid today without anyone having touched it. Changes appea
 Further profiles reuse the same mechanism, each interoperating with the regimes that already govern
 its industry rather than inventing new ones:
 
-| Profile | Covers | Interoperates with |
-|---|---|---|
-| [`food.v1`](profiles/food/) | farm to consumer | GS1 EPCIS 2.0 |
-| [`pharma.v1`](profiles/pharma/) | starting material to dispensing | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
-| [`meddevice.v1`](profiles/meddevice/) | implants and capital equipment (CT, MRI, X-ray) | EU MDR/UDI/EUDAMED, FDA UDI/GUDID, IMDRF, ISO 13485 |
-| [`aviation.v1`](profiles/aviation/) | aircraft parts, back-to-birth | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
-| [`vehicle.v1`](profiles/vehicle/) | used cars/motorcycles, incl. classic-car provenance | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
-| [`electronics.v1`](profiles/electronics/) | components (RAM, SSDs) to finished devices | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
-| [`minerals.v1`](profiles/minerals/) | ore/3TG through smelting to a manufacturer | EU Conflict Minerals Regulation, OECD Due Diligence Guidance, EU Critical Raw Materials Act |
-| [`seafood.v1`](profiles/seafood/) | vessel to plate | EU CATCH, US Seafood Import Monitoring Program |
-| [`eudr.v1`](profiles/eudr/) | timber, cocoa, coffee, palm oil, soy, rubber, cattle | EU Deforestation Regulation |
-| [`diamonds.v1`](profiles/diamonds/) | mine through cutting/polishing to a retailer | Kimberley Process, US FTC lab-grown disclosure |
-| [`eu/battery.v1`](profiles/eu/battery/) | portable, LMT, EV, industrial, SLI batteries | EU Battery Regulation, Digital Battery Passport |
+| Profile | Status | Covers | Concrete use case | Interoperates with |
+|---|---|---|---|---|
+| [`food.v1`](profiles/food/) | done | farm to consumer | cold-chain breach detection, organic certification | GS1 EPCIS 2.0 |
+| [`pharma.v1`](profiles/pharma/) | done | starting material to dispensing | counterfeit/diverted drugs, cold chain | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
+| [`meddevice.v1`](profiles/meddevice/) | done | implants and capital equipment (CT, MRI, X-ray) | gray-market device reuse, maintenance history | EU MDR/UDI/EUDAMED, FDA UDI/GUDID, IMDRF, ISO 13485 |
+| [`aviation.v1`](profiles/aviation/) | done | aircraft parts, back-to-birth | counterfeit parts (the AOG Technics case) | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
+| [`vehicle.v1`](profiles/vehicle/) | done | used cars/motorcycles, incl. classic-car provenance | odometer rollback, title washing | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
+| [`electronics.v1`](profiles/electronics/) | done | components (RAM, SSDs) to finished devices | counterfeit parts, recycled-content claims | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
+| [`minerals.v1`](profiles/minerals/) | done | ore/3TG through smelting to a manufacturer | conflict-mineral due diligence | EU Conflict Minerals Regulation, OECD Due Diligence Guidance, EU Critical Raw Materials Act |
+| [`seafood.v1`](profiles/seafood/) | done | vessel to plate | illegal, unreported and unregulated fishing | EU CATCH, US Seafood Import Monitoring Program |
+| [`eudr.v1`](profiles/eudr/) | done | timber, cocoa, coffee, palm oil, soy, rubber, cattle | deforestation-free due diligence | EU Deforestation Regulation |
+| [`diamonds.v1`](profiles/diamonds/) | done | mine through cutting/polishing to a retailer | conflict diamonds, lab-grown fraud | Kimberley Process, US FTC lab-grown disclosure |
+| [`eu/battery.v1`](profiles/eu/battery/) | done | portable, LMT, EV, industrial, SLI batteries | carbon footprint, second-life tracking | EU Battery Regulation, Digital Battery Passport |
 
-Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
+All eleven profiles above are fully implemented, tested and merged into `develop` — none is a
+draft or a research note; those live as open points in the individual spec files instead. Every
+normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 
 ### Trust levels and attestation
 
@@ -271,6 +273,7 @@ far is meant for production use.
 | E3 | node server, HTTP API, profile `food.v1` | done |
 | E4 | federation: DNS discovery, gossip, `monitor/` | done |
 | E5 | trust levels, attestations, sensor certificates | done |
+| — | ten further schema profiles across other industries (see the table above) | done |
 | E6 | web app and WASM verifier | next |
 | E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
