@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Processing",
+  "description": "Cutting and polishing: rough diamond in, cut stone out. The chain of origin stays traceable because the input is listed in the entry's par field.",
+  "type": "object",
+  "required": ["process", "inputs", "outputs"],
+  "properties": {
+    "process": {
+      "description": "What was done, e.g. \"cutting\" or \"polishing\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

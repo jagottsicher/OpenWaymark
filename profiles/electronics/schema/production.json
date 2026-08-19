@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production",
+  "description": "A component lot or a finished device comes into being. The subject of the entry is the lot or the device itself.",
+  "type": "object",
+  "required": ["product"],
+  "properties": {
+    "product": { "$ref": "defs.json#/$defs/product" },
+    "quantity": { "$ref": "defs.json#/$defs/quantity" }
+  }
+}

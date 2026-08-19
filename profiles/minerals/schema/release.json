@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "A smelter or refiner certifies conformance to a due-diligence audit scheme (OECD Due Diligence Guidance step 4 - the real-world analogue is the RMI's RMAP 'Conformant' designation). A claim, not a confirmation - whether the auditing body is itself legitimate is answered by its entity trust level (OWM-6), not by this schema (spec Sec.5).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the certification, e.g. \"oecd-5step\" or \"rmap\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": { "$ref": "defs.json#/$defs/text" }
+  }
+}

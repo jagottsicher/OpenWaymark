@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Handover",
+  "description": "Change of ownership - a title transfer.",
+  "type": "object",
+  "required": ["to"],
+  "properties": {
+    "from": { "$ref": "defs.json#/$defs/party" },
+    "to": { "$ref": "defs.json#/$defs/party" },
+    "odometer": { "$ref": "defs.json#/$defs/odometer" },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["sale", "lease", "other"]
+        },
+        "id": { "$ref": "defs.json#/$defs/text" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  }
+}

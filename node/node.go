@@ -30,7 +30,18 @@ import (
 	owmlog "openwaymark.org/owm/log"
 	"openwaymark.org/owm/log/sqlite"
 	"openwaymark.org/owm/profiles"
+	"openwaymark.org/owm/profiles/aviation"
+	"openwaymark.org/owm/profiles/diamonds"
+	"openwaymark.org/owm/profiles/electronics"
+	"openwaymark.org/owm/profiles/eu/battery"
+	"openwaymark.org/owm/profiles/eudr"
 	"openwaymark.org/owm/profiles/food"
+	"openwaymark.org/owm/profiles/meddevice"
+	"openwaymark.org/owm/profiles/minerals"
+	"openwaymark.org/owm/profiles/pharma"
+	"openwaymark.org/owm/profiles/seafood"
+	"openwaymark.org/owm/profiles/vehicle"
+	"openwaymark.org/owm/trust"
 )
 
 // Errors that reject a submission.
@@ -47,13 +58,14 @@ var (
 
 // Node ties together log, key directory and profiles.
 type Node struct {
-	cfg      Config
-	identity *Identity
-	store    *sqlite.Store
-	log      *owmlog.Log
-	keys     *KeyDirectory
-	profiles *profiles.Registry
-	now      func() time.Time
+	cfg        Config
+	identity   *Identity
+	store      *sqlite.Store
+	log        *owmlog.Log
+	keys       *KeyDirectory
+	profiles   *profiles.Registry
+	trustRoots trust.RootSet
+	now        func() time.Time
 }
 
 // Open opens database and identity and builds a node ready for operation.
@@ -97,21 +109,37 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 		store.Close()
 		return nil, err
 	}
+	roots, err := loadTrustRoots(cfg.TrustRootsFile)
+	if err != nil {
+		store.Close()
+		return nil, err
+	}
 	return &Node{
-		cfg:      cfg,
-		identity: identity,
-		store:    store,
-		log:      l,
-		keys:     keys,
-		profiles: reg,
-		now:      time.Now,
+		cfg:        cfg,
+		identity:   identity,
+		store:      store,
+		log:        l,
+		keys:       keys,
+		profiles:   reg,
+		trustRoots: roots,
+		now:        time.Now,
 	}, nil
 }
 
 // buildRegistry loads the requested profiles.
 func buildRegistry(want []string) (*profiles.Registry, error) {
 	available := map[string]func() (*profiles.Profile, error){
-		food.ID: food.New,
+		food.ID:        food.New,
+		pharma.ID:      pharma.New,
+		meddevice.ID:   meddevice.New,
+		aviation.ID:    aviation.New,
+		vehicle.ID:     vehicle.New,
+		electronics.ID: electronics.New,
+		minerals.ID:    minerals.New,
+		seafood.ID:     seafood.New,
+		eudr.ID:        eudr.New,
+		diamonds.ID:    diamonds.New,
+		battery.ID:     battery.New,
 	}
 	reg := profiles.NewRegistry()
 	if len(want) == 0 {
@@ -154,6 +182,13 @@ func (n *Node) Keys() *KeyDirectory { return n.keys }
 // Profiles returns the loaded profiles.
 func (n *Node) Profiles() *profiles.Registry { return n.profiles }
 
+// TrustRoots returns the locally recognised accreditation roots (OWM-6 §8).
+func (n *Node) TrustRoots() trust.RootSet { return n.trustRoots }
+
+// TrustSource returns a trust.Source that walks this node's own log —
+// what trust.Compute needs to recompute an entity's trust level.
+func (n *Node) TrustSource() trust.Source { return &logSource{n: n} }
+
 // Identity returns the node's identity.
 func (n *Node) Identity() *Identity { return n.identity }
 
@@ -167,7 +202,7 @@ func (n *Node) Config() Config { return n.cfg }
 //
 //  1. Entry type — erasure witnesses are created by the node itself only.
 //  2. Payload size.
-//  3. Profile and schema.
+//  3. Profile and schema; an attestation payload's shape (OWM-6 §3).
 //  4. Signature and issuer (in the log, through the key directory).
 //  5. Commitment against payload (in the log).
 //
@@ -201,6 +236,11 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 	}
 
 	if hasCommitment {
+		if e.Type == core.EntryTypeAttestation {
+			if err := checkAttestationPayload(payload); err != nil {
+				return nil, err
+			}
+		}
 		if err := n.profiles.Check(e, payload); err != nil {
 			return nil, err
 		}

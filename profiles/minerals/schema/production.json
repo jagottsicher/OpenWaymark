@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production",
+  "description": "Ore or concentrate is extracted at a mine. The subject of the entry is the batch that came into being.",
+  "type": "object",
+  "required": ["product"],
+  "properties": {
+    "product": { "$ref": "defs.json#/$defs/product" },
+    "quantity": { "$ref": "defs.json#/$defs/quantity" }
+  }
+}

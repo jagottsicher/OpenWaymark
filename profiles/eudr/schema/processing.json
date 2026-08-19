@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Processing",
+  "description": "Cocoa beans into chocolate, raw rubber into processed rubber, and so on. The chain of origin stays traceable because the inputs are listed in the entry's par field.",
+  "type": "object",
+  "required": ["process", "inputs", "outputs"],
+  "properties": {
+    "process": {
+      "description": "What was done, e.g. \"fermenting\" or \"milling\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Processing",
+  "description": "End-of-life recycling: the device as input, recovered materials as outputs (WEEE Directive). The chain of origin stays traceable because the input is listed in the entry's par field.",
+  "type": "object",
+  "required": ["process", "inputs", "outputs"],
+  "properties": {
+    "process": {
+      "description": "What was done, e.g. \"shredding\" or \"material recovery\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

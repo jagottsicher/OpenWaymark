@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Handover",
+  "description": "Change of responsibility or ownership - manufacturer to wholesaler, wholesaler to pharmacy (DSCSA T3 trigger; FMD chain of custody). Who may legitimately appear on either side is answered by the counterparty's entity trust level (OWM-6), not by this schema - see spec Sec.8.2 on Authorized Trading Partner verification.",
+  "type": "object",
+  "required": ["to"],
+  "properties": {
+    "from": { "$ref": "defs.json#/$defs/party" },
+    "to": { "$ref": "defs.json#/$defs/party" },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "Kind of document: purchase order, despatch advice, invoice, bill of lading, other.",
+          "enum": ["po", "desadv", "inv", "bol", "other"]
+        },
+        "id": { "$ref": "defs.json#/$defs/text" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "items": {
+      "description": "The units handed over, if they are more than the subject of the entry.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

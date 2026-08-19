@@ -152,13 +152,45 @@ handover — so that industry can connect without a translation layer.
 A profile version never changes: were `food.v1` different today from yesterday, an entry from
 yesterday would be invalid today without anyone having touched it. Changes appear as `food.v2`.
 
+Further profiles reuse the same mechanism, each interoperating with the regimes that already govern
+its industry rather than inventing new ones:
+
+| Profile | Status | Covers | Concrete use case | Interoperates with |
+|---|---|---|---|---|
+| [`food.v1`](profiles/food/) | done | farm to consumer | cold-chain breach detection, organic certification | GS1 EPCIS 2.0 |
+| [`pharma.v1`](profiles/pharma/) | done | starting material to dispensing | counterfeit/diverted drugs, cold chain | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
+| [`meddevice.v1`](profiles/meddevice/) | done | implants and capital equipment (CT, MRI, X-ray) | gray-market device reuse, maintenance history | EU MDR/UDI/EUDAMED, FDA UDI/GUDID, IMDRF, ISO 13485 |
+| [`aviation.v1`](profiles/aviation/) | done | aircraft parts, back-to-birth | counterfeit parts (the AOG Technics case) | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
+| [`vehicle.v1`](profiles/vehicle/) | done | used cars/motorcycles, incl. classic-car provenance | odometer rollback, title washing | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
+| [`electronics.v1`](profiles/electronics/) | done | components (RAM, SSDs) to finished devices | counterfeit parts, recycled-content claims | IPC-1782, EU ESPR/Digital Product Passport, WEEE |
+| [`minerals.v1`](profiles/minerals/) | done | ore/3TG through smelting to a manufacturer | conflict-mineral due diligence | EU Conflict Minerals Regulation, OECD Due Diligence Guidance, EU Critical Raw Materials Act |
+| [`seafood.v1`](profiles/seafood/) | done | vessel to plate | illegal, unreported and unregulated fishing | EU CATCH, US Seafood Import Monitoring Program |
+| [`eudr.v1`](profiles/eudr/) | done | timber, cocoa, coffee, palm oil, soy, rubber, cattle | deforestation-free due diligence | EU Deforestation Regulation |
+| [`diamonds.v1`](profiles/diamonds/) | done | mine through cutting/polishing to a retailer | conflict diamonds, lab-grown fraud | Kimberley Process, US FTC lab-grown disclosure |
+| [`eu/battery.v1`](profiles/eu/battery/) | done | portable, LMT, EV, industrial, SLI batteries | carbon footprint, second-life tracking | EU Battery Regulation, Digital Battery Passport |
+
+All eleven profiles above are fully implemented, tested and merged into `develop` — none is a
+draft or a research note; those live as open points in the individual spec files instead. Every
+normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
+
+### Trust levels and attestation
+
+Two separate dimensions, never collapsed into one number: how verified is the entity behind a key
+(0, unverified, through 6, a state body itself), and how forgery-resistant is a product's
+physical-digital binding (a printed QR code through a PUF-backed chip). A level is never
+self-declared — [`trust/`](trust/) computes it by walking `attestation` entries back to a locally
+recognised accreditation root, the same trust-anchor idea as a browser's root-CA store, kept local
+to each operator and never gossiped. The overall trust of a supply chain is the *minimum* across
+every participant and binding involved: one weak link drags the whole chain down to its own level.
+Full description: [OWM-6](spec/owm-6-trust.md).
+
 ### Cryptography
 
 | | |
 |---|---|
 | Signatures (nodes, entities) | ML-DSA-65 — 1952 B public key, 3309 B signature |
 | Signatures (sensors, bulk entries) | ML-DSA-44 — 1312 B public key, 2420 B signature |
-| Encryption (planned, E5) | ML-KEM via `crypto/mlkem` from the standard library |
+| Encryption (planned, a later stage) | ML-KEM via `crypto/mlkem` from the standard library |
 | Hash | SHA-256, everywhere with domain separation (`OWM/1 entry`, `OWM/1 commit`, …) |
 | Serialisation | deterministic CBOR, RFC 8949 §4.2 |
 
@@ -215,9 +247,10 @@ wants to pull in `core/` on its own.
 | [`spec/`](spec/) | protocol specification, normative | Apache-2.0 |
 | [`core/`](core/) | entry types, deterministic CBOR, ML-DSA, commitments | Apache-2.0 |
 | [`log/`](log/) | Merkle log, STH, inclusion and consistency proofs, erasure path | Apache-2.0 |
-| [`profiles/`](profiles/) | schema profiles, starting with [`food/`](profiles/food/) | Apache-2.0 |
+| [`profiles/`](profiles/) | schema profiles — see the table above | Apache-2.0 |
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
+| [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
 | [`monitor/`](monitor/) | independent log monitor | AGPL-3.0-only |
 | [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
@@ -239,8 +272,9 @@ far is meant for production use.
 | E2 | Merkle log, STH, proofs, erasure path | done |
 | E3 | node server, HTTP API, profile `food.v1` | done |
 | E4 | federation: DNS discovery, gossip, `monitor/` | done |
-| E5 | trust levels, attestations, sensor certificates | next |
-| E6 | web app and WASM verifier | open |
+| E5 | trust levels, attestations, sensor certificates | done |
+| — | ten further schema profiles across other industries (see the table above) | done |
+| E6 | web app and WASM verifier | next |
 | E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
 E7/E8 wait until at least two independently operated nodes carry real data. Only then can cap
@@ -256,6 +290,7 @@ deliberately built so that it does not depend on them.
 | [OWM-3](spec/owm-3-keys.md) | keys, node identity, directory, rotation |
 | [OWM-4](spec/owm-4-profiles.md) | profile mechanism and the food profile `food.v1` |
 | [OWM-5](spec/owm-5-federation.md) | federation: DNS discovery, gossip, the independent monitor's contract |
+| [OWM-6](spec/owm-6-trust.md) | trust levels, attestation entries, sensor certificates |
 | [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
 | [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
 

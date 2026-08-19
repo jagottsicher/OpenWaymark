@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "The Due Diligence Statement itself, filed and rated for risk. A claim, not a confirmation - whether the filing operator is who they claim is answered by their entity trust level (OWM-6), not by this schema (spec Sec.5).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the statement, e.g. \"eudr-dds\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": {
+      "description": "The Due Diligence Statement reference number.",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "risk_rating": {
+      "enum": ["negligible", "standard", "high"]
+    }
+  }
+}

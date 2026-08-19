@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transport",
+  "description": "Import or export shipment, departure or arrival.",
+  "type": "object",
+  "required": ["step"],
+  "properties": {
+    "step": {
+      "enum": ["departure", "arrival"]
+    },
+    "carrier": { "$ref": "defs.json#/$defs/party" },
+    "from": { "$ref": "defs.json#/$defs/location" },
+    "to": { "$ref": "defs.json#/$defs/location" },
+    "consignment": {
+      "description": "Identifier of the shipment, e.g. bill of lading number.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the medical device profile meddevice.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons - patients above all - do not belong in here; the profile knows only operations: manufacturers, facilities, servicers (spec Sec.9).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "srn": {
+          "description": "EUDAMED Single Registration Number, where the party is a registered economic operator.",
+          "$ref": "#/$defs/text"
+        },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "geo": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+            "lon": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "required": ["lat", "lon"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "product": {
+      "description": "One serialized device or component - always instance level, this profile has no lot stage (spec Sec.3).",
+      "type": "object",
+      "properties": {
+        "udi_di": {
+          "description": "UDI Device Identifier - the model-level identifier, the primary key in EUDAMED/GUDID.",
+          "$ref": "#/$defs/text"
+        },
+        "udi_pi": {
+          "description": "UDI Production Identifier for this specific unit - a serial number throughout this profile's scope (spec Sec.3).",
+          "$ref": "#/$defs/text"
+        },
+        "name": { "$ref": "#/$defs/text" },
+        "class": {
+          "description": "MDR risk class.",
+          "enum": ["I", "IIa", "IIb", "III"]
+        },
+        "device_type": {
+          "description": "Free-text device type, e.g. \"MRI scanner\", \"hip stem implant\".",
+          "$ref": "#/$defs/text"
+        },
+        "expiry": {
+          "description": "Shelf-life expiry, for sterile devices where applicable.",
+          "$ref": "#/$defs/date"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with device details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

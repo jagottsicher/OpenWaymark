@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the pharmaceutical profile pharma.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here; the profile knows only operations (spec Sec.11).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "gln": { "type": "string", "pattern": "^[0-9]{13}$" },
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "geo": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+            "lon": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "required": ["lat", "lon"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "quantity": {
+      "description": "Quantity with a unit per UN/CEFACT Recommendation 20, e.g. KGM, GRM, LTR, H87 (pieces).",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 8 }
+      },
+      "required": ["value", "unit"],
+      "additionalProperties": false
+    },
+    "product": {
+      "description": "A batch, intermediate, API or finished-dosage-form unit (spec Sec.5, Sec.10).",
+      "type": "object",
+      "properties": {
+        "gtin": { "type": "string", "pattern": "^[0-9]{8,14}$" },
+        "ndc": {
+          "description": "US National Drug Code, optional alongside gtin - DSCSA's own barcode encodes a GTIN derived from the NDC.",
+          "$ref": "#/$defs/text"
+        },
+        "name": { "$ref": "#/$defs/text" },
+        "lot": { "$ref": "#/$defs/text" },
+        "serial": {
+          "description": "The individual unit's printed/scanned serial number. Distinct from, and never used to derive, the entry's subject ID (spec Sec.11, OWM-9 A10) - only meaningful at stage finished_product, instance level.",
+          "$ref": "#/$defs/text"
+        },
+        "expiry": {
+          "description": "Expiry date, or a starting-material/intermediate's retest date - both answer 'how long is this batch usable'.",
+          "$ref": "#/$defs/date"
+        },
+        "stage": {
+          "description": "Which regulatory regime governs this entry: ICH Q7 for the first three, DSCSA/FMD once finished_product is reached (spec Sec.5).",
+          "enum": ["starting_material", "intermediate", "api", "finished_product"]
+        },
+        "controlled_substance_schedule": {
+          "description": "DEA schedule, absent for an uncontrolled drug. Flags the additional ARCOS/Form 222 regime (spec Sec.5, Sec.12).",
+          "enum": ["I", "II", "III", "IV", "V"]
+        },
+        "coa_ref": {
+          "description": "Reference to the Certificate of Analysis for this batch, held off-chain.",
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with quantity and goods details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

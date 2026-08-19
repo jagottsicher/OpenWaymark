@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Maintenance",
+  "description": "Service performed on a device already in active use - preventive maintenance, calibration, a corrective repair, a software update. Distinct from measurement: this is a claim by whoever performed the service, not a sensor reading (spec Sec.6). A capital device overdue on this history is itself something a client can flag, independent of any single measurement.",
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "enum": ["preventive", "corrective", "calibration", "software_update"]
+    },
+    "outcome": {
+      "enum": ["pass", "fail", "conditional"]
+    },
+    "parts_replaced": {
+      "description": "Component-level trail - the same gray-market/counterfeit-part concern aviation.v1's AS6081 grounding names for an adjacent industry.",
+      "type": "array",
+      "items": { "$ref": "defs.json#/$defs/text" },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "reference": {
+      "description": "Reference to the service record, held off-chain.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

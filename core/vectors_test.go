@@ -164,6 +164,15 @@ func vectorFixtures() []vectorFixture {
 	parentB := hashLabeled(labelEntryID, []byte("parent b"))
 	logID := LogID(hashLabeled(labelLogID, []byte("example-log")))
 
+	// A genuinely foreign key for the attestation fixture below — unlike
+	// key-rotation's Subject, which is the signer's own future key, an
+	// attestation's Subject names someone else's key entirely (OWM-6 §3).
+	attestedKey, err := NewKeyFromSeed(SigAlgMLDSA65, bytes.Repeat([]byte{0x03}, SigAlgMLDSA65.SeedSize()))
+	if err != nil {
+		panic("owm: vector fixtures: " + err.Error())
+	}
+	attestedKeyID := attestedKey.Public().ID()
+
 	base := func(k *PrivateKey) *Entry {
 		return &Entry{
 			Version:    FormatVersion,
@@ -227,6 +236,21 @@ func vectorFixtures() []vectorFixture {
 				e.Type = EntryTypeKeyRotation
 				e.Subject = SubjectID(k.Public().ID())
 				e.Commitment = Commit(fixtureSalt, []byte("successor key"))
+				return e
+			},
+		},
+		{
+			name: "attestation",
+			note: "Entity trust-level attestation (OWM-6 §3). Subject is a foreign key, " +
+				"not the issuer's own — the issuer is vouching for someone else.",
+			alg: SigAlgMLDSA65, seed: 0x01,
+			build: func(k *PrivateKey) *Entry {
+				e := base(k)
+				e.Type = EntryTypeAttestation
+				e.Subject = SubjectID(attestedKeyID)
+				e.Commitment = Commit(fixtureSalt, []byte(
+					`{"kind":"entity","level":4,"scheme":"iso17065",`+
+						`"evidence_url":"https://example-cert-body.org/cert/12345"}`))
 				return e
 			},
 		},

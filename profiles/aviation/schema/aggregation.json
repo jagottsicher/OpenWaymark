@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aggregation",
+  "description": "Installed into, or removed from, a higher assembly - a bushing into an engine, an engine onto an aircraft. The subject of the entry is the assembly; the components are listed in children.",
+  "type": "object",
+  "required": ["action", "children"],
+  "properties": {
+    "action": {
+      "enum": ["install", "remove"]
+    },
+    "container": {
+      "description": "The assembly itself, e.g. the engine or the airframe.",
+      "$ref": "defs.json#/$defs/product"
+    },
+    "children": {
+      "description": "The parts installed or removed. The upper limit matches core.MaxParents.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "defs.json#/$defs/item" }
+    }
+  }
+}

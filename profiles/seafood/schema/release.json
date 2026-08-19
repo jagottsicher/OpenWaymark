@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "A validating authority certifies the catch certificate (EU CATCH's own 'Validating Authority' field). A claim, not a confirmation - whether the authority is legitimate is answered by its entity trust level (OWM-6), not by this schema (spec Sec.4).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the certification, e.g. \"eu-catch\" or \"simp\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": {
+      "description": "The catch certificate document number.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

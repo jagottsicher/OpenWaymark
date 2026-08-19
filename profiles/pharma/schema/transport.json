@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Transport",
+  "description": "Departure or arrival of a shipment (EU GDP). Departure and arrival are two entries, usually issued by two different parties - the agreement between both statements is part of the evidence.",
+  "type": "object",
+  "required": ["step"],
+  "properties": {
+    "step": {
+      "enum": ["departure", "arrival"]
+    },
+    "carrier": { "$ref": "defs.json#/$defs/party" },
+    "from": { "$ref": "defs.json#/$defs/location" },
+    "to": { "$ref": "defs.json#/$defs/location" },
+    "consignment": {
+      "description": "Identifier of the consignment, e.g. container or waybill number.",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "conditions": {
+      "description": "Carriage conditions promised. Whether they were kept is what measurement entries say - not this field (spec Sec.7.1, Sec.7.3).",
+      "type": "object",
+      "properties": {
+        "temperature_c": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        },
+        "max_transit_hours": {
+          "description": "The lane's qualified maximum transit time. Actual transit time is derived by comparing the two transport entries' time fields, not stored here.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  }
+}

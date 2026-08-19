@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenWaymark aviation profile aviation.v1",
+  "description": "Root schema. The event field selects the event type; the fields that go with it live in the respective sub-schema. unevaluatedProperties forbids anything provided for neither here nor there.",
+  "type": "object",
+  "required": ["event", "time"],
+  "properties": {
+    "event": {
+      "enum": [
+        "production",
+        "aggregation",
+        "transport",
+        "handover",
+        "measurement",
+        "release",
+        "decommission"
+      ]
+    },
+    "time": {
+      "description": "Point in time of the event in the real world. Not to be confused with iat in the entry (time of issue) or with the time of receipt in the leaf.",
+      "$ref": "defs.json#/$defs/timestamp"
+    },
+    "party": {
+      "description": "Who acted.",
+      "$ref": "defs.json#/$defs/party"
+    },
+    "location": {
+      "description": "Where it happened.",
+      "$ref": "defs.json#/$defs/location"
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 1000
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "event": { "const": "production" } }, "required": ["event"] },
+      "then": { "$ref": "production.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "aggregation" } }, "required": ["event"] },
+      "then": { "$ref": "aggregation.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "transport" } }, "required": ["event"] },
+      "then": { "$ref": "transport.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "handover" } }, "required": ["event"] },
+      "then": { "$ref": "handover.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "measurement" } }, "required": ["event"] },
+      "then": { "$ref": "measurement.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "release" } }, "required": ["event"] },
+      "then": { "$ref": "release.json" }
+    },
+    {
+      "if": { "properties": { "event": { "const": "decommission" } }, "required": ["event"] },
+      "then": { "$ref": "decommission.json" }
+    }
+  ],
+  "unevaluatedProperties": false
+}

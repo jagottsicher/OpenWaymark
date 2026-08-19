@@ -288,9 +288,89 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
 - **No revocation event in the profile.** A wrong event is withdrawn through a `revocation` entry
   of the core, not through a profile field. Whether that suffices in practice remains to be seen.
 - Mapping to existing code lists for `process` in `processing` — currently free text.
-- `eu/battery.v1` as the second profile (EU battery passport, mandatory from February 2027). It is
-  the real test of whether the mechanism is industry-agnostic: if the core has to be touched for
-  it, part A has failed.
+- ~~`eu/battery.v1` as the second profile (EU battery passport, mandatory from February 2027). It
+  is the real test of whether the mechanism is industry-agnostic: if the core has to be touched
+  for it, part A has failed.~~ **Implemented, `profiles/eu/battery/`, spec at
+  `spec/owm-4-battery.md` — see below, in its actual build order, not the order it was
+  earmarked in. The core was not touched.**
+- [`pharma.v1`](owm-4-pharma.md) — **implemented**, `profiles/pharma/`, loaded by every node
+  alongside `food.v1` by default. A second, independent data point for the same test: six of its
+  nine events are `food.v1`'s, unchanged, and the three genuinely new ones (facility storage, a
+  batch-release certification, a unit decommissioning) needed nothing from the core either — only
+  new profile-level payload shape. No core change either time is starting to look less like luck
+  and more like the mechanism actually working as designed.
+- [`aviation.v1`](owm-4-aviation.md) — **implemented**, `profiles/aviation/`. A third data point,
+  and the first to need *fewer* events than `food.v1` (no `processing`, no `storage`) rather than
+  more — nothing in an aircraft part's own back-to-birth record transforms it into a structurally
+  different part, unlike milk into cheese or API into tablets. Also the first profile with a fixed
+  answer to OWM-4 §10.1's subject-granularity question: always instance-level, no lot stage exists
+  to model at all.
+- [`vehicle.v1`](owm-4-vehicle.md) — **implemented**, `profiles/vehicle/`. A fourth data point,
+  sharing `aviation.v1`'s always-instance-level answer (a VIN, like a serial number, never has a
+  lot stage) and adding one genuinely new pattern: two independent paths to the same fact
+  (`measurement` for device-sourced odometer data, a plain `odometer` field on `inspection`/
+  `handover` for a human-witnessed reading), both feeding the identical rollback-detection logic —
+  proof that the claim/confirmation split generalises to "which of several sources is this," not
+  only to "is this claim backed."
+- [`electronics.v1`](owm-4-electronics.md) — **implemented**, `profiles/electronics/`. A fifth
+  data point, and the second (after `pharma.v1`) with the same two-tier subject-granularity shape —
+  lot-level components, instance-level finished devices, distinguished purely by which field a
+  `product` carries rather than a dedicated flag. Aligned with IPC-1782 rather than GS1 EPCIS, the
+  clearest evidence yet that the mechanism does not assume EPCIS specifically — only that *some*
+  existing industry vocabulary exists to align with.
+- [`minerals.v1`](owm-4-minerals.md) — **implemented**, `profiles/minerals/`. A sixth data point,
+  and the first to drop an event other profiles keep: no `decommission`, because a mineral batch
+  never has a life that ends the way a device or vehicle does — `processing` already retires an
+  input into its output. `release` here is a facility-level conformance claim (RMAP-style), not a
+  per-batch one, but the mechanism needs nothing new for that distinction — the smelter's own key
+  still self-declares it, exactly like a QP or a Part-145 org elsewhere, and it is that key's own
+  OWM-6 trust level, backed by whatever accreditation chain a verifier recognises, that decides
+  whether the claim is worth anything.
+- [`seafood.v1`](owm-4-seafood.md) — **implemented**, `profiles/seafood/`. A seventh data point,
+  and the first defined as a direct sibling of `food.v1` rather than an independent design: its
+  `production` event carries the same name and meaning `food.v1`'s own doc comment already named
+  "catch" as an example of, even though each profile still pins its own, independently versioned
+  schema file — §4.3's no-cross-profile-`$ref` rule applies here as everywhere. The reuse is at the
+  level of concept and vocabulary, not shared bytes, and that already turns out to be enough.
+- [`eudr.v1`](owm-4-eudr.md) — **implemented**, `profiles/eudr/`. An eighth data point, and the
+  only one named after a regulation rather than an industry — timber, cocoa, coffee, palm oil, soy,
+  rubber and cattle have essentially nothing else in common, but the EU Deforestation Regulation's
+  geolocation requirement applies identically across all of them, which turned out to matter more
+  for how the profile is shaped than any one commodity's own processing steps. Also carries the
+  field closest to personal data anywhere in this project's profile set: a precise plot coordinate
+  can identify a single smallholder's land, an erasability case OWM-2 §7 already covers, but a
+  reminder that "no field for a natural person" (OWM-4 §13) is not the same guarantee as "no field
+  that can single one out."
+- [`diamonds.v1`](owm-4-diamonds.md) — **implemented**, `profiles/diamonds/`. A ninth data point,
+  and CLAUDE.md's own vision section's oldest example finally built. Surfaces a genuinely new fraud
+  pattern none of the prior eight needed: not the same subject reappearing after a `decommission`
+  (nothing in a diamond's life ends that way), but a `release.reference` claimed by *two different*
+  subjects — a real, documented case of a lab-grown stone fraudulently inscribed with a natural
+  diamond's own grading-report number. The same structural-contradiction posture, applied to a
+  different shape of collision than any prior profile needed to detect.
+- [`eu/battery.v1`](owm-4-battery.md) — **implemented**, `profiles/eu/battery/`. The tenth profile,
+  and the original second one — earmarked from this document's earliest drafts as the concrete
+  test of whether the mechanism is industry-agnostic, actually built last of this batch. It passed
+  the test: no core change, same nine other profiles' patterns throughout. The one genuine novelty
+  is `decommission.reason: "second_life"` — the first profile anywhere to model an ending that is
+  not actually an ending: the same physical identity continues under `handover` and `measurement`
+  rather than a fresh `production`, a distinction none of the other nine profiles' own
+  `decommission` reasons needed to draw.
+- [`meddevice.v1`](owm-4-meddevice.md) — **implemented**, `profiles/meddevice/`. The eleventh
+  profile, and the first found by asking "what have I overlooked" rather than extending a named
+  list. Deliberately spans two halves of one regulatory backbone (EU MDR/UDI/EUDAMED, FDA UDI/GUDID)
+  that every other profile so far kept separate by industry: implantable devices and capital
+  equipment, unified because both are always instance-level and both need a real service history,
+  not because the mechanism forced them together. Two genuine novelties: `installation.context`
+  collapses two moments MDR itself already treats as one — a device implanted in a patient (Art. 18
+  Implant Card) or commissioned at a facility (IQ/OQ/PQ) — into a single event distinguished only by
+  that one field; and `maintenance` is the first first-class service-history event in this project,
+  where every prior profile with a comparable idea folded it into `release` instead
+  (`aviation.v1`'s Part-145 re-certification). Also the sharpest data-protection posture of any
+  profile built so far: no field for a patient identifier exists anywhere in the schema, not as a
+  discouraged practice but as a structural absence `unevaluatedProperties: false` enforces — patient
+  health data sits in GDPR's special category (Art. 9), a stricter bar than any other profile's own
+  data-protection section has had to clear.
 
 ## 15. Security considerations
 

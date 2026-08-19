@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "Compliance certification - CE marking, RoHS, REACH substances-of-concern declaration. A claim, not a confirmation - whether the certifying party is accredited is answered by its entity trust level (OWM-6), not by this schema (spec Sec.6).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the certification, e.g. \"ce\", \"rohs\", \"reach\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": { "$ref": "defs.json#/$defs/text" }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the diamonds profile diamonds.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here (spec Sec.7).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "product": {
+      "description": "A rough parcel or a cut stone (spec Sec.6).",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "lot": { "$ref": "#/$defs/text" },
+        "carat": { "type": "number", "exclusiveMinimum": 0 },
+        "origin_country": {
+          "description": "The KP-relevant mining country, ISO 3166-1 alpha-2 - may differ from an event's own location.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "natural": {
+          "description": "The FTC-mandated natural-vs-lab-grown disclosure.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}
