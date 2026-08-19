@@ -14,6 +14,10 @@ import (
 	"openwaymark.org/owm/trust"
 )
 
+// ErrConcludedNotSelfIssued reports a kind:"concluded" attestation whose
+// subject is not the issuer's own key.
+var ErrConcludedNotSelfIssued = errors.New("owm/node: a concluded attestation must be self-issued")
+
 // checkAttestationPayload parses and validates an attestation payload
 // before it is appended (OWM-6 §3).
 //
@@ -21,9 +25,23 @@ import (
 // rotation's after-append check (rotation.go): an attestation needs no
 // directory mutation to justify deferring the check, so nothing is gained
 // by letting a bad one into the log first.
-func checkAttestationPayload(payload []byte) error {
-	_, err := trust.ParsePayload(payload)
-	return err
+//
+// One cross-field rule beyond payload shape: kind:"concluded" MUST be
+// self-issued. Only the keyholder can attributably say their own
+// participation has ended — anyone else's say-so would be a rumour, not
+// evidence — and self-issuance is also what keeps trust.Compute from
+// needing any special case for this kind at all (OWM-9 A15): a
+// self-referential attestation already contributes nothing, by the same
+// cycle handling that already makes a self-attestation harmless.
+func checkAttestationPayload(e *core.Entry, payload []byte) error {
+	p, err := trust.ParsePayload(payload)
+	if err != nil {
+		return err
+	}
+	if p.Kind == trust.KindConcluded && e.Subject != core.SubjectID(e.Issuer) {
+		return fmt.Errorf("%w: subject %s, issuer %s", ErrConcludedNotSelfIssued, e.Subject, e.Issuer)
+	}
+	return nil
 }
 
 // loadTrustRoots reads the accreditation root list (OWM-6 §8).

@@ -237,7 +237,7 @@ func (n *Node) Submit(ctx context.Context, se *core.SignedEntry, salt core.Salt,
 
 	if hasCommitment {
 		if e.Type == core.EntryTypeAttestation {
-			if err := checkAttestationPayload(payload); err != nil {
+			if err := checkAttestationPayload(e, payload); err != nil {
 				return nil, err
 			}
 		}
