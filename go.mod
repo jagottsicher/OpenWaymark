@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/cloudflare/circl v1.6.5
 	github.com/fxamacker/cbor/v2 v2.9.2
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/transparency-dev/merkle v0.0.2
 	modernc.org/sqlite v1.56.0
 )
@@ -15,7 +16,6 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
