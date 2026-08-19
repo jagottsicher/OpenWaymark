@@ -61,6 +61,8 @@ func writeError(w http.ResponseWriter, err error) {
 		code = "rejected"
 	case http.StatusBadRequest:
 		code = "malformed"
+	case http.StatusTooManyRequests:
+		code = "rate_limited"
 	case http.StatusInternalServerError:
 		code = "internal"
 	}
@@ -88,6 +90,9 @@ func statusFor(err error) int {
 		return http.StatusGone
 	case errors.Is(err, owmlog.ErrNotFound):
 		return http.StatusNotFound
+
+	case errors.Is(err, ErrRateLimited):
+		return http.StatusTooManyRequests
 
 	case errors.Is(err, ErrUnknownKey),
 		errors.Is(err, ErrKeyDisabled),

@@ -29,6 +29,17 @@ const (
 	// costs one ML-DSA signature. A minute is harmless for a node on Raspberry Pi
 	// class hardware and tight enough for an observer.
 	DefaultSTHInterval = time.Minute
+
+	// DefaultRateLimitPerSecond and DefaultRateLimitBurst bound the public
+	// API per source address (OWM-9 A9, A10). Burst is sized generously
+	// against a real client.VerifySubject session, not against a bulk
+	// sweep: a chain of a dozen entries across a few issuers comfortably
+	// fits in one burst (fetching an STH, a signer key, a history, then an
+	// inclusion proof and a payload per entry, plus a key and a trust
+	// computation per unique issuer) without ever touching the sustained
+	// rate. A sweep of thousands of subject IDs does not.
+	DefaultRateLimitPerSecond = 5.0
+	DefaultRateLimitBurst     = 60.0
 )
 
 // Partner is a supply chain partner whose log this node gossips with —
@@ -106,17 +117,32 @@ type Config struct {
 	// means no roots are recognised — the safe default: everyone computes
 	// to trust level 0 until an operator actively configures otherwise.
 	TrustRootsFile string `json:"trust_roots_file,omitempty"`
+
+	// RateLimitPerSecond caps sustained requests per source address on the
+	// public API (OWM-9 A9, A10) — tokens added to each address's bucket
+	// per second once its burst is spent. A negative value is rejected; 0
+	// disables the limiter entirely, an explicit operator opt-out for a
+	// deployment where a reverse proxy already rate limits, rather than
+	// double-throttling a legitimate client.
+	RateLimitPerSecond float64 `json:"rate_limit_per_second,omitempty"`
+
+	// RateLimitBurst is the bucket capacity: how many requests a source
+	// address may make before the sustained rate takes over. Ignored when
+	// RateLimitPerSecond is 0.
+	RateLimitBurst float64 `json:"rate_limit_burst,omitempty"`
 }
 
 // DefaultConfig returns the defaults.
 func DefaultConfig() Config {
 	return Config{
-		Listen:      DefaultListen,
-		AdminListen: DefaultAdminListen,
-		Database:    DefaultDatabase,
-		Identity:    DefaultIdentity,
-		MaxPayload:  DefaultMaxPayload,
-		STHInterval: Duration(DefaultSTHInterval),
+		Listen:             DefaultListen,
+		AdminListen:        DefaultAdminListen,
+		Database:           DefaultDatabase,
+		Identity:           DefaultIdentity,
+		MaxPayload:         DefaultMaxPayload,
+		STHInterval:        Duration(DefaultSTHInterval),
+		RateLimitPerSecond: DefaultRateLimitPerSecond,
+		RateLimitBurst:     DefaultRateLimitBurst,
 	}
 }
 
@@ -156,6 +182,12 @@ func (c *Config) Check() error {
 	}
 	if c.GossipInterval < 0 {
 		return fmt.Errorf("owm/node: gossip_interval is negative")
+	}
+	if c.RateLimitPerSecond < 0 {
+		return fmt.Errorf("owm/node: rate_limit_per_second is negative")
+	}
+	if c.RateLimitBurst < 0 {
+		return fmt.Errorf("owm/node: rate_limit_burst is negative")
 	}
 	for i, p := range c.Partners {
 		if p.Name == "" {
