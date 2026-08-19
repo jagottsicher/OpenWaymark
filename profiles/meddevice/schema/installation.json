@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Installation",
+  "description": "The device begins active service - implanted in a patient, or commissioned into operation at a facility. One event covers both: MDR Article 18's Implant Card records exactly this pairing (UDI-DI, UDI-PI) for implantable devices, and capital equipment undergoes an equivalent installation/commissioning qualification (IQ/OQ/PQ) before first use. No field for a patient exists anywhere in this schema or profile - party names the implanting or commissioning facility as a business, never a person (spec Sec.5, Sec.9).",
+  "type": "object",
+  "required": ["context"],
+  "properties": {
+    "context": {
+      "description": "implant: an implantable device begins service inside a patient. commission: capital or reusable equipment begins service at a facility.",
+      "enum": ["implant", "commission"]
+    },
+    "qualification": {
+      "description": "For commission: which qualification stages were completed before first use.",
+      "type": "object",
+      "properties": {
+        "iq": { "type": "boolean" },
+        "oq": { "type": "boolean" },
+        "pq": { "type": "boolean" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  }
+}

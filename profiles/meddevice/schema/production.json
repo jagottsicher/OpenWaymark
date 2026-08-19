@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production",
+  "description": "A device or a component comes into being, carrying its UDI-DI (model) and UDI-PI (this specific unit). The subject of the entry is the unit itself - this profile has no lot stage (spec Sec.3): a hip implant or an MRI scanner does not pass through a lot-level existence the way a tablet batch does.",
+  "type": "object",
+  "required": ["product"],
+  "properties": {
+    "product": { "$ref": "defs.json#/$defs/product" }
+  }
+}

@@ -159,6 +159,7 @@ its industry rather than inventing new ones:
 |---|---|---|
 | [`food.v1`](profiles/food/) | farm to consumer | GS1 EPCIS 2.0 |
 | [`pharma.v1`](profiles/pharma/) | starting material to dispensing | DSCSA (US), EU FMD/GDP, ICH Q7, GS1's own DSCSA↔EPCIS guideline |
+| [`meddevice.v1`](profiles/meddevice/) | implants and capital equipment (CT, MRI, X-ray) | EU MDR/UDI/EUDAMED, FDA UDI/GUDID, IMDRF, ISO 13485 |
 | [`aviation.v1`](profiles/aviation/) | aircraft parts, back-to-birth | FAA 8130-3 / EASA Form 1, ATA Spec 2000 ch. 15/16 |
 | [`vehicle.v1`](profiles/vehicle/) | used cars/motorcycles, incl. classic-car provenance | US TIMA/NMVTIS, EU End-of-Life Vehicles Regulation |
 | [`electronics.v1`](profiles/electronics/) | components (RAM, SSDs) to finished devices | IPC-1782, EU ESPR/Digital Product Passport, WEEE |

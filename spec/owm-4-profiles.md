@@ -356,6 +356,21 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   not actually an ending: the same physical identity continues under `handover` and `measurement`
   rather than a fresh `production`, a distinction none of the other nine profiles' own
   `decommission` reasons needed to draw.
+- [`meddevice.v1`](owm-4-meddevice.md) — **implemented**, `profiles/meddevice/`. The eleventh
+  profile, and the first found by asking "what have I overlooked" rather than extending a named
+  list. Deliberately spans two halves of one regulatory backbone (EU MDR/UDI/EUDAMED, FDA UDI/GUDID)
+  that every other profile so far kept separate by industry: implantable devices and capital
+  equipment, unified because both are always instance-level and both need a real service history,
+  not because the mechanism forced them together. Two genuine novelties: `installation.context`
+  collapses two moments MDR itself already treats as one — a device implanted in a patient (Art. 18
+  Implant Card) or commissioned at a facility (IQ/OQ/PQ) — into a single event distinguished only by
+  that one field; and `maintenance` is the first first-class service-history event in this project,
+  where every prior profile with a comparable idea folded it into `release` instead
+  (`aviation.v1`'s Part-145 re-certification). Also the sharpest data-protection posture of any
+  profile built so far: no field for a patient identifier exists anywhere in the schema, not as a
+  discouraged practice but as a structural absence `unevaluatedProperties: false` enforces — patient
+  health data sits in GDPR's special category (Art. 9), a stricter bar than any other profile's own
+  data-protection section has had to clear.
 
 ## 15. Security considerations
 
