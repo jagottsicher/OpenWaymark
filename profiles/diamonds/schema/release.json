@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "A Kimberley Process certificate is validated, or a grading report is issued - the same event, distinguished by standard (spec Sec.4). A claim, not a confirmation - whether the certifying party is legitimate is answered by its entity trust level (OWM-6), not by this schema. Two entries naming the identical reference for two different subjects is a structural contradiction (spec Sec.5).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the certification, e.g. \"kimberley-process\", \"gia-grading\", \"igi-grading\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": {
+      "description": "The KP certificate serial number, or the grading report number.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}
