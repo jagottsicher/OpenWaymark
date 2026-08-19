@@ -67,7 +67,7 @@ iss  = KeyID of the attesting party
 cmt  = commitment over the payload
 ```
 
-The payload has two shapes, distinguished by `kind`:
+The payload has three shapes, distinguished by `kind`:
 
 **`kind: "entity"`** — an entity trust-level claim:
 
@@ -101,8 +101,40 @@ The payload has two shapes, distinguished by `kind`:
   (OWM-3 §5), and carries no protocol meaning.
 - `level` MUST be absent — a sensor's level is never claimed, only inherited (§4).
 
-A verifier MUST reject an attestation payload naming any `kind` other than `entity` or `sensor`,
-and MUST reject `kind: "entity"` without a valid `level`, or `kind: "sensor"` carrying one.
+**`kind: "concluded"`** — the issuer's own participation under this key has ended (OWM-9 A15):
+
+```json
+{
+  "kind": "concluded",
+  "reason": "succeeded",
+  "successor": "5c8f4a3b2e1d0c9b8a7f6e5d4c3b2a190807060504030201f0e1d2c3b4a59687",
+  "evidence_url": "https://example.org/merger-notice"
+}
+```
+
+- `reason` MUST be `"succeeded"` (a different, already independently operating key continues the
+  business) or `"discontinued"` (participation simply ended, no successor). A verifier MUST reject
+  any other value.
+- `successor` (a `KeyID`) MUST be present when `reason` is `"succeeded"` and MUST be absent when
+  `reason` is `"discontinued"`.
+- `evidence_url` MAY point at supporting material off-chain, the same informational-only convention
+  as `kind: "entity"`'s own field — nothing here is verified by the protocol, only made
+  attributable and attackable-by-critique.
+- `subj` MUST equal `iss` — a `kind: "concluded"` attestation MUST be self-issued. Only the
+  keyholder can attributably say their own participation has ended; anyone else's say-so is a
+  rumour, not evidence. A verifier MUST reject one where they differ.
+
+This is deliberately not a claim §6's computation has to interpret: `successor` is a pointer for a
+*reader* to follow, not an input to anyone's trust level. §6's algorithm gives `kind: "concluded"`
+no case of its own for exactly this reason — a self-issued attestation is
+already inert to it (self-referential attestations resolve through the same cycle handling that
+makes any self-attestation contribute nothing), so treating it like an unfamiliar `kind: "entity"`
+claim without a `level` already yields the one correct answer: no contribution, by construction,
+not by a special rule that has to be kept in sync with this one.
+
+A verifier MUST reject an attestation payload naming any `kind` other than `entity`, `sensor` or
+`concluded`, and MUST reject `kind: "entity"` without a valid `level`, `kind: "sensor"` carrying
+one, or `kind: "concluded"` with an invalid `reason` or a `successor` that does not match it.
 
 **Why not a schema profile.** Attestation entries carry `Profile == ""` (the empty string) and
 their payload is validated against the fixed shape above directly, not through the profile
@@ -185,6 +217,12 @@ unrelated key.
 **Kind `sensor`.** A `kind: "sensor"` attestation's subject inherits the issuer's computed level
 directly (§4) — it does not go through the `min(claimed, issuer)` step above, since it makes no
 level claim of its own to cap.
+
+**Kind `concluded`.** Never contributes to a level (§3) — a self-issued statement about the
+issuer's own participation ending is not a trust claim of any kind to begin with, and requires no
+dedicated step in this algorithm to exclude: being self-issued (`subj == iss`, enforced at
+submission), its own recursive lookup in step 3 immediately hits the same-key-already-being-resolved
+case in the cycles rule above, which already yields "no contribution."
 
 **Implementation.** Package `trust` (Apache-2.0) implements this algorithm as a pure function over
 caller-supplied data — no I/O, no state of its own (OWM-9 A11's trusted-local-data split). A node

@@ -288,3 +288,64 @@ func TestComputeSourceErrorPropagates(t *testing.T) {
 		t.Errorf("err = %v, want it to wrap %v", err, ErrSource)
 	}
 }
+
+// concludedAtt builds a kind:"concluded" attestation the way node/'s own
+// checkAttestationPayload requires it: self-issued, subj == iss == who. Two
+// things make this the right shape to feed Compute, mirroring what a real
+// Source would hand it: the recursive lookup of the issuer (itself) hits the
+// cycle guard immediately, and the payload carries no Level for the min()
+// step to use — both already true by construction, not asserted here.
+func concludedAtt(who core.KeyID, reason Reason, successor core.KeyID) Attestation {
+	return Attestation{
+		Entry:   core.Entry{Issuer: who, Subject: core.SubjectID(who)},
+		Payload: Payload{Kind: KindConcluded, Reason: reason, Successor: successor},
+	}
+}
+
+// TestComputeConcludedContributesNothing is OWM-9 A15's fix, checked at the
+// level that matters: a self-issued kind:"concluded" attestation must never
+// be mistaken for an entity-trust claim. No special case for it exists in
+// Compute (see compute.go) — this test is what backs that design decision
+// with more than an argument in a comment.
+func TestComputeConcludedContributesNothing(t *testing.T) {
+	subject := testKey(t, 1)
+	successor := testKey(t, 2)
+	src := &fakeSource{atts: map[core.KeyID][]Attestation{
+		subject: {concludedAtt(subject, ReasonSucceeded, successor)},
+	}}
+	lvl, chain, err := Compute(context.Background(), src, RootSet{}, subject)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if lvl != LevelNone {
+		t.Errorf("level = %s, want %s (a concluded attestation must not raise the level)", lvl, LevelNone)
+	}
+	if len(chain) != 0 {
+		t.Errorf("chain = %+v, want empty (a concluded attestation must never justify a level)", chain)
+	}
+}
+
+// TestComputeConcludedDoesNotShadowARealAttestation confirms the concluded
+// statement is inert alongside a genuine one too, not just alone — Compute
+// must still find and use the real attestation from a different issuer.
+func TestComputeConcludedDoesNotShadowARealAttestation(t *testing.T) {
+	root := testKey(t, 1)
+	subject := testKey(t, 2)
+	roots := RootSet{root: {ID: root, MaxLevel: LevelState}}
+	src := &fakeSource{atts: map[core.KeyID][]Attestation{
+		subject: {
+			concludedAtt(subject, ReasonDiscontinued, core.KeyID{}),
+			entityAtt(root, LevelAccredited, false),
+		},
+	}}
+	lvl, chain, err := Compute(context.Background(), src, roots, subject)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if lvl != LevelAccredited {
+		t.Errorf("level = %s, want %s (the real attestation must still be found)", lvl, LevelAccredited)
+	}
+	if len(chain) != 1 || chain[0].Payload.Kind != KindEntity {
+		t.Errorf("chain = %+v, want exactly the one entity attestation", chain)
+	}
+}

@@ -78,7 +78,7 @@ Anyone who confuses the two overestimates the system.
 | A12 | Failure of a node | N, B | partly |
 | A13 | Record today, decrypt later | Q | yes, through PQ schemes |
 | A14 | Full payload disclosure, business collapsing into person | A | no |
-| A15 | Entity succession has no durable, attributable statement | A, B | partly, only the compromise case |
+| A15 | Entity succession has no durable, attributable statement | A, B | yes, `kind: "concluded"` attestations |
 
 ### A1 — Split view · **the central attack**
 
@@ -357,16 +357,23 @@ operates the node stops accepting entries under that key, a decision `node/rotat
 notes is "a separate step taken by the operator" — locally, not as a signed, logged, public
 statement.
 
-That silence is exactly what A3 (withholding) and A12 (node failure) already discuss, from a
-different angle each. Neither distinguishes a legitimate, voluntary wind-down from those two. An
-outside reader sees the same thing in all three cases — a key that stopped signing — and has no
+That silence used to be exactly what A3 (withholding) and A12 (node failure) already discuss, from
+a different angle each — neither distinguishes a legitimate, voluntary wind-down from those two,
+and an outside reader saw the same thing in all three cases: a key that stopped signing, with no
 way to tell "the business was sold, ask the successor" from "the operator is hiding something"
 from "the lights went out." A `decommission` event exists per profile, for a *product's* ending;
-there is nothing equivalent at the *entity* level in `core` or `trust/`.
+there was nothing equivalent at the *entity* level in `core` or `trust/`.
 
-**Partly covered:** only the involuntary case (A6, key compromise, with a timestamped revocation)
-is. The voluntary, ordinary case — a business concluding on its own terms — has no channel to say
-so on the record.
+**Covered.** A third attestation kind, `kind: "concluded"` (OWM-6 §3), closes exactly this case:
+self-issued (`subj == iss`, enforced at submission — only the keyholder can attributably say their
+own participation has ended), naming `reason: "succeeded"` with a `successor` KeyID or
+`reason: "discontinued"` with none. It adds no new entry type and no new machinery to `trust.Compute`
+at all: being self-issued makes it inert to the trust-level algorithm by the same cycle handling
+that already makes any self-attestation contribute nothing (OWM-6 §6), so the fix is a third case
+in an already-extensible payload discriminator, not a new mechanism to keep in sync with the rest.
+Readable the same way every other attestation already is — `GET /owm/v1/subjects/{id}`, no new
+endpoint. The involuntary case (A6, key compromise, with a timestamped revocation) was already
+covered; this closes the voluntary one.
 
 ## 6. Who watches — observer incentives
 
@@ -432,7 +439,6 @@ two independently operated nodes carry real data.
 | Erasure does not reach lawfully distributed copies | An operational and contractual question, not a protocol question. |
 | The operator sees the payloads of its participants | Community nodes require trust in the operator. Whoever does not want that runs a node of their own — that is what federation is for. |
 | Full payload disclosure to any reader (A14) | The public-API-for-the-world non-goal (§3) was reasoned through for organisations, not sole proprietors; narrowing it needs profile-level field discipline or the encryption stage under A9, neither built yet. |
-| Entity succession leaves no public trace (A15) | Key retirement is a local operator decision, not a logged statement; readers cannot distinguish a legitimate wind-down from A3's withholding or A12's failure. |
 
 ## 8. What follows from this for the implementation
 

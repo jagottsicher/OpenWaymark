@@ -268,6 +268,85 @@ func TestKeyTrustEndpoint(t *testing.T) {
 	}
 }
 
+// TestSubmitRejectsConcludedNotSelfIssued exercises the one cross-field rule
+// checkAttestationPayload adds beyond payload shape (OWM-9 A15): only the
+// keyholder may attributably announce their own participation has ended.
+func TestSubmitRejectsConcludedNotSelfIssued(t *testing.T) {
+	ctx := context.Background()
+	n := newTestNode(t)
+	claimant := newParticipant(t, n, core.SigAlgMLDSA65, "third party")
+	subject := newParticipant(t, n, core.SigAlgMLDSA65, "the entity being claimed about")
+
+	se, salt, payload := claimant.signAttestation(t,
+		core.SubjectID(subject.key.Public().ID()),
+		`{"kind":"concluded","reason":"discontinued"}`)
+	entryID := se.EntryID()
+
+	if _, err := n.Submit(ctx, se, salt, payload); !errors.Is(err, ErrConcludedNotSelfIssued) {
+		t.Fatalf("%v, expected ErrConcludedNotSelfIssued", err)
+	}
+	if _, err := n.Log().LeafByEntryID(ctx, entryID); !errors.Is(err, owmlog.ErrNotFound) {
+		t.Fatalf("entry ended up in the log despite the rejected payload: %v", err)
+	}
+}
+
+// TestConcludedEndToEnd submits a real self-issued kind:"concluded"
+// attestation, confirms it is readable back exactly the way A15 needs — the
+// same GET /owm/v1/subjects/{id} every other attestation already uses, no
+// new endpoint — and confirms it does not alter the issuer's own trust
+// level: the fix is a durable, attributable statement, not a claim about
+// worthiness.
+func TestConcludedEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	n := newTestNode(t)
+	a := newAPI(t, n)
+
+	root := newParticipant(t, n, core.SigAlgMLDSA65, "accreditation body")
+	entity := newParticipant(t, n, core.SigAlgMLDSA65, "acquired company")
+	successor := newParticipant(t, n, core.SigAlgMLDSA65, "acquiring company")
+
+	roots := trust.RootSet{
+		root.key.Public().ID(): {ID: root.key.Public().ID(), Name: "root", MaxLevel: trust.LevelState},
+	}
+	se, salt, payload := root.signAttestation(t,
+		core.SubjectID(entity.key.Public().ID()),
+		`{"kind":"entity","level":3,"scheme":"trade-register"}`)
+	a.submit(se, salt, payload)
+
+	se, salt, payload = entity.signAttestation(t,
+		core.SubjectID(entity.key.Public().ID()),
+		`{"kind":"concluded","reason":"succeeded","successor":"`+successor.key.Public().ID().String()+`"}`)
+	a.submit(se, salt, payload)
+
+	var history historyResponse
+	a.mustGet("/owm/v1/subjects/"+core.SubjectID(entity.key.Public().ID()).String(), &history)
+	if history.Total != 2 {
+		t.Fatalf("history has %d entries, want 2 (the entity attestation and the concluded statement)", history.Total)
+	}
+
+	var pr payloadResponse
+	a.mustGet("/owm/v1/entries/"+history.Entries[1].EntryID.String()+"/payload", &pr)
+	var got struct {
+		Kind      string `json:"kind"`
+		Reason    string `json:"reason"`
+		Successor string `json:"successor"`
+	}
+	if err := json.Unmarshal(pr.Payload, &got); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if got.Kind != "concluded" || got.Reason != "succeeded" || got.Successor != successor.key.Public().ID().String() {
+		t.Fatalf("got %+v", got)
+	}
+
+	lvl, _, err := trust.Compute(ctx, n.TrustSource(), roots, entity.key.Public().ID())
+	if err != nil {
+		t.Fatalf("compute: %v", err)
+	}
+	if lvl != trust.LevelRegister {
+		t.Fatalf("level = %s, want %s (the concluded statement must not change the entity's own trust level)", lvl, trust.LevelRegister)
+	}
+}
+
 func TestLoadTrustRootsMissingFileIsEmpty(t *testing.T) {
 	roots, err := loadTrustRoots("")
 	if err != nil {
