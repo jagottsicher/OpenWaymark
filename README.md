@@ -166,6 +166,7 @@ its industry rather than inventing new ones:
 | [`seafood.v1`](profiles/seafood/) | vessel to plate | EU CATCH, US Seafood Import Monitoring Program |
 | [`eudr.v1`](profiles/eudr/) | timber, cocoa, coffee, palm oil, soy, rubber, cattle | EU Deforestation Regulation |
 | [`diamonds.v1`](profiles/diamonds/) | mine through cutting/polishing to a retailer | Kimberley Process, US FTC lab-grown disclosure |
+| [`eu/battery.v1`](profiles/eu/battery/) | portable, LMT, EV, industrial, SLI batteries | EU Battery Regulation, Digital Battery Passport |
 
 Every normative spec lives under `spec/owm-4-<name>.md`; each profile's own README has the details.
 

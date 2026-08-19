@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decommission",
+  "description": "First life ends. Unlike most other events past pharma.v1, this is not the only possible outcome: second_life is not a dead end (spec Sec.5). A subject that already carries a recycled/destroyed/disposed decommission reappearing afterward in production, aggregation or handover is a structural contradiction a client or monitor can flag.",
+  "type": "object",
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "enum": ["second_life", "recycled", "destroyed", "disposed"]
+    }
+  }
+}
