@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "Conformity assessment or certification - CE marking under MDR, FDA clearance, ISO 13485 certification. This is a claim, not a confirmation - whether the issuer is who they claim to be, and how far their accreditation reaches, is answered by their entity trust level (OWM-6), not by this schema (spec Sec.7).",
+  "type": "object",
+  "required": ["certified"],
+  "properties": {
+    "certified": {
+      "description": "false is representable and meaningful: a declined or withdrawn certification is itself a statement worth logging.",
+      "type": "boolean"
+    },
+    "standard": {
+      "description": "The basis for the decision, e.g. \"mdr-conformity-assessment\", \"fda-510k\", \"iso-13485\".",
+      "$ref": "defs.json#/$defs/text"
+    },
+    "reference": {
+      "description": "A reference number for the certification record, held off-chain.",
+      "$ref": "defs.json#/$defs/text"
+    }
+  }
+}

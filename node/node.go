@@ -36,6 +36,7 @@ import (
 	"openwaymark.org/owm/profiles/eu/battery"
 	"openwaymark.org/owm/profiles/eudr"
 	"openwaymark.org/owm/profiles/food"
+	"openwaymark.org/owm/profiles/meddevice"
 	"openwaymark.org/owm/profiles/minerals"
 	"openwaymark.org/owm/profiles/pharma"
 	"openwaymark.org/owm/profiles/seafood"
@@ -130,6 +131,7 @@ func buildRegistry(want []string) (*profiles.Registry, error) {
 	available := map[string]func() (*profiles.Profile, error){
 		food.ID:        food.New,
 		pharma.ID:      pharma.New,
+		meddevice.ID:   meddevice.New,
 		aviation.ID:    aviation.New,
 		vehicle.ID:     vehicle.New,
 		electronics.ID: electronics.New,

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decommission",
+  "description": "The device's active life ends - explanted, recalled, destroyed, disposed, or retired at end of service life. Never patient-linked (spec Sec.9): reason \"explanted\" records that a specific serialized device came out of service, never who it came out of. A subject that already carries a decommission reappearing afterward - under installation or handover-equivalent events - is a structural contradiction a client or monitor can flag, the same pattern gray-market equipment reuse and pharma.v1's vaccine-fraud case both share.",
+  "type": "object",
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "enum": ["explanted", "recalled", "destroyed", "disposed", "end_of_service"]
+    }
+  }
+}
