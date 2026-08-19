@@ -608,6 +608,49 @@ func TestAdminEraseUnknownEntry(t *testing.T) {
 	}
 }
 
+// TestCORS confirms the public API is readable across origins and the admin
+// interface stays exactly as unreachable from a browser as it always was —
+// a shared web verifier on another origin needs the former; the latter
+// changing would be a real regression, not a convenience.
+func TestCORS(t *testing.T) {
+	n := newTestNode(t)
+	a := newAPI(t, n)
+
+	res, err := http.Get(a.public + "/owm/v1/sth")
+	if err != nil {
+		t.Fatalf("GET public: %v", err)
+	}
+	res.Body.Close()
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("public API: Access-Control-Allow-Origin = %q, want \"*\"", got)
+	}
+
+	req, err := http.NewRequest(http.MethodOptions, a.public+"/owm/v1/entries", nil)
+	if err != nil {
+		t.Fatalf("build preflight request: %v", err)
+	}
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("OPTIONS public: %v", err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want %d", res.StatusCode, http.StatusNoContent)
+	}
+	if got := res.Header.Get("Access-Control-Allow-Methods"); got == "" {
+		t.Fatal("preflight response carries no Access-Control-Allow-Methods")
+	}
+
+	res, err = http.Get(a.admin + "/admin/v1/keys")
+	if err != nil {
+		t.Fatalf("GET admin: %v", err)
+	}
+	res.Body.Close()
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("admin interface: Access-Control-Allow-Origin = %q, want none", got)
+	}
+}
+
 func TestRunStopsWithContext(t *testing.T) {
 	n := newTestNode(t)
 	// Free ports so that the test does not hit an address already in use.

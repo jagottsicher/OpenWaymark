@@ -192,6 +192,35 @@ func parseUintQuery(r *http.Request, name string, def uint64) (uint64, error) {
 	return v, nil
 }
 
+// withCORS allows any origin to read the public API from a browser.
+//
+// Every route here is already documented as unauthenticated and meant "for
+// the world" (OWM-7) — this changes who may read a response inside a
+// browser, nothing about what the API accepts. Submitting an entry is still
+// gated by key admission (node.Submit), never by origin, so the one write
+// route gains no new capability either — only the ability for a page on a
+// different origin, such as a shared web verifier, to read the response.
+//
+// Only ever composed into PublicHandler. node/admin.go builds its own
+// handler and never passes through this wrapper — the admin interface stays
+// exactly as unreachable from a browser on another origin as it always was.
+func withCORS(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == http.MethodOptions {
+			// A cross-origin POST /owm/v1/entries with a JSON body is not a
+			// CORS "simple request" and triggers a preflight first — answer
+			// it here rather than leaving submission half-reachable.
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 // jsonRouterErrors makes sure the router's own responses are JSON as well.
 //
 // http.ServeMux answers an unknown path with 404 and a wrong method on a known
