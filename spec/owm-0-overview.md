@@ -284,4 +284,5 @@ raise it. As long as version 1 counts as a draft, the format can change without 
 | OWM-5 | [federation, discovery, gossip](owm-5-federation.md) | draft |
 | OWM-6 | [trust levels and attestation](owm-6-trust.md) | draft |
 | OWM-7 | [node API](owm-7-node-api.md) | draft |
+| OWM-8 | [client and verifier](owm-8-client.md) | draft |
 | OWM-9 | [threat model](owm-9-threat-model.md) | draft |
