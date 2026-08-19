@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
@@ -37,9 +38,10 @@ import (
 )
 
 var (
-	repoFlag = flag.String("repo", "", "root of the repository (default: module root)")
-	keepFlag = flag.Bool("keep", false, "keep the working directory")
-	workFlag = flag.String("work", "", "parent directory for the throwaway data")
+	repoFlag  = flag.String("repo", "", "root of the repository (default: module root)")
+	keepFlag  = flag.Bool("keep", false, "keep the working directory")
+	workFlag  = flag.String("work", "", "parent directory for the throwaway data")
+	serveFlag = flag.Bool("serve", false, "after the demonstration, keep the node running and print how to try the web verifier (client/web/) against it — stop with Ctrl+C")
 )
 
 func main() {
@@ -265,7 +267,39 @@ func run() (err error) {
 	d.summary()
 
 	fmt.Print("\nAll checks passed.\n\n")
+
+	if *serveFlag {
+		d.serveForVerifier()
+	}
 	return nil
+}
+
+// serveForVerifier keeps the just-built node running (the deferred d.stop()
+// in run() still tears it down, only after this returns) and prints exactly
+// what client/web/'s verifier needs: the node's public base URL, a real
+// subject from the chain just written, and the ready URL fragment to open —
+// so trying the browser verifier against a real node is a copy-paste, not a
+// research project.
+//
+// subjMilkA specifically: it is the very first entry of the chain (raw milk
+// at the farm) and, being derived deterministically
+// (core.DeriveSubjectID), the same value on every run — a stable example to
+// print instructions against rather than a fresh one nobody could predict.
+func (d *demo) serveForVerifier() {
+	section("Serving for the web verifier")
+	linef("node running at %s", d.public.base)
+	linef("try it: open client/web/index.html in a browser, or build the WASM")
+	linef("binary first (client/wasm/build.sh) if you have not already")
+	linef("")
+	linef("subject to check: %s", subjMilkA)
+	linef("URL fragment:     #node=%s&subject=%s", d.public.base, subjMilkA)
+	linef("")
+	linef("press Ctrl+C to stop the node and clean up")
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	<-stop
+	fmt.Println()
 }
 
 // ---------------------------------------------------------------- 1 Start the node
