@@ -21,6 +21,7 @@ It needs no outside network and touches nothing that is not its own.
 | `-keep` | keep the working directory (database, identity, configuration) |
 | `-work DIR` | parent directory for the throwaway data |
 | `-repo DIR` | repository root, if it cannot be derived from the module |
+| `-serve` | after the demonstration, keep the node running and print how to try the [browser verifier](../client/) against it — stop with Ctrl+C |
 
 The output is plain text: no ANSI colours, no box drawing, no emoji, no typographic arrows — it
 looks the same in every terminal and can be copied unchanged into a file, a ticket or a mail. The
@@ -53,6 +54,7 @@ single signature.
 | 8 Tampering | A flipped byte, a swapped leaf, an STH signed with a foreign key — and a split view that the node signs validly with its own key. Only someone who sees both trees finds that one. |
 | 9 Balance sheet | Sizes: 3407 bytes per entry on average against 488 bytes of payload on average. The lion's share is the post-quantum signature. |
 
-Section 8 is the only one that runs ahead of the code: the split view is constructed and detected
-by hand here. What notices it in production is the [monitor](../spec/owm-9-threat-model.md), which
-has yet to be built.
+Section 8 is the only one that runs ahead of a live deployment: the split view here is constructed
+and detected by hand, in one process, to show the mechanism. What notices it between independently
+operated nodes in production is the [monitor](../monitor/) — polling STHs from outside any business
+relationship, exactly the gap partner gossip alone cannot close (OWM-9 A1).
