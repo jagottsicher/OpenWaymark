@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared building blocks of the battery profile eu/battery.v1",
+  "$defs": {
+    "subject": {
+      "description": "Subject identifier, 32 bytes hexadecimal - the same format as the subj field in the entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyid": {
+      "description": "Key identifier, 32 bytes hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "Point in time in the real world, RFC 3339 with time zone.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "party": {
+      "description": "Party involved. Names of natural persons do not belong in here (spec Sec.7).",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "name": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/keyid" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "country": {
+          "description": "Country code per ISO 3166-1 alpha-2.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "recycled_content": {
+      "description": "Documented recycled-content share of the battery's own active materials (spec Sec.2).",
+      "type": "object",
+      "properties": {
+        "cobalt_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "lithium_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "nickel_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "lead_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "product": {
+      "description": "A battery cell, module or pack (spec Sec.4, Sec.6).",
+      "type": "object",
+      "properties": {
+        "category": {
+          "description": "The regulation's own battery categories.",
+          "enum": ["portable", "lmt", "ev", "industrial", "sli"]
+        },
+        "chemistry": { "$ref": "#/$defs/text" },
+        "unique_identifier": {
+          "description": "The QR-linked battery passport identifier.",
+          "$ref": "#/$defs/text"
+        },
+        "capacity_kwh": { "type": "number", "exclusiveMinimum": 0 },
+        "carbon_footprint_kg_co2e_per_kwh": {
+          "description": "The manufacturer's own declared figure - a claim, verified separately via release (spec Sec.4).",
+          "type": "number",
+          "minimum": 0
+        },
+        "recycled_content": { "$ref": "#/$defs/recycled_content" }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "item": {
+      "description": "Reference to another subject, optionally with product details.",
+      "type": "object",
+      "properties": {
+        "subject": { "$ref": "#/$defs/subject" },
+        "product": { "$ref": "#/$defs/product" }
+      },
+      "required": ["subject"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -288,9 +288,11 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
 - **No revocation event in the profile.** A wrong event is withdrawn through a `revocation` entry
   of the core, not through a profile field. Whether that suffices in practice remains to be seen.
 - Mapping to existing code lists for `process` in `processing` — currently free text.
-- `eu/battery.v1` as the second profile (EU battery passport, mandatory from February 2027). It is
-  the real test of whether the mechanism is industry-agnostic: if the core has to be touched for
-  it, part A has failed.
+- ~~`eu/battery.v1` as the second profile (EU battery passport, mandatory from February 2027). It
+  is the real test of whether the mechanism is industry-agnostic: if the core has to be touched
+  for it, part A has failed.~~ **Implemented, `profiles/eu/battery/`, spec at
+  `spec/owm-4-battery.md` — see below, in its actual build order, not the order it was
+  earmarked in. The core was not touched.**
 - [`pharma.v1`](owm-4-pharma.md) — **implemented**, `profiles/pharma/`, loaded by every node
   alongside `food.v1` by default. A second, independent data point for the same test: six of its
   nine events are `food.v1`'s, unchanged, and the three genuinely new ones (facility storage, a
@@ -346,6 +348,14 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   subjects — a real, documented case of a lab-grown stone fraudulently inscribed with a natural
   diamond's own grading-report number. The same structural-contradiction posture, applied to a
   different shape of collision than any prior profile needed to detect.
+- [`eu/battery.v1`](owm-4-battery.md) — **implemented**, `profiles/eu/battery/`. The tenth profile,
+  and the original second one — earmarked from this document's earliest drafts as the concrete
+  test of whether the mechanism is industry-agnostic, actually built last of this batch. It passed
+  the test: no core change, same nine other profiles' patterns throughout. The one genuine novelty
+  is `decommission.reason: "second_life"` — the first profile anywhere to model an ending that is
+  not actually an ending: the same physical identity continues under `handover` and `measurement`
+  rather than a fresh `production`, a distinction none of the other nine profiles' own
+  `decommission` reasons needed to draw.
 
 ## 15. Security considerations
 
