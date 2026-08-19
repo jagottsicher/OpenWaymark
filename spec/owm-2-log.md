@@ -340,7 +340,37 @@ has issued for at least the pruning period and SHOULD keep all of them permanent
 about 3400 bytes, hourly issue costs 29 MB per year, and it is the only structure through which
 past misbehaviour can still be proven.
 
-## 11. Open points
+## 11. Optional payload confidentiality
+
+The public API is unauthenticated for the world by design ([OWM-7](owm-7-node-api.md) §2), and for
+an organisation that is the reasoned trade this project makes ([OWM-9](owm-9-threat-model.md) §3:
+"anonymity of participants" is an explicit non-goal). It stops being a reasoned trade the moment the
+participant is a sole proprietor whose business *is* the person — [OWM-9 A14](owm-9-threat-model.md#a14--full-payload-disclosure-and-business-collapsing-into-person)
+is the case this section closes the mechanism gap for.
+
+**A payload MAY be encrypted before it is ever submitted.** Nothing about that changes anything
+above this section: the commitment ([OWM-0 §5](owm-0-overview.md#5-payload-commitment)) is
+computed over whatever bytes are given, encrypted or not; inclusion, consistency and erasure all
+operate on opaque bytes exactly as they always have.
+An encrypted entry is an ordinary entry that happens to carry `prof = ""` — the same no-op path
+`attestation` entries already use ([OWM-6](owm-6-trust.md) §3), because a node that cannot decrypt
+a payload also cannot validate it against a profile schema, and `prof = ""` is the accurate
+statement of that, not a workaround.
+
+The envelope format and the hybrid ML-KEM/AES-256-GCM construction that produces it are specified
+by the `seal` package (Apache-2.0) — self-contained, no dependency on `core`, `log` or `node`, and
+therefore nothing this document needs to normatively pin down beyond the one property that matters
+here: whatever `seal.Seal` produces is, to every mechanism in this document, indistinguishable from
+any other payload.
+
+**What this does not do**, stated plainly rather than left to be discovered later: it says nothing
+about *who submitted*, *when*, or *roughly how much* — the traffic-pattern exposure
+[OWM-9 A9](owm-9-threat-model.md#a9--linking-through-metadata) already names as an accepted
+residual risk stays exactly as it was. And it is opt-in: a participant who does not encrypt is
+exactly as exposed as before this section existed. This closes the *mechanism gap* — that there was
+no way to do this at all — not the whole problem A14 describes.
+
+## 12. Open points
 
 - Receipts on appending (analogous to the SCT in CT), so that withholding an entry becomes
   provable and not merely assertable. Belongs to the node API,
@@ -350,3 +380,7 @@ past misbehaviour can still be proven.
 - Whether a pruned entry SHOULD be re-supplied by a third party who archived it (a "resurrection"
   path), and how such a copy is authenticated — the leaf hash decides it, but the transport for it
   is not specified.
+- Discovery of a recipient's ML-KEM encapsulation key. §11 leaves this out of band deliberately —
+  the same staging discipline [OWM-8](owm-8-client.md) already used for cross-node trust-chain
+  resolution — but a real mechanism (key-directory integration, an attestation-like publication
+  convention, or something else) is unbuilt.

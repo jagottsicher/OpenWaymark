@@ -202,7 +202,7 @@ Full description: [OWM-6](spec/owm-6-trust.md).
 |---|---|
 | Signatures (nodes, entities) | ML-DSA-65 — 1952 B public key, 3309 B signature |
 | Signatures (sensors, bulk entries) | ML-DSA-44 — 1312 B public key, 2420 B signature |
-| Encryption (planned, a later stage) | ML-KEM via `crypto/mlkem` from the standard library |
+| Encryption (optional payload confidentiality) | ML-KEM-768 via `crypto/mlkem`, hybrid with AES-256-GCM — [`seal/`](seal/) |
 | Hash | SHA-256, everywhere with domain separation (`OWM/1 entry`, `OWM/1 commit`, …) |
 | Serialisation | deterministic CBOR, RFC 8949 §4.2 |
 
@@ -263,6 +263,7 @@ wants to pull in `core/` on its own.
 | [`discovery/`](discovery/) | DNS discovery of a node's base URL and description | Apache-2.0 |
 | [`gossip/`](gossip/) | fetch, verify and poll STHs — the split-view detection client | Apache-2.0 |
 | [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |
+| [`seal/`](seal/) | optional payload confidentiality (ML-KEM hybrid encryption) | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
 | [`monitor/`](monitor/) | independent log monitor | AGPL-3.0-only |
 | [`client/`](client/) | WASM verifier and web app | Apache-2.0 |
@@ -465,7 +466,7 @@ changes back:
 
 | Area | License |
 |---|---|
-| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `discovery/`, `gossip/`, `testdata/`, `demo/` | Apache-2.0 |
+| `spec/`, `core/`, `log/`, `client/`, `profiles/`, `discovery/`, `gossip/`, `trust/`, `seal/`, `testdata/`, `demo/` | Apache-2.0 |
 | `node/`, `monitor/` | AGPL-3.0-only |
 
 Whoever operates a node as a service gives their changes back to the network they run it in.

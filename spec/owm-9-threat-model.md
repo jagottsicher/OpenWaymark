@@ -77,7 +77,7 @@ Anyone who confuses the two overestimates the system.
 | A11 | Server lying to the client | B | yes, through client-side checking |
 | A12 | Failure of a node | N, B | partly |
 | A13 | Record today, decrypt later | Q | yes, through PQ schemes |
-| A14 | Full payload disclosure, business collapsing into person | A | no |
+| A14 | Full payload disclosure, business collapsing into person | A | mechanism exists, opt-in |
 | A15 | Entity succession has no durable, attributable statement | A, B | yes, `kind: "concluded"` attestations |
 
 ### A1 — Split view · **the central attack**
@@ -229,10 +229,10 @@ delivery volumes, customer relationships and plant utilisation can be estimated 
 single payload.
 
 Only partly covered. The payload is protected, the **communication pattern** is not: timestamps,
-frequency, reference structure and issuer IDs stand in the log. Mitigations: random rather than
-derived subject IDs, batch submission to blur the time structure
-([OWM-2 §8](owm-2-log.md#8-batch-signing)), selective encryption of the payload by ML-KEM for
-chosen partners (a later, not yet numbered stage).
+frequency, reference structure and issuer IDs stand in the log — encrypting the payload
+([OWM-2 §11](owm-2-log.md#11-optional-payload-confidentiality)) does nothing about this specific
+exposure, only about content. Mitigations here: random rather than derived subject IDs, batch
+submission to blur the time structure ([OWM-2 §8](owm-2-log.md#8-batch-signing)).
 
 Residual risk carried: a log that is meant to be checkable must be observable. Complete
 unobservability and public verifiability exclude one another.
@@ -333,11 +333,25 @@ later, at their own discretion. It does not change that the payload was fully pu
 who asked, from the moment it was submitted until that choice was made — and nothing obliges the
 choice to be made at all.
 
-**Not covered today.** Possible mitigations, none built: field-level access tiers on the payload
-endpoint (in tension with the "unauthenticated, for the world" design of the public API
-elsewhere); coarser aggregation for small holdings at the profile level (a cooperative-level
-identifier instead of a per-farmer one — a profile choice, not a protocol one); selective
-payload encryption via ML-KEM, the same later, not-yet-numbered stage already named under A9.
+**A mechanism now exists (OWM-2 §11), opt-in.** Of the three mitigations this section used to name
+as unbuilt, the other two are ruled out, not merely deferred: field-level access tiers stay in real
+tension with the public API's unauthenticated-for-the-world design elsewhere, and coarser
+aggregation is not actually available to `eudr.v1`'s own flagship case — the regulation itself
+mandates the point-level precision that creates the exposure, so the profile cannot unilaterally
+aggregate it away without becoming non-compliant with the rule it exists to interoperate with. The
+third, selective payload encryption via ML-KEM, is now built: the `seal` package and
+[OWM-2 §11](owm-2-log.md#11-optional-payload-confidentiality).
+
+**What this closes, and what it does not, stated as plainly as A15's own fix was.** It closes the
+*mechanism gap* — that there was no way to keep a payload confidential to chosen recipients at all.
+It does not close A14 the way A15 was closed: encryption is opt-in, and a submitter (or a community
+node operator acting on a smallholder's behalf) who does not use it is exactly as exposed as before
+this section existed — nothing forces the choice. It also does nothing about the traffic-pattern
+exposure A9 already carries as an accepted residual risk: who submitted, when, and roughly how much
+stays visible regardless of whether the payload itself is encrypted. Whether encryption becomes the
+practical default for participants this matters most to is an adoption question, not a protocol one
+— the same boundary CLAUDE.md's own reasoning draws between what the protocol can offer and what an
+operator or profile actually does with it.
 
 ### A15 — Entity succession has no durable, attributable statement
 
@@ -438,7 +452,7 @@ two independently operated nodes carry real data.
 | A node operator can refuse entries | A consequence of the autonomy that makes up the federation. |
 | Erasure does not reach lawfully distributed copies | An operational and contractual question, not a protocol question. |
 | The operator sees the payloads of its participants | Community nodes require trust in the operator. Whoever does not want that runs a node of their own — that is what federation is for. |
-| Full payload disclosure to any reader (A14) | The public-API-for-the-world non-goal (§3) was reasoned through for organisations, not sole proprietors; narrowing it needs profile-level field discipline or the encryption stage under A9, neither built yet. |
+| Full payload disclosure remains the default for any participant who does not encrypt (A14) | The public-API-for-the-world non-goal (§3) was reasoned through for organisations, not sole proprietors; a mitigation now exists ([OWM-2 §11](owm-2-log.md#11-optional-payload-confidentiality)) but is opt-in, not mandatory — nothing forces the choice. |
 
 ## 8. What follows from this for the implementation
 
