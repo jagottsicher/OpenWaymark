@@ -31,6 +31,7 @@ import (
 	"openwaymark.org/owm/log/sqlite"
 	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/aviation"
+	"openwaymark.org/owm/profiles/diamonds"
 	"openwaymark.org/owm/profiles/electronics"
 	"openwaymark.org/owm/profiles/eudr"
 	"openwaymark.org/owm/profiles/food"
@@ -134,6 +135,7 @@ func buildRegistry(want []string) (*profiles.Registry, error) {
 		minerals.ID:    minerals.New,
 		seafood.ID:     seafood.New,
 		eudr.ID:        eudr.New,
+		diamonds.ID:    diamonds.New,
 	}
 	reg := profiles.NewRegistry()
 	if len(want) == 0 {

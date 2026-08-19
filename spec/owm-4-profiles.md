@@ -339,6 +339,13 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
   can identify a single smallholder's land, an erasability case OWM-2 §7 already covers, but a
   reminder that "no field for a natural person" (OWM-4 §13) is not the same guarantee as "no field
   that can single one out."
+- [`diamonds.v1`](owm-4-diamonds.md) — **implemented**, `profiles/diamonds/`. A ninth data point,
+  and CLAUDE.md's own vision section's oldest example finally built. Surfaces a genuinely new fraud
+  pattern none of the prior eight needed: not the same subject reappearing after a `decommission`
+  (nothing in a diamond's life ends that way), but a `release.reference` claimed by *two different*
+  subjects — a real, documented case of a lab-grown stone fraudulently inscribed with a natural
+  diamond's own grading-report number. The same structural-contradiction posture, applied to a
+  different shape of collision than any prior profile needed to detect.
 
 ## 15. Security considerations
 
