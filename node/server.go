@@ -39,7 +39,7 @@ func (n *Node) PublicHandler() http.Handler {
 	mux.HandleFunc("GET /owm/v1/keys/{id}/trust", n.handleKeyTrust)
 	mux.HandleFunc("GET /owm/v1/profiles", n.handleProfiles)
 	mux.HandleFunc("GET /owm/v1/schema", n.handleSchema)
-	return withCORS(jsonRouterErrors(mux))
+	return withCORS(withRateLimit(n.rateLimiter, jsonRouterErrors(mux)))
 }
 
 // submitRequest is the envelope of a submission.

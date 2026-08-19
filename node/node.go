@@ -58,14 +58,15 @@ var (
 
 // Node ties together log, key directory and profiles.
 type Node struct {
-	cfg        Config
-	identity   *Identity
-	store      *sqlite.Store
-	log        *owmlog.Log
-	keys       *KeyDirectory
-	profiles   *profiles.Registry
-	trustRoots trust.RootSet
-	now        func() time.Time
+	cfg         Config
+	identity    *Identity
+	store       *sqlite.Store
+	log         *owmlog.Log
+	keys        *KeyDirectory
+	profiles    *profiles.Registry
+	trustRoots  trust.RootSet
+	rateLimiter *rateLimiter // nil when Config.RateLimitPerSecond <= 0
+	now         func() time.Time
 }
 
 // Open opens database and identity and builds a node ready for operation.
@@ -114,15 +115,21 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 		store.Close()
 		return nil, err
 	}
+	var limiter *rateLimiter
+	if cfg.RateLimitPerSecond > 0 {
+		limiter = newRateLimiter(cfg.RateLimitPerSecond, cfg.RateLimitBurst)
+	}
+
 	return &Node{
-		cfg:        cfg,
-		identity:   identity,
-		store:      store,
-		log:        l,
-		keys:       keys,
-		profiles:   reg,
-		trustRoots: roots,
-		now:        time.Now,
+		cfg:         cfg,
+		identity:    identity,
+		store:       store,
+		log:         l,
+		keys:        keys,
+		profiles:    reg,
+		trustRoots:  roots,
+		rateLimiter: limiter,
+		now:         time.Now,
 	}, nil
 }
 
