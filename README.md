@@ -98,6 +98,18 @@ every commitment and every proof itself.
 
 Nine sections, explained one by one in [`demo/README.md`](demo/README.md).
 
+### Try the browser verifier against a real node
+
+```sh
+go run ./demo -serve
+```
+
+Runs the same demonstration, then keeps the node up and prints a ready link — build the WASM
+verifier once (`client/wasm/build.sh`), open `client/web/index.html`, paste the link's node URL and
+subject in, and watch the same checks the demo just ran happen again independently, this time in
+the browser rather than the CLI. Details, including what the page deliberately does not trust:
+[`client/README.md`](client/README.md), [OWM-8](spec/owm-8-client.md).
+
 ## How it works
 
 ### Entry, leaf, tree
@@ -253,7 +265,7 @@ wants to pull in `core/` on its own.
 | [`trust/`](trust/) | entity trust levels from attestation chains | Apache-2.0 |
 | [`node/`](node/) | node server and `owmnode` | AGPL-3.0-only |
 | [`monitor/`](monitor/) | independent log monitor | AGPL-3.0-only |
-| [`client/`](client/) | WASM verifier and web app (planned) | Apache-2.0 |
+| [`client/`](client/) | WASM verifier and web app | Apache-2.0 |
 | [`demo/`](demo/) | end-to-end demonstration against a real node | Apache-2.0 |
 | [`testdata/`](testdata/) | test vectors for third-party implementations | Apache-2.0 |
 
@@ -274,7 +286,7 @@ far is meant for production use.
 | E4 | federation: DNS discovery, gossip, `monitor/` | done |
 | E5 | trust levels, attestations, sensor certificates | done |
 | — | ten further schema profiles across other industries (see the table above) | done |
-| E6 | web app and WASM verifier | next |
+| E6 | web app and WASM verifier | done |
 | E7/E8 | deposit system and dispute resolution | deliberately deferred |
 
 E7/E8 wait until at least two independently operated nodes carry real data. Only then can cap
@@ -292,6 +304,7 @@ deliberately built so that it does not depend on them.
 | [OWM-5](spec/owm-5-federation.md) | federation: DNS discovery, gossip, the independent monitor's contract |
 | [OWM-6](spec/owm-6-trust.md) | trust levels, attestation entries, sensor certificates |
 | [OWM-7](spec/owm-7-node-api.md) | node API: submitting, reading, proofs, administration |
+| [OWM-8](spec/owm-8-client.md) | client and verifier: fetch-then-verify contract, CORS, addressing |
 | [OWM-9](spec/owm-9-threat-model.md) | threat model, limits of the system |
 
 Package-level explanations live in the README files of the directories
