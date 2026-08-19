@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 OpenWaymark contributors
+SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenWaymark verifier</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>OpenWaymark verifier</h1>
+  <p>Checks a provenance chain against a node — signature, commitment and inclusion proof,
+     recomputed here, not taken on the node's word. See
+     <a href="https://github.com/jagottsicher/OpenWaymark/blob/main/spec/owm-9-threat-model.md">OWM-9 A11</a>
+     for why that distinction is the entire point of this page.</p>
+</header>
+
+<form class="card" id="form">
+  <div>
+    <label for="node">Node base URL</label>
+    <input type="text" id="node" placeholder="https://provenance.example.com" autocomplete="off">
+  </div>
+  <div>
+    <label for="subject">Subject ID (64 hex characters)</label>
+    <input type="text" id="subject" placeholder="00b79a2d…" autocomplete="off" spellcheck="false">
+  </div>
+  <button type="submit" id="verify-btn" disabled>Loading verifier…</button>
+  <div class="status-line" id="status"></div>
+</form>
+
+<div id="results" class="hidden">
+  <div class="card sth-summary" id="sth-summary"></div>
+  <div class="card findings hidden" id="findings"></div>
+  <div id="entries"></div>
+  <div class="card hidden" id="trust-card">
+    <h2 style="margin-top:0;font-size:0.95rem;">Entity trust levels</h2>
+    <table class="trust-table" id="trust-table"></table>
+  </div>
+</div>
+
+<footer>
+  This page verifies structure and signatures. It cannot tell you whether the underlying claim was
+  true at the point of first capture — no software can (the oracle problem, OWM-9 A4). Source:
+  <a href="https://github.com/jagottsicher/OpenWaymark/tree/main/client">github.com/jagottsicher/OpenWaymark/client</a>.
+</footer>
+
+<script src="wasm_exec.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

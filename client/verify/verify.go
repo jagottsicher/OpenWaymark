@@ -154,7 +154,11 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 		return nil, fmt.Errorf("owm/client/verify: fetch STH signer %s: %w", sth.Key, err)
 	}
 
-	res := &Result{Subject: subject, Log: sth.Log}
+	// Entries starts as an empty slice, not nil: a subject with no history is
+	// an ordinary, common result (a fresh QR code, an unrelated random
+	// subject) and JSON's "[]" says exactly that — "null" would make a
+	// caller's own len(res.entries) check a footgun for no reason.
+	res := &Result{Subject: subject, Log: sth.Log, Entries: []EntryResult{}}
 	if err := signedSTH.Verify(sthKey); err != nil {
 		res.Findings = append(res.Findings, fmt.Sprintf("STH signature does not verify: %v", err))
 	} else {

@@ -7,6 +7,14 @@
 *.wasm
 *.test
 *.out
+# Copied from the Go toolchain by client/wasm/build.sh — never authored here,
+# and would drift from whatever Go version actually built the .wasm next to
+# it if committed once and forgotten.
+/client/web/wasm_exec.js
+# `go build ./...` (rather than build.sh) run directly inside client/wasm
+# produces an extensionless binary named after the directory — *.wasm above
+# does not catch it since it carries no extension.
+/client/wasm/wasm
 
 # Go
 /vendor/
