@@ -269,11 +269,12 @@ observer (OWM-5, `monitor/`) can **prove** misbehaviour.
 | Two STHs, same log, same `size`, different `root` | split view. Proof. |
 | Two STHs, `size₁ < size₂`, consistency proof does not come out | history changed. Proof. |
 | STH with `size₂ < size₁` at a later `ts` | tree shrank. Proof. |
-| Entry is not in the tree although receipted | withholding. Provable only with a receipt. |
+| STH issued past a receipt's deadline still at `size ≤ seq` | withholding. Proof, given the receipt (§12, `CheckReceipt`). |
 
-The first three are **non-repudiable**: the node signed both statements itself. No majority, no
-vote and no trusted third party is needed to judge them — only two observers who compare their
-views.
+All four are **non-repudiable**: the node signed both statements itself in every row — two STHs for
+the first three, a receipt and an STH for the fourth. No majority, no vote and no trusted third
+party is needed to judge them — only two observers (or, for the fourth, the submitter alone) who
+compare what the node itself signed.
 
 And that is exactly the condition: **a single observer cannot detect a split view in principle.**
 Both histories are internally consistent and correctly signed. Without exchange between observers
@@ -370,11 +371,42 @@ residual risk stays exactly as it was. And it is opt-in: a participant who does 
 exactly as exposed as before this section existed. This closes the *mechanism gap* — that there was
 no way to do this at all — not the whole problem A14 describes.
 
-## 12. Open points
+## 12. Receipts
 
-- Receipts on appending (analogous to the SCT in CT), so that withholding an entry becomes
-  provable and not merely assertable. Belongs to the node API,
-  [OWM-7 §10](owm-7-node-api.md#10-open-points).
+A node MAY, on appending, hand the submitter a **receipt**: a signed promise, distinct from the
+entry's own leaf, that this entry will be witnessed in a tree of size greater than its position no
+later than a stated deadline — the Certificate Transparency SCT pattern, applied to
+[OWM-9 A3](owm-9-threat-model.md#a3--withholding-entries) (withholding).
+
+This project's node appends synchronously (§6): a leaf's position is assigned, and the tree grown,
+before `Append` ever returns. What a receipt therefore actually promises is narrower than it might
+look — not the append itself, which already happened, but a **witnessed** tree: an STH with
+`size > seq`. Because a log only ever grows and a position, once assigned, is fixed permanently,
+`size > seq` is on its own sufficient to establish inclusion; no separate inclusion proof is needed
+to prove a receipt honoured, only to prove *where*.
+
+A receipt names the entry (`entry_id`, computable by the submitter independently, before ever
+submitting — the same identifier that later appears in the leaf), the position it was assigned
+(`seq`), the issuance time, and a **deadline** — embedded in the receipt itself rather than left to
+a separately published policy value, so a dispute needs nothing beyond the receipt and one later
+STH, both signed by the same node, to make its case. Structure and signing context mirror the STH
+(`OWM/1 receipt`, §4); the Go implementation is `log.Receipt` / `log.SignedReceipt`
+(Apache-2.0, [`log/receipt.go`](../log/receipt.go)).
+
+**Checking a receipt is not deniable by the node**, for the same reason `CheckSTHPair` (§9) is not:
+`log.CheckReceipt` compares two things the node itself signed — a receipt and a subsequent STH —
+and reports `ErrWithheld` exactly when the STH was issued after the deadline and its size has still
+not passed the receipted position. Both MUST be independently signature-checked by the caller
+first; `CheckReceipt` only compares already-trusted structures, the same division of labour
+`CheckSTHPair` already follows.
+
+Receipt issuance is **opt-in and off by default in neither direction that matters**: a node
+configures a `max_merge_delay`; `0` disables issuance entirely (`node.Config.MaxMergeDelay`,
+default one hour). A submitter who wants a receipt but is served none knows immediately that this
+node does not issue them — there is no silent partial promise.
+
+## 13. Open points
+
 - Behaviour on reaching the leaf limit of 128 KiB through very wide aggregations (`par` up to
   MaxParents = 1024).
 - Whether a pruned entry SHOULD be re-supplied by a third party who archived it (a "resurrection"
@@ -384,3 +416,5 @@ no way to do this at all — not the whole problem A14 describes.
   the same staging discipline [OWM-8](owm-8-client.md) already used for cross-node trust-chain
   resolution — but a real mechanism (key-directory integration, an attestation-like publication
   convention, or something else) is unbuilt.
+- Whether a receipt SHOULD also be obtainable after the fact. §12 defines the receipt itself; how it
+  is served belongs to the node API, [OWM-7 §10](owm-7-node-api.md#10-open-points).

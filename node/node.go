@@ -100,11 +100,12 @@ func Open(ctx context.Context, cfg Config) (*Node, error) {
 	}
 
 	l, err := owmlog.New(owmlog.Options{
-		Storage: store,
-		Signer:  identity.Key,
-		Genesis: identity.Genesis,
-		Blobs:   store,
-		Keys:    keys,
+		Storage:       store,
+		Signer:        identity.Key,
+		Genesis:       identity.Genesis,
+		Blobs:         store,
+		Keys:          keys,
+		MaxMergeDelay: cfg.MaxMergeDelay.Duration(),
 	})
 	if err != nil {
 		store.Close()

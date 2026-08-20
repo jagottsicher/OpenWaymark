@@ -339,6 +339,167 @@ func TestSTHValidate(t *testing.T) {
 	}
 }
 
+func testReceipt(t *testing.T, key *core.PrivateKey) *Receipt {
+	t.Helper()
+	logID, err := core.DeriveLogID(key.Public())
+	if err != nil {
+		t.Fatalf("log ID: %v", err)
+	}
+	return &Receipt{
+		Version:  FormatVersion,
+		Log:      logID,
+		EntryID:  core.Digest{0x44, 0x55, 0x66},
+		Seq:      7,
+		IssuedAt: 1754049600000,
+		Deadline: 1754053200000, // +1h
+		Key:      key.Public().ID(),
+	}
+}
+
+func TestReceiptRoundTrip(t *testing.T) {
+	key, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	receipt := testReceipt(t, key)
+	signed, err := SignReceipt(key, receipt)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if err := signed.Verify(key.Public()); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+
+	b, err := signed.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	got, err := ParseSignedReceipt(b)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if err := got.Verify(key.Public()); err != nil {
+		t.Fatalf("verify after the round trip: %v", err)
+	}
+	inner, err := got.Receipt()
+	if err != nil {
+		t.Fatalf("read receipt: %v", err)
+	}
+	if *inner != *receipt {
+		t.Errorf("receipt changed across the round trip")
+	}
+	if _, err := ParseSignedReceipt(append(b, 0x00)); err == nil {
+		t.Error("trailing bytes accepted")
+	}
+}
+
+func TestReceiptVerifyRejectsTampering(t *testing.T) {
+	key, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	signed, err := SignReceipt(key, testReceipt(t, key))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	t.Run("deadline", func(t *testing.T) {
+		bad := &SignedReceipt{
+			ReceiptBytes: append([]byte(nil), signed.ReceiptBytes...),
+			Alg:          signed.Alg,
+			Signature:    signed.Signature,
+		}
+		bad.ReceiptBytes[len(bad.ReceiptBytes)-1] ^= 0x01
+		if err := bad.Verify(key.Public()); err == nil {
+			t.Error("tampered receipt accepted")
+		}
+	})
+
+	t.Run("signature", func(t *testing.T) {
+		bad := &SignedReceipt{
+			ReceiptBytes: signed.ReceiptBytes,
+			Alg:          signed.Alg,
+			Signature:    append([]byte(nil), signed.Signature...),
+		}
+		bad.Signature[0] ^= 0x01
+		if !errors.Is(bad.Verify(key.Public()), ErrBadSignature) {
+			t.Error("tampered signature accepted")
+		}
+	})
+
+	t.Run("foreign key", func(t *testing.T) {
+		other, err := core.GenerateKey(core.SigAlgMLDSA65)
+		if err != nil {
+			t.Fatalf("key: %v", err)
+		}
+		if !errors.Is(signed.Verify(other.Public()), ErrSignerMismatch) {
+			t.Error("foreign key accepted")
+		}
+	})
+
+	t.Run("wrong algorithm", func(t *testing.T) {
+		small, err := core.GenerateKey(core.SigAlgMLDSA44)
+		if err != nil {
+			t.Fatalf("key: %v", err)
+		}
+		if !errors.Is(signed.Verify(small.Public()), ErrAlgMismatch) {
+			t.Error("wrong algorithm accepted")
+		}
+	})
+}
+
+func TestSignReceiptRejectsForeignSigner(t *testing.T) {
+	key, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	other, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	// The receipt names key as its signer, but other is meant to do the
+	// signing.
+	if _, err := SignReceipt(other, testReceipt(t, key)); !errors.Is(err, ErrSignerMismatch) {
+		t.Errorf("foreign signer accepted: %v", err)
+	}
+}
+
+func TestReceiptValidate(t *testing.T) {
+	key, err := core.GenerateKey(core.SigAlgMLDSA44)
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	base := testReceipt(t, key)
+	tests := []struct {
+		name   string
+		mutate func(*Receipt)
+		want   error
+	}{
+		{"wrong version", func(r *Receipt) { r.Version = 2 }, ErrReceiptVersion},
+		{"without log", func(r *Receipt) { r.Log = core.LogID{} }, ErrMissingField},
+		{"without entry ID", func(r *Receipt) { r.EntryID = core.Digest{} }, ErrMissingField},
+		{"without timestamp", func(r *Receipt) { r.IssuedAt = 0 }, ErrMissingField},
+		{"deadline not after issuance", func(r *Receipt) { r.Deadline = r.IssuedAt }, ErrMissingField},
+		{"deadline before issuance", func(r *Receipt) { r.Deadline = r.IssuedAt - 1 }, ErrMissingField},
+		{"without key", func(r *Receipt) { r.Key = core.KeyID{} }, ErrMissingField},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := *base
+			tc.mutate(&r)
+			if err := r.Validate(); !errors.Is(err, tc.want) {
+				t.Errorf("Validate = %v, expected %v", err, tc.want)
+			}
+		})
+	}
+	// Seq 0 is valid: the first leaf of a log has position 0.
+	r := *base
+	r.Seq = 0
+	if err := r.Validate(); err != nil {
+		t.Errorf("position 0 rejected: %v", err)
+	}
+}
+
 func mustEntryBytes(t *testing.T, signed []byte) []byte {
 	t.Helper()
 	se, err := core.ParseSignedEntry(signed)

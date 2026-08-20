@@ -60,6 +60,13 @@ type submitResponse struct {
 	Seq      uint64      `json:"seq"`
 	LoggedAt int64       `json:"logged_at"`
 	Leaf     []byte      `json:"leaf"`
+
+	// Receipt is the canonical encoding of a SignedReceipt (OWM-9 A3),
+	// present only when the node is configured with a positive
+	// Config.MaxMergeDelay. Its absence is not an error — a submitter who
+	// wants one and does not see one knows the node simply does not issue
+	// them.
+	Receipt []byte `json:"receipt,omitempty"`
 }
 
 func (n *Node) handleSubmit(w http.ResponseWriter, r *http.Request) {
@@ -96,12 +103,32 @@ func (n *Node) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+
+	// A receipt is this node's own signed promise (OWM-9 A3), not something
+	// the submission itself requires — its absence (MaxMergeDelay disabled)
+	// is an ordinary, common configuration, not a failure of this request.
+	var receiptBytes []byte
+	switch signed, err := n.log.IssueReceipt(leaf); {
+	case err == nil:
+		receiptBytes, err = signed.Encode()
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+	case errors.Is(err, owmlog.ErrReceiptsDisabled):
+		// No receipt configured — leave receiptBytes nil.
+	default:
+		writeError(w, err)
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, submitResponse{
 		Log:      leaf.Log,
 		EntryID:  leaf.EntryID(),
 		Seq:      leaf.Seq,
 		LoggedAt: leaf.LoggedAt,
 		Leaf:     encoded,
+		Receipt:  receiptBytes,
 	})
 }
 
