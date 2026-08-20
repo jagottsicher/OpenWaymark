@@ -71,7 +71,7 @@ Anyone who confuses the two overestimates the system.
 | A5 | Reconstruction of erased payload | A | yes, through the salt |
 | A6 | Key compromise | N, B, T | yes, through rotation |
 | A7 | Sybil attack | T | yes, through the cost of verification |
-| A8 | Physical substitution or cloning | T | no, only mitigated |
+| A8 | Physical substitution or cloning | T | no, only mitigated — visibility now has a real mechanism (`kind: "binding"`) |
 | A9 | Linking through metadata | A | partly |
 | A10 | Enumeration of subject identifiers | A | partly |
 | A11 | Server lying to the client | B | yes, through client-side checking |
@@ -234,13 +234,23 @@ participants who risk a stake of their own.
 The code is peeled off genuine goods and stuck onto counterfeit ones, or a QR code is simply
 copied.
 
-**Not covered** — the binding between the bit and the thing is physical, not cryptographic. The
-trust level of the physical-digital binding at least makes this weakness visible instead of hiding
-it: printed QR code = easily copied; one-time serial number = vulnerable to a race; NFC with
-challenge-response = practically unclonable; PUF = physically unclonable.
+**The substitution itself stays not covered** — the binding between the bit and the thing is
+physical, not cryptographic, and no signature scheme changes that. What used to be the whole
+residual gap here — a normative "the client MUST display the binding level" with nothing to
+display it *from* — is now real: `kind: "binding"` attestations
+([OWM-6 §3](owm-6-trust.md#3-attestation-entries)) let anyone claim a subject's binding level
+(printed QR code, one-time serial, NFC challenge-response, PUF), and `client/verify.VerifySubject`
+(OWM-8) surfaces every such claim it finds together with the issuer's own recomputed entity trust
+level. This makes the weakness *visible* rather than hiding it — a printed QR code on an otherwise
+unbroken chain does not silently look like a proof — but visibility is all it is: the claim's
+credibility is only as good as its issuer, nothing checks that the physical tag genuinely matches
+what was claimed, and a product with no binding claim at all is simply unadorned, not flagged as
+suspicious. The client MUST display whichever binding level it finds, or its absence, plainly —
+this section's own original requirement, now backed by a real mechanism.
 
-The client MUST display the binding level. A printed QR code on an otherwise unbroken chain must
-not look like a proof.
+**Test:** a product with a `kind: "binding"` claim of BindingLow from an unverified issuer must be
+displayed as exactly that — low confidence, low binding strength — never upgraded by a client that
+assumes a more forgery-resistant mechanism than the evidence supports.
 
 ### A9 — Linking through metadata
 
