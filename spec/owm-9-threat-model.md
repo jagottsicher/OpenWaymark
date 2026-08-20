@@ -160,9 +160,18 @@ What lowers the residual risk without removing it:
 - **Attributability.** The lie is signed and dated. That is the difference between a slip of paper
   and a basis for evidence.
 - **Economic stake.** Loss of deposit on confirmed fraud (E7).
-- **Sensors as a cross-check.** A GPS tracker contradicts a false location automatically.
-  Contradictions between human self-declaration and device data can be found by machine — which is
-  exactly what the entry type `sensor_reading` aims at.
+- **Sensors as a cross-check, found by machine.** The entry type `sensor_reading` already binds a
+  measurement to a device key, not a human self-declaration — a profile MAY go one step further and
+  compare the two automatically: `profiles.CrossCheckFunc`, run client-side once a subject's history
+  is available (`client/verify.Options.Profiles`,
+  [OWM-4 §4.5](owm-4-profiles.md#45-client-side-cross-checking-against-sensor-readings)).
+  `food.v1` implements the concrete example this section has always named: a transport claim's
+  promised temperature range, contradicted by a linked measurement's own readings, surfaces as a
+  Finding without a human ever comparing two documents by eye. This is a narrow, specific kind of
+  "found by machine" — an automatic disagreement between two signed statements about the same
+  subject, the same self-contradiction shape A1 already exploits for split views — not a general
+  oracle. It only fires when a profile defines one, only for the fields that profile chose to
+  compare, and only when a caller opts in.
 - **Sampled physical audits by third parties.** This part remains irreplaceable by software,
   whatever the protocol design.
 
