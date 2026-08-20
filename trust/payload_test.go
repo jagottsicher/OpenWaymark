@@ -81,6 +81,30 @@ func TestParsePayloadConcludedDiscontinued(t *testing.T) {
 	}
 }
 
+func TestParsePayloadBinding(t *testing.T) {
+	raw := `{"kind":"binding","binding_level":2,"evidence_url":"https://example.org/nfc-spec"}`
+	p, err := ParsePayload([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParsePayload: %v", err)
+	}
+	want := Payload{Kind: KindBinding, BindingLevel: BindingHigh, EvidenceURL: "https://example.org/nfc-spec"}
+	if p != want {
+		t.Errorf("got %+v, want %+v", p, want)
+	}
+}
+
+func TestParsePayloadBindingMinimal(t *testing.T) {
+	// evidence_url is optional; binding_level 0 (BindingLow) is a real,
+	// explicit claim, not an absent field.
+	p, err := ParsePayload([]byte(`{"kind":"binding","binding_level":0}`))
+	if err != nil {
+		t.Fatalf("ParsePayload: %v", err)
+	}
+	if p.Kind != KindBinding || p.BindingLevel != BindingLow {
+		t.Errorf("got %+v", p)
+	}
+}
+
 func TestParsePayloadRejects(t *testing.T) {
 	cases := []struct {
 		name string
@@ -101,6 +125,9 @@ func TestParsePayloadRejects(t *testing.T) {
 		{"concluded succeeded without successor", `{"kind":"concluded","reason":"succeeded"}`},
 		{"concluded discontinued with successor", `{"kind":"concluded","reason":"discontinued","successor":"` + testSuccessorHex + `"}`},
 		{"concluded with malformed successor", `{"kind":"concluded","reason":"succeeded","successor":"not-hex"}`},
+		{"binding without binding_level", `{"kind":"binding"}`},
+		{"binding with negative binding_level", `{"kind":"binding","binding_level":-1}`},
+		{"binding with binding_level above 3", `{"kind":"binding","binding_level":4}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

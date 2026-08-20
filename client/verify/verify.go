@@ -91,6 +91,28 @@ type Result struct {
 	// cross-log reference, a failed consistency check against a
 	// caller-supplied previous STH.
 	Findings []string `json:"findings,omitempty"`
+
+	// Bindings holds every kind:"binding" attestation found for subject
+	// (OWM-9 A8) — how forgery-resistant the physical-digital binding is
+	// claimed to be, printed QR code through PUF-backed chip. Always
+	// computed, never opt-in: OWM-9 A8 requires a client to display this
+	// when present. More than one entry means more than one claim was made;
+	// this package reports all of them rather than silently picking one —
+	// the same "surface everything, let the caller judge" choice already
+	// made for TrustLevel/ServerTrustLevel mismatches.
+	Bindings []BindingClaim `json:"bindings,omitempty"`
+}
+
+// BindingClaim is one kind:"binding" attestation found in a subject's
+// history, together with the issuer's own entity trust level — the claim's
+// only source of credibility, since a binding attestation is never walked
+// to a root the way an entity attestation is (trust/payload.go's own doc
+// comment on KindBinding).
+type BindingClaim struct {
+	Level       trust.BindingLevel `json:"level"`
+	Issuer      core.KeyID         `json:"issuer"`
+	IssuerLevel trust.Level        `json:"issuer_level"`
+	EvidenceURL string             `json:"evidence_url,omitempty"`
 }
 
 // OK reports whether every entry checked out and nothing was flagged as a
@@ -254,6 +276,27 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 				"trust level mismatch for %s: recomputed %s, node claims %s",
 				issuer, lvl, serverLvl))
 		}
+	}
+
+	// Binding claims (OWM-9 A8): a kind:"binding" attestation is an
+	// ordinary attestation entry, already checked like any other above —
+	// this only picks the ones with that shape out of what was already
+	// verified. res.TrustLevel[issuer] degrades to LevelNone when absent,
+	// the same convention its own doc comment already establishes.
+	for _, ce := range checked {
+		if ce.result.Status != StatusOK || ce.result.Type != core.EntryTypeAttestation {
+			continue
+		}
+		p, err := trust.ParsePayload(ce.result.Payload)
+		if err != nil || p.Kind != trust.KindBinding {
+			continue
+		}
+		res.Bindings = append(res.Bindings, BindingClaim{
+			Level:       p.BindingLevel,
+			Issuer:      ce.result.Issuer,
+			IssuerLevel: res.TrustLevel[ce.result.Issuer],
+			EvidenceURL: p.EvidenceURL,
+		})
 	}
 
 	return res, nil

@@ -347,6 +347,54 @@ func TestConcludedEndToEnd(t *testing.T) {
 	}
 }
 
+// TestBindingEndToEnd is OWM-9 A8's fix, empirically confirming its own
+// central design claim: a kind:"binding" attestation needs zero node-side
+// changes to accept and serve, and — unlike an entity attestation — its
+// Subject is an ordinary product subject, not a key at all.
+func TestBindingEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	n := newTestNode(t)
+	a := newAPI(t, n)
+
+	tagger := newParticipant(t, n, core.SigAlgMLDSA65, "chip manufacturer")
+	product, err := core.NewSubjectID()
+	if err != nil {
+		t.Fatalf("subject: %v", err)
+	}
+
+	se, salt, payload := tagger.signAttestation(t, product, `{"kind":"binding","binding_level":2,"evidence_url":"https://example.org/nfc-spec"}`)
+	a.submit(se, salt, payload)
+
+	var history historyResponse
+	a.mustGet("/owm/v1/subjects/"+product.String(), &history)
+	if history.Total != 1 {
+		t.Fatalf("history has %d entries, want 1", history.Total)
+	}
+
+	var pr payloadResponse
+	a.mustGet("/owm/v1/entries/"+history.Entries[0].EntryID.String()+"/payload", &pr)
+	var got struct {
+		Kind         string `json:"kind"`
+		BindingLevel int    `json:"binding_level"`
+	}
+	if err := json.Unmarshal(pr.Payload, &got); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if got.Kind != "binding" || got.BindingLevel != 2 {
+		t.Fatalf("got %+v", got)
+	}
+
+	// The whole point: a binding claim never touches entity trust. The
+	// tagger's own entity level stays LevelNone — nobody attested them.
+	lvl, _, err := trust.Compute(ctx, n.TrustSource(), trust.RootSet{}, tagger.key.Public().ID())
+	if err != nil {
+		t.Fatalf("compute: %v", err)
+	}
+	if lvl != trust.LevelNone {
+		t.Fatalf("level = %s, want %s (a binding attestation must not affect entity trust)", lvl, trust.LevelNone)
+	}
+}
+
 func TestLoadTrustRootsMissingFileIsEmpty(t *testing.T) {
 	roots, err := loadTrustRoots("")
 	if err != nil {

@@ -295,6 +295,13 @@ func TestComputeSourceErrorPropagates(t *testing.T) {
 // Source would hand it: the recursive lookup of the issuer (itself) hits the
 // cycle guard immediately, and the payload carries no Level for the min()
 // step to use — both already true by construction, not asserted here.
+func bindingAtt(issuer core.KeyID, level BindingLevel) Attestation {
+	return Attestation{
+		Entry:   core.Entry{Issuer: issuer},
+		Payload: Payload{Kind: KindBinding, BindingLevel: level},
+	}
+}
+
 func concludedAtt(who core.KeyID, reason Reason, successor core.KeyID) Attestation {
 	return Attestation{
 		Entry:   core.Entry{Issuer: who, Subject: core.SubjectID(who)},
@@ -335,6 +342,57 @@ func TestComputeConcludedDoesNotShadowARealAttestation(t *testing.T) {
 	src := &fakeSource{atts: map[core.KeyID][]Attestation{
 		subject: {
 			concludedAtt(subject, ReasonDiscontinued, core.KeyID{}),
+			entityAtt(root, LevelAccredited, false),
+		},
+	}}
+	lvl, chain, err := Compute(context.Background(), src, roots, subject)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if lvl != LevelAccredited {
+		t.Errorf("level = %s, want %s (the real attestation must still be found)", lvl, LevelAccredited)
+	}
+	if len(chain) != 1 || chain[0].Payload.Kind != KindEntity {
+		t.Errorf("chain = %+v, want exactly the one entity attestation", chain)
+	}
+}
+
+// TestComputeBindingContributesNothing is OWM-9 A8's fix, checked the same
+// way A15's was: a kind:"binding" attestation makes a claim about a
+// product's physical-digital binding, not about entity trust, and must
+// never be mistaken for one — even a maximal BindingVeryHigh claim must not
+// raise the entity level. No special case for it exists in Compute (see
+// compute.go and payload.go's own doc comment on KindBinding); this test is
+// what backs that design decision with more than an argument in a comment.
+func TestComputeBindingContributesNothing(t *testing.T) {
+	issuer := testKey(t, 1)
+	subject := testKey(t, 2)
+	src := &fakeSource{atts: map[core.KeyID][]Attestation{
+		subject: {bindingAtt(issuer, BindingVeryHigh)},
+	}}
+	lvl, chain, err := Compute(context.Background(), src, RootSet{}, subject)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if lvl != LevelNone {
+		t.Errorf("level = %s, want %s (a binding attestation must not raise the entity level)", lvl, LevelNone)
+	}
+	if len(chain) != 0 {
+		t.Errorf("chain = %+v, want empty (a binding attestation must never justify an entity level)", chain)
+	}
+}
+
+// TestComputeBindingDoesNotShadowARealAttestation mirrors
+// TestComputeConcludedDoesNotShadowARealAttestation for the same reason: a
+// binding claim sitting alongside a genuine entity attestation must not
+// prevent Compute from finding and using the real one.
+func TestComputeBindingDoesNotShadowARealAttestation(t *testing.T) {
+	root := testKey(t, 1)
+	subject := testKey(t, 2)
+	roots := RootSet{root: {ID: root, MaxLevel: LevelState}}
+	src := &fakeSource{atts: map[core.KeyID][]Attestation{
+		subject: {
+			bindingAtt(root, BindingLow),
 			entityAtt(root, LevelAccredited, false),
 		},
 	}}

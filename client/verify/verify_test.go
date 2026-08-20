@@ -708,6 +708,73 @@ func TestVerifySubject_CrossCheckFinding(t *testing.T) {
 	}
 }
 
+// TestVerifySubject_BindingClaim is OWM-9 A8's fix, end to end: a
+// kind:"binding" attestation for a product surfaces as a BindingClaim,
+// unconditionally (no Options field gates it, unlike cross-checking) and
+// together with the issuer's own recomputed entity trust level — its only
+// source of credibility, since a binding claim is never walked to a root.
+func TestVerifySubject_BindingClaim(t *testing.T) {
+	n := testnode.New(t)
+	root := newParticipant(t, n, "accreditation body")
+	tagger := newParticipant(t, n, "chip manufacturer")
+	product := randomSubject(t)
+
+	root.submit(t, n, core.EntryTypeAttestation, subjectFromKey(tagger.key.Public().ID()),
+		`{"kind":"entity","level":4,"scheme":"iso-17065"}`, nil)
+	tagger.submit(t, n, core.EntryTypeAttestation, product,
+		`{"kind":"binding","binding_level":2,"evidence_url":"https://example.org/nfc-spec"}`, nil)
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	roots := trust.RootSet{root.key.Public().ID(): trust.Root{ID: root.key.Public().ID(), Name: "root", MaxLevel: trust.LevelState}}
+	res, err := verify.VerifySubject(context.Background(), verify.HTTPFetcher{}, n.Server.URL, product,
+		verify.Options{Roots: roots})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	if len(res.Bindings) != 1 {
+		t.Fatalf("expected 1 binding claim, got %d: %+v", len(res.Bindings), res.Bindings)
+	}
+	got := res.Bindings[0]
+	if got.Level != trust.BindingHigh {
+		t.Errorf("level = %s, want %s", got.Level, trust.BindingHigh)
+	}
+	if got.Issuer != tagger.key.Public().ID() {
+		t.Errorf("issuer = %s, want %s", got.Issuer, tagger.key.Public().ID())
+	}
+	if got.IssuerLevel != trust.LevelCertified {
+		t.Errorf("issuer level = %s, want %s (the tagger's own recomputed entity trust)", got.IssuerLevel, trust.LevelCertified)
+	}
+	if got.EvidenceURL != "https://example.org/nfc-spec" {
+		t.Errorf("evidence_url = %q", got.EvidenceURL)
+	}
+}
+
+// TestVerifySubject_BindingClaimAbsentByDefault confirms an ordinary
+// product with no binding attestation at all reports no claims — the common
+// case, and not itself a finding or a failure.
+func TestVerifySubject_BindingClaimAbsentByDefault(t *testing.T) {
+	n := testnode.New(t)
+	farmer := newParticipant(t, n, "farmer")
+	subject := randomSubject(t)
+	farmer.submit(t, n, core.EntryTypeAssertion, subject, `{"event":"production"}`, nil)
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	res, err := verify.VerifySubject(context.Background(), verify.HTTPFetcher{}, n.Server.URL, subject, verify.Options{})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("expected no binding claims, got %+v", res.Bindings)
+	}
+	if !res.OK() {
+		t.Error("no binding claim must not itself be a failure")
+	}
+}
+
 func TestHexRoundTrip(t *testing.T) {
 	// Guards the hexRand/randomSubject helper above against ever silently
 	// producing an all-zero subject, which core.SubjectID.IsZero-adjacent
