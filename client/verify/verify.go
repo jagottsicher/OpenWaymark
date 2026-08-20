@@ -128,6 +128,31 @@ type Options struct {
 	// there is no protocol-level way to resolve a bare LogID to a URL
 	// (gossip.Client needs a configured partner URL for the same reason).
 	LogURLs map[core.LogID]string
+	// Profiles enables client-side cross-checking (OWM-9 A4): for every
+	// checked sensor_reading entry, its parent entries within this same
+	// history are looked up, and — when both share a profile — its
+	// CrossCheck runs against the pair. nil disables cross-checking
+	// entirely, the same "caller decides" convention Roots already follows
+	// for accreditation roots.
+	//
+	// Typed as an interface, not *profiles.Registry, deliberately: this
+	// package does not otherwise depend on profiles/ and, transitively, its
+	// JSON Schema library — a real cost for every caller that never sets
+	// this field at all, size-sensitive callers like client/wasm above all.
+	// *profiles.Registry satisfies ProfileLookup on its own (its CrossCheck
+	// method); a caller that already imports profiles/ passes one directly.
+	Profiles ProfileLookup
+}
+
+// ProfileLookup is the minimum this package needs from a profile registry to
+// run cross-checks. *profiles.Registry implements it without either package
+// needing to know about the other.
+type ProfileLookup interface {
+	// CrossCheck looks up profileID and, if found and it defines a
+	// cross-check, runs it against claim and msmt. ok is false when the
+	// profile is unknown, defines none, or the cross-check found nothing to
+	// report.
+	CrossCheck(profileID string, claim, msmt []byte) (finding string, ok bool)
 }
 
 // VerifySubject fetches nodeBaseURL's current STH, the full history of
@@ -192,13 +217,18 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 	}
 
 	issuers := map[core.KeyID]bool{}
+	checked := make(map[core.Digest]checkedEntry, len(hist.Entries))
 	for _, lv := range hist.Entries {
-		er, issuer, ok := c.checkEntry(ctx, lv, sth.Log, res.STH)
+		er, e, issuer, ok := c.checkEntry(ctx, lv, sth.Log, res.STH)
 		res.Entries = append(res.Entries, er)
+		if e != nil {
+			checked[er.EntryID] = checkedEntry{entry: e, result: er}
+		}
 		if ok {
 			issuers[issuer] = true
 		}
 	}
+	res.Findings = append(res.Findings, crossCheckFindings(opts.Profiles, sth.Log, checked)...)
 
 	// trust.Compute is well-defined (LevelNone, nil error) even over an
 	// empty root set — "no evidence" is an ordinary result, not something
@@ -233,20 +263,25 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 // structure, inclusion against sth (if the STH itself verified), and
 // commitment against payload unless the entry was erased or carries none.
 //
-// The second return value is the issuer, useful to the caller only when ok is
-// true — an entry that failed to parse at all names no issuer worth trusting.
-func (c *client) checkEntry(ctx context.Context, lv leafView, logID core.LogID, sth *owmlog.STH) (EntryResult, core.KeyID, bool) {
+// The second return value is the parsed entry, non-nil whenever the leaf and
+// signed entry themselves could be decoded — used by the cross-check pass to
+// walk Parents, and returned regardless of ok so a later, unrelated failure
+// (a bad inclusion proof, a payload that does not match) does not also hide
+// an otherwise-readable Parents list. The third return value is the issuer,
+// useful to the caller only when ok is true — an entry that failed to parse
+// at all names no issuer worth trusting.
+func (c *client) checkEntry(ctx context.Context, lv leafView, logID core.LogID, sth *owmlog.STH) (EntryResult, *core.Entry, core.KeyID, bool) {
 	leaf, err := owmlog.ParseLeaf(lv.Leaf)
 	if err != nil {
-		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("parse leaf: %v", err)}, core.KeyID{}, false
+		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("parse leaf: %v", err)}, nil, core.KeyID{}, false
 	}
 	se, err := leaf.SignedEntry()
 	if err != nil {
-		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("parse entry: %v", err)}, core.KeyID{}, false
+		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("parse entry: %v", err)}, nil, core.KeyID{}, false
 	}
 	e, err := se.Entry()
 	if err != nil {
-		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("decode entry: %v", err)}, core.KeyID{}, false
+		return EntryResult{Seq: lv.Seq, Status: StatusFailed, Reason: fmt.Sprintf("decode entry: %v", err)}, nil, core.KeyID{}, false
 	}
 	entryID := leaf.EntryID()
 	er := EntryResult{
@@ -261,27 +296,27 @@ func (c *client) checkEntry(ctx context.Context, lv leafView, logID core.LogID, 
 	pub, err := c.key(ctx, e.Issuer)
 	if err != nil {
 		er.Status, er.Reason = StatusFailed, fmt.Sprintf("fetch issuer key: %v", err)
-		return er, e.Issuer, false
+		return er, e, e.Issuer, false
 	}
 	if err := leaf.Verify(logID, pub); err != nil {
 		er.Status, er.Reason = StatusFailed, fmt.Sprintf("signature/structure: %v", err)
-		return er, e.Issuer, false
+		return er, e, e.Issuer, false
 	}
 
 	if sth != nil {
 		leafHash, err := leaf.Hash()
 		if err != nil {
 			er.Status, er.Reason = StatusFailed, fmt.Sprintf("leaf hash: %v", err)
-			return er, e.Issuer, false
+			return er, e, e.Issuer, false
 		}
 		ip, err := c.fetchInclusion(ctx, entryID, sth.Size)
 		if err != nil {
 			er.Status, er.Reason = StatusFailed, fmt.Sprintf("fetch inclusion proof: %v", err)
-			return er, e.Issuer, false
+			return er, e, e.Issuer, false
 		}
 		if err := ip.Verify(leafHash, sth); err != nil {
 			er.Status, er.Reason = StatusFailed, fmt.Sprintf("inclusion proof: %v", err)
-			return er, e.Issuer, false
+			return er, e, e.Issuer, false
 		}
 	}
 
@@ -289,7 +324,7 @@ func (c *client) checkEntry(ctx context.Context, lv leafView, logID core.LogID, 
 		// Revocation and erasure entries carry no commitment (core.Entry's
 		// own rule) — nothing further to check.
 		er.Status = StatusOK
-		return er, e.Issuer, true
+		return er, e, e.Issuer, true
 	}
 
 	salt, payload, err := c.fetchPayload(ctx, entryID)
@@ -297,18 +332,56 @@ func (c *client) checkEntry(ctx context.Context, lv leafView, logID core.LogID, 
 		var ae *APIError
 		if errors.As(err, &ae) && ae.Erased() {
 			er.Status = StatusErased
-			return er, e.Issuer, true
+			return er, e, e.Issuer, true
 		}
 		er.Status, er.Reason = StatusFailed, fmt.Sprintf("fetch payload: %v", err)
-		return er, e.Issuer, false
+		return er, e, e.Issuer, false
 	}
 	if !core.VerifyCommitment(e.Commitment, salt, payload) {
 		er.Status, er.Reason = StatusFailed, "payload does not match the entry's commitment"
-		return er, e.Issuer, false
+		return er, e, e.Issuer, false
 	}
 	er.Status = StatusOK
 	er.Payload = payload
-	return er, e.Issuer, true
+	return er, e, e.Issuer, true
+}
+
+// checkedEntry pairs a checked EntryResult with the parsed core.Entry it
+// came from, keyed by entry ID — what the cross-check pass needs to walk
+// Parents and look up whether they, too, checked out.
+type checkedEntry struct {
+	entry  *core.Entry
+	result EntryResult
+}
+
+// crossCheckFindings runs every checked sensor_reading entry's profile
+// cross-check (OWM-9 A4) against its own parents within this same history.
+// lookup == nil disables the whole pass — the caller's explicit choice not
+// to cross-check, the same as an empty Options.Roots disables trust
+// computation.
+func crossCheckFindings(lookup ProfileLookup, logID core.LogID, checked map[core.Digest]checkedEntry) []string {
+	if lookup == nil {
+		return nil
+	}
+	var findings []string
+	for _, ce := range checked {
+		if ce.result.Status != StatusOK || ce.result.Type != core.EntryTypeSensorReading {
+			continue
+		}
+		for _, ref := range ce.entry.Parents {
+			if !ref.Log.IsZero() && ref.Log != logID {
+				continue // a foreign-log parent is out of scope for this pass
+			}
+			parent, ok := checked[ref.Entry]
+			if !ok || parent.result.Status != StatusOK || parent.result.Profile != ce.result.Profile {
+				continue
+			}
+			if finding, ok := lookup.CrossCheck(ce.result.Profile, parent.result.Payload, ce.result.Payload); ok {
+				findings = append(findings, fmt.Sprintf("entry %s: %s", ce.result.EntryID, finding))
+			}
+		}
+	}
+	return findings
 }
 
 // client bundles a Fetcher with a node base URL and a per-call public-key

@@ -15,6 +15,8 @@ import (
 	"openwaymark.org/owm/core"
 	"openwaymark.org/owm/internal/testnode"
 	owmlog "openwaymark.org/owm/log"
+	"openwaymark.org/owm/profiles"
+	"openwaymark.org/owm/profiles/food"
 	"openwaymark.org/owm/trust"
 )
 
@@ -607,6 +609,102 @@ func TestVerifySubject_UnknownSubjectIsNotAnError(t *testing.T) {
 	}
 	if !res.OK() {
 		t.Fatal("no entries and no findings must count as OK")
+	}
+}
+
+// submitFood submits a food.v1 entry with the given parents, returning its
+// entry ID — participant.submit's own shape, extended with Profile and
+// Parents, which this test needs and the shared helper does not carry.
+func submitFood(t *testing.T, n *testnode.Node, p *participant, typ core.EntryType, subject core.SubjectID, payload string, parents []core.EntryRef) core.Digest {
+	t.Helper()
+	salt, err := core.NewSalt()
+	if err != nil {
+		t.Fatalf("salt: %v", err)
+	}
+	body := []byte(payload)
+	e := &core.Entry{
+		Version:    core.FormatVersion,
+		Type:       typ,
+		Profile:    food.ID,
+		Subject:    subject,
+		Issuer:     p.key.Public().ID(),
+		IssuedAt:   1_700_000_000_000,
+		Commitment: core.Commit(salt, body),
+		Parents:    parents,
+	}
+	se, err := core.SignEntry(p.key, e)
+	if err != nil {
+		t.Fatalf("sign entry: %v", err)
+	}
+	leaf, err := n.Submit(context.Background(), se, salt, body)
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	return leaf.EntryID()
+}
+
+// TestVerifySubject_CrossCheckFinding is OWM-9 A4's own example, end to end:
+// a shipper's promised temperature range, contradicted by a sensor's own
+// linked reading, surfaces as a Finding once the caller opts in with
+// Options.Profiles — and does not appear at all without it, the same
+// "caller decides" convention Options.Roots already follows.
+func TestVerifySubject_CrossCheckFinding(t *testing.T) {
+	n := testnode.New(t)
+	shipper := newParticipant(t, n, "shipper")
+	sensor := newParticipant(t, n, "sensor")
+	subject := randomSubject(t)
+
+	transportID := submitFood(t, n, shipper, core.EntryTypeAssertion, subject, `{
+		"event": "transport",
+		"time": "2026-08-10T11:15:00+02:00",
+		"step": "departure",
+		"carrier": {"name": "Kühlspedition Nord"},
+		"from": {"gln": "4012345000009"},
+		"to": {"gln": "4012345000016"},
+		"consignment": "CNSG-77123",
+		"conditions": {"temperature_c": {"min": 2, "max": 8}}
+	}`, nil)
+	submitFood(t, n, sensor, core.EntryTypeSensorReading, subject, `{
+		"event": "measurement",
+		"time": "2026-08-10T12:15:00+02:00",
+		"sensor": {"id": "cool-77", "model": "TempLog 3"},
+		"quantity_kind": "temperature",
+		"unit": "CEL",
+		"readings": [{"t": "2026-08-10T12:15:00+02:00", "v": 9.6}]
+	}`, []core.EntryRef{{Entry: transportID}})
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	reg := profiles.NewRegistry()
+	if err := reg.Add(food.MustNew()); err != nil {
+		t.Fatalf("register profile: %v", err)
+	}
+
+	res, err := verify.VerifySubject(context.Background(), verify.HTTPFetcher{}, n.Server.URL, subject,
+		verify.Options{Profiles: reg})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	found := false
+	for _, f := range res.Findings {
+		if strings.Contains(f, "cold chain") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a cold-chain finding, got %v", res.Findings)
+	}
+
+	// The identical, real contradiction — but without opting in.
+	res2, err := verify.VerifySubject(context.Background(), verify.HTTPFetcher{}, n.Server.URL, subject, verify.Options{})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	for _, f := range res2.Findings {
+		if strings.Contains(f, "cold chain") {
+			t.Errorf("finding appeared without Options.Profiles: %q", f)
+		}
 	}
 }
 
