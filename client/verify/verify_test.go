@@ -14,6 +14,7 @@ import (
 	"openwaymark.org/owm/client/verify"
 	"openwaymark.org/owm/core"
 	"openwaymark.org/owm/internal/testnode"
+	owmlog "openwaymark.org/owm/log"
 	"openwaymark.org/owm/trust"
 )
 
@@ -274,6 +275,225 @@ func TestVerifySubject_TamperedLeaf(t *testing.T) {
 	}
 	if res.Entries[0].Status != verify.StatusFailed {
 		t.Fatalf("expected failed, got %s (%s)", res.Entries[0].Status, res.Entries[0].Reason)
+	}
+}
+
+// sthForgingFetcher wraps a real Fetcher and flips a byte inside the
+// *signature* of whichever response carries the STH — a forged or
+// corrupted signature over an otherwise well-formed, honestly-shaped STH,
+// distinct from a response broken at the encoding level. Targeting the
+// decoded signature bytes rather than a blind flip in the raw JSON is
+// what makes this land on signature verification specifically rather than
+// on JSON decoding, the same reasoning leafCorruptingFetcher already
+// applies to a leaf's bytes.
+type sthForgingFetcher struct {
+	verify.Fetcher
+	done bool
+}
+
+// sthWireResponse mirrors node/server.go's own (unexported) response shape
+// for GET /owm/v1/sth field for field — the same convention verify.go's own
+// sthResponse documents itself as following.
+type sthWireResponse struct {
+	Signed *owmlog.SignedSTH `json:"signed"`
+}
+
+func (f *sthForgingFetcher) Fetch(ctx context.Context, u string) ([]byte, error) {
+	b, err := f.Fetcher.Fetch(ctx, u)
+	if err != nil || f.done || !strings.HasSuffix(u, "/owm/v1/sth") {
+		return b, err
+	}
+	var v sthWireResponse
+	if json.Unmarshal(b, &v) != nil || v.Signed == nil || len(v.Signed.Signature) == 0 {
+		return b, err
+	}
+	v.Signed.Signature[len(v.Signed.Signature)/2] ^= 0xFF
+	out, merr := json.Marshal(v)
+	if merr != nil {
+		return b, err
+	}
+	f.done = true
+	return out, nil
+}
+
+// TestVerifySubject_ForgedSTHSignature confirms a node cannot simply hand
+// the client whatever tree state it likes — the STH's own signature is
+// checked before anything about it is trusted. A forged or corrupted STH
+// signature must surface as a finding, and the STH must not be accepted as
+// the verified state to check entries' inclusion against — silently
+// falling back to "unverified but treated as fine" would defeat the point.
+func TestVerifySubject_ForgedSTHSignature(t *testing.T) {
+	n := testnode.New(t)
+	farmer := newParticipant(t, n, "farmer")
+	subject := randomSubject(t)
+	farmer.submit(t, n, core.EntryTypeAssertion, subject, `{"event":"production"}`, nil)
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	f := &sthForgingFetcher{Fetcher: verify.HTTPFetcher{}}
+	res, err := verify.VerifySubject(context.Background(), f, n.Server.URL, subject, verify.Options{})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	if res.OK() {
+		t.Fatal("expected a failure, got OK")
+	}
+	if res.STH != nil {
+		t.Fatal("a forged STH signature must not be accepted as the verified STH")
+	}
+	found := false
+	for _, finding := range res.Findings {
+		if strings.Contains(finding, "STH signature does not verify") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a finding naming the forged STH signature, got %v", res.Findings)
+	}
+}
+
+// inclusionProofCorruptingFetcher wraps a real Fetcher and flips a byte
+// inside the decoded audit path of whichever response carries an inclusion
+// proof — a well-formed proof over the wrong data, the counterpart to
+// leafCorruptingFetcher for the proof rather than the leaf.
+type inclusionProofCorruptingFetcher struct {
+	verify.Fetcher
+	done bool
+}
+
+func (f *inclusionProofCorruptingFetcher) Fetch(ctx context.Context, u string) ([]byte, error) {
+	b, err := f.Fetcher.Fetch(ctx, u)
+	if err != nil || f.done || !strings.Contains(u, "/proof/inclusion") {
+		return b, err
+	}
+	var p owmlog.InclusionProof
+	if json.Unmarshal(b, &p) != nil || len(p.Path) == 0 {
+		return b, err
+	}
+	p.Path[0][0] ^= 0xFF
+	out, merr := json.Marshal(&p)
+	if merr != nil {
+		return b, err
+	}
+	f.done = true
+	return out, nil
+}
+
+// TestVerifySubject_TamperedInclusionProof confirms a leaf that really was
+// signed honestly still cannot be smuggled into a tree it does not belong
+// in (or vice versa) — the inclusion proof itself is checked against the
+// STH's root, not merely fetched and trusted. Two entries so the audit path
+// is non-empty; a single-leaf tree has nothing in Path to corrupt.
+func TestVerifySubject_TamperedInclusionProof(t *testing.T) {
+	n := testnode.New(t)
+	farmer := newParticipant(t, n, "farmer")
+	shop := newParticipant(t, n, "shop")
+	subject := randomSubject(t)
+	farmer.submit(t, n, core.EntryTypeAssertion, subject, `{"event":"production"}`, nil)
+	shop.submit(t, n, core.EntryTypeAssertion, subject, `{"event":"handover"}`, nil)
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	f := &inclusionProofCorruptingFetcher{Fetcher: verify.HTTPFetcher{}}
+	res, err := verify.VerifySubject(context.Background(), f, n.Server.URL, subject, verify.Options{})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	if res.OK() {
+		t.Fatal("expected a failure, got OK")
+	}
+	failed := false
+	for _, e := range res.Entries {
+		if e.Status != verify.StatusFailed {
+			continue
+		}
+		failed = true
+		if !strings.Contains(e.Reason, "inclusion proof") {
+			t.Errorf("expected the inclusion proof check to be what failed, got reason %q", e.Reason)
+		}
+	}
+	if !failed {
+		t.Fatal("no entry was flagged as failed")
+	}
+}
+
+// keySwappingFetcher wraps a real Fetcher and, for the lookup of one
+// specific key (targetID — the entry issuer's, not the STH signer's, whose
+// own lookup happens first and must stay untouched for this test to
+// exercise the path it means to), substitutes an entirely different (but
+// validly encoded) public key — what a node would have to serve to
+// attribute an entry to someone other than its real signer while still
+// passing an ordinary decode. Alg is left as the real node reported it: the
+// point of this test is the identity self-check (does the returned key's
+// own computed ID match the one asked for), not a mismatched-algorithm
+// decode failure.
+type keySwappingFetcher struct {
+	verify.Fetcher
+	targetID   core.KeyID
+	substitute *core.PublicKey
+	done       bool
+}
+
+type keyWireView struct {
+	Alg    string `json:"alg"`
+	Public string `json:"public"`
+}
+
+func (f *keySwappingFetcher) Fetch(ctx context.Context, u string) ([]byte, error) {
+	b, err := f.Fetcher.Fetch(ctx, u)
+	if err != nil || f.done || !strings.HasSuffix(u, "/owm/v1/keys/"+f.targetID.String()) {
+		return b, err
+	}
+	out, merr := json.Marshal(keyWireView{
+		Alg:    f.substitute.Alg().String(),
+		Public: hex.EncodeToString(f.substitute.Bytes()),
+	})
+	if merr != nil {
+		return b, err
+	}
+	f.done = true
+	return out, nil
+}
+
+// TestVerifySubject_ServerSubstitutesAnotherKey confirms this package never
+// takes a node's word for whose key it just handed back — it recomputes the
+// key's own identifier and rejects any answer that does not match what was
+// asked for (verify.go's own "never trust this key" check). Without this, a
+// node could attribute any entry to any issuer it likes, simply by
+// answering a key lookup with a key of its own choosing.
+func TestVerifySubject_ServerSubstitutesAnotherKey(t *testing.T) {
+	n := testnode.New(t)
+	farmer := newParticipant(t, n, "farmer")
+	subject := randomSubject(t)
+	farmer.submit(t, n, core.EntryTypeAssertion, subject, `{"event":"production"}`, nil)
+	if _, err := n.IssueSTH(context.Background()); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+
+	impostor, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("generate impostor key: %v", err)
+	}
+
+	f := &keySwappingFetcher{
+		Fetcher:    verify.HTTPFetcher{},
+		targetID:   farmer.key.Public().ID(),
+		substitute: impostor.Public(),
+	}
+	res, err := verify.VerifySubject(context.Background(), f, n.Server.URL, subject, verify.Options{})
+	if err != nil {
+		t.Fatalf("VerifySubject: %v", err)
+	}
+	if res.OK() {
+		t.Fatal("expected a failure, got OK")
+	}
+	if res.Entries[0].Status != verify.StatusFailed {
+		t.Fatalf("expected failed, got %s (%s)", res.Entries[0].Status, res.Entries[0].Reason)
+	}
+	if !strings.Contains(res.Entries[0].Reason, "returned a key identifying as") {
+		t.Errorf("expected the key-identity self-check to be what failed, got reason %q", res.Entries[0].Reason)
 	}
 }
 
