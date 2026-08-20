@@ -50,6 +50,12 @@ type Options struct {
 
 	// Now returns the time. Empty means time.Now.
 	Now func() time.Time
+
+	// MaxMergeDelay bounds how long IssueReceipt may promise before an
+	// accepted entry has to be witnessed in a signed tree (OWM-9 A3). Zero
+	// disables receipt issuance entirely — the same "zero means off"
+	// convention Config.RateLimitPerSecond already uses elsewhere.
+	MaxMergeDelay time.Duration
 }
 
 // Log maintains the Merkle tree of a node.
@@ -58,13 +64,14 @@ type Options struct {
 // in exactly one place, and two concurrent appenders would claim the same
 // position.
 type Log struct {
-	id     core.LogID
-	signer *core.PrivateKey
-	st     Storage
-	blobs  BlobStore
-	keys   KeyResolver
-	rf     *compact.RangeFactory
-	now    func() time.Time
+	id            core.LogID
+	signer        *core.PrivateKey
+	st            Storage
+	blobs         BlobStore
+	keys          KeyResolver
+	rf            *compact.RangeFactory
+	now           func() time.Time
+	maxMergeDelay time.Duration
 
 	mu sync.Mutex // serialises Append
 }
@@ -90,13 +97,14 @@ func New(opts Options) (*Log, error) {
 		now = time.Now
 	}
 	return &Log{
-		id:     id,
-		signer: opts.Signer,
-		st:     opts.Storage,
-		blobs:  opts.Blobs,
-		keys:   opts.Keys,
-		rf:     &compact.RangeFactory{Hash: hasher.HashChildren},
-		now:    now,
+		id:            id,
+		signer:        opts.Signer,
+		st:            opts.Storage,
+		blobs:         opts.Blobs,
+		keys:          opts.Keys,
+		rf:            &compact.RangeFactory{Hash: hasher.HashChildren},
+		now:           now,
+		maxMergeDelay: opts.MaxMergeDelay,
 	}, nil
 }
 
@@ -418,6 +426,34 @@ func (l *Log) IssueSTH(ctx context.Context) (*SignedSTH, error) {
 
 // LatestSTH returns the most recently issued STH.
 func (l *Log) LatestSTH(ctx context.Context) (*SignedSTH, error) { return l.st.LatestSTH(ctx) }
+
+// IssueReceipt issues a signed promise that leaf will be included in a
+// witnessed tree — a Signed Tree Head with Size > leaf.Seq — no later than
+// MaxMergeDelay after now (OWM-9 A3).
+//
+// No storage is touched: unlike an STH, a receipt is not something the node
+// needs to remember issuing. The submitter holds it, the same way a
+// Certificate Transparency client holds its own SCT — presenting it later,
+// together with a subsequent STH, is what CheckReceipt is for.
+//
+// Returns ErrReceiptsDisabled when the log was not configured with a
+// positive MaxMergeDelay.
+func (l *Log) IssueReceipt(leaf *Leaf) (*SignedReceipt, error) {
+	if l.maxMergeDelay <= 0 {
+		return nil, ErrReceiptsDisabled
+	}
+	issuedAt := l.now().UTC().UnixMilli()
+	r := &Receipt{
+		Version:  FormatVersion,
+		Log:      l.id,
+		EntryID:  leaf.EntryID(),
+		Seq:      leaf.Seq,
+		IssuedAt: issuedAt,
+		Deadline: issuedAt + l.maxMergeDelay.Milliseconds(),
+		Key:      l.signer.Public().ID(),
+	}
+	return SignReceipt(l.signer, r)
+}
 
 // Payload returns the payload of an entry and checks it against the commitment
 // in the log.

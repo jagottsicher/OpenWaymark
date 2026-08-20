@@ -40,6 +40,18 @@ const (
 	// rate. A sweep of thousands of subject IDs does not.
 	DefaultRateLimitPerSecond = 5.0
 	DefaultRateLimitBurst     = 60.0
+
+	// DefaultMaxMergeDelay bounds how long a node may take to witness an
+	// accepted entry in a signed tree before its own receipt counts as
+	// broken (OWM-9 A3) — the Certificate Transparency SCT/MMD pattern.
+	// Because this implementation appends synchronously, the entry is
+	// already in the tree by the time the receipt is handed out; what the
+	// deadline actually bounds in practice is how long the node may go
+	// without issuing a fresh STH. An hour gives sixty multiples of
+	// DefaultSTHInterval of headroom under the defaults — generous for a
+	// Raspberry-Pi-class node under transient load, while still far
+	// tighter than a typical real-world CT log's 24h MMD.
+	DefaultMaxMergeDelay = time.Hour
 )
 
 // Partner is a supply chain partner whose log this node gossips with —
@@ -130,6 +142,13 @@ type Config struct {
 	// address may make before the sustained rate takes over. Ignored when
 	// RateLimitPerSecond is 0.
 	RateLimitBurst float64 `json:"rate_limit_burst,omitempty"`
+
+	// MaxMergeDelay bounds how long a node may promise, in an OWM-9 A3
+	// receipt, before an accepted entry must be witnessed in a signed
+	// tree. A negative value is rejected; 0 disables receipt issuance
+	// entirely — a node that would rather not make this promise at all
+	// keeps working exactly as before this field existed.
+	MaxMergeDelay Duration `json:"max_merge_delay,omitempty"`
 }
 
 // DefaultConfig returns the defaults.
@@ -143,6 +162,7 @@ func DefaultConfig() Config {
 		STHInterval:        Duration(DefaultSTHInterval),
 		RateLimitPerSecond: DefaultRateLimitPerSecond,
 		RateLimitBurst:     DefaultRateLimitBurst,
+		MaxMergeDelay:      Duration(DefaultMaxMergeDelay),
 	}
 }
 
@@ -188,6 +208,9 @@ func (c *Config) Check() error {
 	}
 	if c.RateLimitBurst < 0 {
 		return fmt.Errorf("owm/node: rate_limit_burst is negative")
+	}
+	if c.MaxMergeDelay < 0 {
+		return fmt.Errorf("owm/node: max_merge_delay is negative")
 	}
 	for i, p := range c.Partners {
 		if p.Name == "" {

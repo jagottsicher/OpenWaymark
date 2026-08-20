@@ -124,13 +124,24 @@ keeps its own history alone can rewrite it together with all its STHs.
 
 A node does not accept an inconvenient entry in the first place, or does not serve it.
 
-Only partly covered, and that is a deliberate consequence of federation. Mitigations:
+Only partly covered, and that is a deliberate consequence of federation — receipts close one of
+the two halves this threat names, not both. Mitigations:
 
-- Whoever submits can demand a receipt that obliges the node to include the entry within a
-  deadline — the CT pattern of the Signed Certificate Timestamp. A receipt that is not honoured is
-  a signed proof of breach.
+- **A node MAY issue a receipt on appending** — a signed promise, distinct from the entry's own
+  leaf, that the entry will be witnessed in a tree of size greater than its position no later than
+  a deadline named inside the receipt itself: the CT pattern of the Signed Certificate Timestamp
+  (`log.Receipt`/`log.SignedReceipt`, [OWM-2 §12](owm-2-log.md#12-receipts),
+  `Config.MaxMergeDelay`, default one hour, `0` disables it). A receipt that is not honoured —
+  a later STH, issued past the deadline, whose size has still not passed the receipted position —
+  is a signed proof of breach: `log.CheckReceipt` compares two things the node itself signed and is
+  not deniable by it, the same non-repudiable shape `CheckSTHPair` already gives A1. This closes
+  the *accepted-then-silently-dropped* half of A3 for whoever holds a receipt. It says nothing
+  about the other half: a node that never accepts the submission at all leaves no receipt to
+  breach, and it is opt-in — a node that issues none, or a submitter who never asks, is exactly as
+  exposed as before this mechanism existed.
 - A counterparty can submit the same entry to its own node. A delivery relationship has two sides,
-  and both are entitled to document it.
+  and both are entitled to document it. This is the mitigation for the *refused-at-the-door* half a
+  receipt cannot reach.
 - Gaps in the chain are visible to the final verifier: a predecessor reference that points nowhere
   is a signal.
 
