@@ -231,11 +231,15 @@ single payload.
 Only partly covered. The payload is protected, the **communication pattern** is not: timestamps,
 frequency, reference structure and issuer IDs stand in the log — encrypting the payload
 ([OWM-2 §11](owm-2-log.md#11-optional-payload-confidentiality)) does nothing about this specific
-exposure, only about content. Mitigations here: random rather than derived subject IDs, batch
-submission to blur the time structure ([OWM-2 §8](owm-2-log.md#8-batch-signing)).
+exposure, only about content. Mitigations: random rather than derived subject IDs, batch
+submission to blur the time structure ([OWM-2 §8](owm-2-log.md#8-batch-signing)), and — new since
+A10's own fix — rate limiting the public API (`node/ratelimit.go`, `Config.RateLimitPerSecond`)
+raises the cost of *watching the pattern form* the same way it raises the cost of A10's sweep: not
+by hiding anything, but by slowing down how fast an outside observer can accumulate it.
 
 Residual risk carried: a log that is meant to be checkable must be observable. Complete
-unobservability and public verifiability exclude one another.
+unobservability and public verifiability exclude one another — no rate limit changes that, it only
+changes how quickly an observer can act on what is, by design, there to be seen.
 
 ### A10 — Enumeration of subject identifiers
 
@@ -267,11 +271,19 @@ Mitigations:
 - **Coarser subject granularity**
   ([OWM-4 §10.1](owm-4-profiles.md#101-subject-granularity)). Lot level instead of item level
   reduces the resolution of what can be inferred from a sweep.
-- **Rate limiting on the read API.**
+- **Rate limiting on the read API.** A per-source-address token bucket wraps the public handler
+  (`node/ratelimit.go`), sized against a real verification session rather than a sweep: the default
+  burst (60) comfortably covers `client.VerifySubject` walking a chain of a dozen entries across a
+  few issuers — fetching an STH, a signer key, a history, an inclusion proof and a payload per
+  entry, a key and a trust computation per unique issuer — without ever touching the sustained rate
+  (5/s by default). A sweep of thousands of subject IDs does. `Config.RateLimitPerSecond = 0`
+  disables it, an explicit operator opt-out for a deployment whose reverse proxy already rate
+  limits, rather than double-throttling a legitimate client.
 
 Residual risk carried: with derived identifiers the enumeration cannot be prevented, only rate
 limited. Rate limiting raises the cost and the duration of a sweep; it does not make the sweep
-impossible, and anyone patient enough will finish it.
+impossible, and anyone patient enough — or anyone running the sweep from many source addresses at
+once — will finish it regardless.
 
 ### A11 — Server lying to the client
 
