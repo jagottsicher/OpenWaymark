@@ -22,6 +22,7 @@ var (
 	ErrProofInvalid = errors.New("owm/log: proof does not check out")
 	ErrSplitView    = errors.New("owm/log: split view: two roots for the same tree size")
 	ErrShrunk       = errors.New("owm/log: tree has shrunk")
+	ErrWithheld     = errors.New("owm/log: entry withheld past its receipted deadline")
 )
 
 // InclusionProof shows that a leaf is contained at position LeafIndex in a tree
@@ -135,6 +136,32 @@ func CheckSTHPair(a, b *STH) error {
 	}
 	if late.Size < early.Size {
 		return fmt.Errorf("%w: from %d to %d", ErrShrunk, early.Size, late.Size)
+	}
+	return nil
+}
+
+// CheckReceipt compares a receipt against a later STH from the same log for
+// the one contradiction that proves a node broke its own promise (OWM-9 A3):
+// an STH issued after the deadline whose size has still not passed the
+// receipted entry's position. Because a log only ever grows and a position
+// is fixed once assigned, Size > Seq is on its own sufficient to establish
+// inclusion — no separate inclusion proof is needed here.
+//
+// Like CheckSTHPair, this only reports what the node signed itself — the
+// receipt and the STH — and is therefore not deniable by the node. Both MUST
+// be independently signature-checked by the caller first
+// (SignedReceipt.Verify, SignedSTH.Verify); CheckReceipt only compares
+// already-trusted structures.
+func CheckReceipt(r *Receipt, sth *STH) error {
+	if r == nil || sth == nil {
+		return fmt.Errorf("%w: receipt or sth", ErrMissingField)
+	}
+	if r.Log != sth.Log {
+		return fmt.Errorf("%w: %s and %s", ErrLogMismatch, r.Log, sth.Log)
+	}
+	if sth.IssuedAt > r.Deadline && sth.Size <= r.Seq {
+		return fmt.Errorf("%w: entry at seq %d, receipted deadline %s, STH from %s still at size %d",
+			ErrWithheld, r.Seq, r.DeadlineTime(), sth.IssuedAtTime(), sth.Size)
 	}
 	return nil
 }

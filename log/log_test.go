@@ -368,6 +368,148 @@ func TestCheckSTHPairForeignLog(t *testing.T) {
 	}
 }
 
+func TestCheckReceiptWithheld(t *testing.T) {
+	logID := core.LogID{1, 2, 3}
+	r := &Receipt{Version: FormatVersion, Log: logID, EntryID: core.Digest{9}, Seq: 5, IssuedAt: 1000, Deadline: 2000, Key: core.KeyID{1}}
+	// An STH issued after the deadline whose size has still not passed Seq.
+	sth := &STH{Version: FormatVersion, Log: logID, Size: 5, IssuedAt: 3000, Root: core.Digest{1}}
+	if err := CheckReceipt(r, sth); !errors.Is(err, ErrWithheld) {
+		t.Errorf("withholding not detected: %v", err)
+	}
+}
+
+func TestCheckReceiptHonoured(t *testing.T) {
+	logID := core.LogID{1, 2, 3}
+	r := &Receipt{Version: FormatVersion, Log: logID, EntryID: core.Digest{9}, Seq: 5, IssuedAt: 1000, Deadline: 2000, Key: core.KeyID{1}}
+	tests := []struct {
+		name string
+		sth  *STH
+	}{
+		{"size past seq, before deadline", &STH{Version: FormatVersion, Log: logID, Size: 6, IssuedAt: 1500, Root: core.Digest{1}}},
+		{"size past seq, after deadline", &STH{Version: FormatVersion, Log: logID, Size: 6, IssuedAt: 3000, Root: core.Digest{1}}},
+		{"size at seq, before deadline", &STH{Version: FormatVersion, Log: logID, Size: 5, IssuedAt: 1500, Root: core.Digest{1}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := CheckReceipt(r, tc.sth); err != nil {
+				t.Errorf("false positive: %v", err)
+			}
+		})
+	}
+}
+
+func TestCheckReceiptForeignLog(t *testing.T) {
+	r := &Receipt{Version: FormatVersion, Log: core.LogID{1}, EntryID: core.Digest{9}, Seq: 5, IssuedAt: 1000, Deadline: 2000, Key: core.KeyID{1}}
+	sth := &STH{Version: FormatVersion, Log: core.LogID{2}, Size: 1, IssuedAt: 3000, Root: core.Digest{1}}
+	if err := CheckReceipt(r, sth); !errors.Is(err, ErrLogMismatch) {
+		t.Errorf("foreign log not detected: %v", err)
+	}
+}
+
+// newTestEnvWithMaxMergeDelay is newTestEnvWithKey with receipts enabled — a
+// separate constructor rather than a parameter on the shared one, so every
+// existing test in this file keeps running with receipts off unless it
+// explicitly asks for them.
+func newTestEnvWithMaxMergeDelay(t *testing.T, mmd time.Duration) *testEnv {
+	t.Helper()
+	key, err := core.GenerateKey(core.SigAlgMLDSA65)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	env := &testEnv{
+		t:     t,
+		key:   key,
+		st:    NewMemStorage(),
+		blobs: NewMemBlobStore(),
+		clock: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC).UnixMilli(),
+	}
+	lg, err := New(Options{
+		Storage:       env.st,
+		Signer:        key,
+		Blobs:         env.blobs,
+		Keys:          mapKeys{key.Public().ID(): key.Public()},
+		Now:           env.now,
+		MaxMergeDelay: mmd,
+	})
+	if err != nil {
+		t.Fatalf("create log: %v", err)
+	}
+	env.log = lg
+	return env
+}
+
+// TestLogIssueReceipt confirms IssueReceipt is fully wired through a real
+// log: the receipt names the entry actually appended, the signature
+// verifies against the log's own key, and — because this implementation
+// appends synchronously — an STH issued right afterwards already satisfies
+// the promise, well before the deadline.
+func TestLogIssueReceipt(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnvWithMaxMergeDelay(t, time.Hour)
+	subject, err := core.NewSubjectID()
+	if err != nil {
+		t.Fatalf("subject: %v", err)
+	}
+	se, salt := env.entry(subject, []byte("payload"))
+	leaf, err := env.log.AppendWithPayload(ctx, se, salt, []byte("payload"))
+	if err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	signed, err := env.log.IssueReceipt(leaf)
+	if err != nil {
+		t.Fatalf("issue receipt: %v", err)
+	}
+	if err := signed.Verify(env.key.Public()); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	r, err := signed.Receipt()
+	if err != nil {
+		t.Fatalf("read receipt: %v", err)
+	}
+	if r.Log != env.log.ID() {
+		t.Errorf("log = %s, want %s", r.Log, env.log.ID())
+	}
+	if r.EntryID != leaf.EntryID() {
+		t.Errorf("entry ID mismatch")
+	}
+	if r.Seq != leaf.Seq {
+		t.Errorf("seq = %d, want %d", r.Seq, leaf.Seq)
+	}
+	if want := time.Hour.Milliseconds(); r.Deadline-r.IssuedAt != want {
+		t.Errorf("deadline = %d ms after issuance, want %d", r.Deadline-r.IssuedAt, want)
+	}
+
+	signedSTH, err := env.log.IssueSTH(ctx)
+	if err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+	sth, err := signedSTH.STH()
+	if err != nil {
+		t.Fatalf("read STH: %v", err)
+	}
+	if err := CheckReceipt(r, sth); err != nil {
+		t.Errorf("an honestly issued STH must satisfy its own receipt: %v", err)
+	}
+}
+
+func TestLogIssueReceiptDisabledByDefault(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t) // MaxMergeDelay left unset, i.e. 0
+	subject, err := core.NewSubjectID()
+	if err != nil {
+		t.Fatalf("subject: %v", err)
+	}
+	se, salt := env.entry(subject, []byte("payload"))
+	leaf, err := env.log.AppendWithPayload(ctx, se, salt, []byte("payload"))
+	if err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	if _, err := env.log.IssueReceipt(leaf); !errors.Is(err, ErrReceiptsDisabled) {
+		t.Errorf("receipt issued despite MaxMergeDelay = 0: %v", err)
+	}
+}
+
 // TestErasure is verification test 3 from the plan: after the erasure the
 // payload is not reconstructible even for a small value range, and the
 // inclusion proof of the leaf still holds.

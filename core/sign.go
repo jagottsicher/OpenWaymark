@@ -17,8 +17,9 @@ import (
 // touching the message itself — an entry signature can therefore never be used
 // as an STH signature.
 const (
-	SigContextEntry = "OWM/1 entry"
-	SigContextSTH   = "OWM/1 sth"
+	SigContextEntry   = "OWM/1 entry"
+	SigContextSTH     = "OWM/1 sth"
+	SigContextReceipt = "OWM/1 receipt"
 )
 
 // maxSigContext is the upper bound on ctx mandated by FIPS 204.

@@ -189,12 +189,20 @@ Response `201 Created`:
 {
   "log": "…", "entry_id": "…", "seq": 5,
   "logged_at": 1786000000000,
-  "leaf": "…Base64 of the leaf…"
+  "leaf": "…Base64 of the leaf…",
+  "receipt": "…Base64 of a signed receipt, present only when the node issues them…"
 }
 ```
 
 The complete leaf comes back, not merely its sequence number: from it the submitter can compute the
 leaf hash themselves and request the inclusion proof as soon as the next STH stands.
+
+`receipt` — a node's own signed promise that this entry will be witnessed in a tree of size greater
+than `seq` no later than a deadline named inside the receipt itself
+([OWM-2 §12](owm-2-log.md#12-receipts), [OWM-9 A3](owm-9-threat-model.md#a3--withholding-entries)) —
+is present only when the node is configured with a positive `max_merge_delay`; its absence is not
+an error, and a submitter who wants one and does not see one knows immediately that this node does
+not issue them.
 
 ### 4.3 What the public API does not accept
 
@@ -614,21 +622,16 @@ down by an observer. Otherwise a silent log cannot be told apart from a halted o
 | Node delivers a false `decoded` view | Client sees something other than what was signed | only the bytes are binding (§4.4, §6) |
 | Node delivers a proof against an unsigned size | Proof against nothing | the default is the STH size (§4.7) |
 | Node delivers the payload without the salt | Commitment not recomputable | the salt belongs in the same answer (§4.5) |
-| Node withholds an entry | Submission disappears | at present only noticeable, not provable (§10) |
+| Node withholds an entry | Submission disappears | provable, given a receipt (OWM-2 §12, §4.2) |
 | Node shows two histories | Split view | not solvable client-side, see OWM-5 |
 | Node calls an entry `pruned` in order to withhold it | Withholding looks like routine housekeeping | leaf hash and proofs stay available (§4.4, §4.7); whoever archived the entry proves its inclusion |
 | Mirror passes a foreign entry off as first-hand | Copy taken for a statement of this node | mirrored entries are marked, with foreign `log_id` and STH (§5.3) |
 | Mirror serves an entry the origin has since erased | Client sees evidence that no longer exists there | a mirror asserts nothing about the present; STH age, then ask the origin (§5.4) |
 | Administration reachable from the network | Foreign keys, foreign erasures | local binding (§8.1) |
-| Mass submission | Log fills up, signing load | limits §7, rate limiting in the proxy |
+| Mass submission | Log fills up, signing load | limits §7; per-source-address rate limiting on the public API (`node/ratelimit.go`, OWM-9 A9/A10), and/or in the proxy |
 
 ## 10. Open points
 
-- **Receipts on appending**, analogous to the SCT in Certificate Transparency. Today the node
-  acknowledges with the finished leaf, but without a signature of its own on the undertaking to
-  include it. A submitter can therefore *notice* that their entry is missing, but not *prove* that
-  the node had accepted it. Only a signed receipt with a committed deadline makes withholding
-  provable (OWM-2 §9, last line).
 - How far back a node's STHs reach is now bounded from below:
   [OWM-2 §10](owm-2-log.md#10-retention-and-pruning) requires every STH to be kept for at least the
   pruning period (§10.4). What stays open on the API side is whether the node description SHOULD
@@ -641,7 +644,10 @@ down by an observer. Otherwise a silent log cannot be told apart from a halted o
   no payload, but it does hold the signed entry, and OWM-2 §7.5 already records that an erasure does
   not reach foreign copies.
 - Whether a third party who archived an entry may hand it back after pruning ("resurrection", OWM-2
-  §11) — the leaf hash decides whether the copy is genuine, but this document specifies no endpoint
+  §13) — the leaf hash decides whether the copy is genuine, but this document specifies no endpoint
   through which it would arrive.
 - Batch retrieval of several leaves in one answer, for monitors going through a whole log.
 - Conditional retrieval (`ETag`, `If-None-Match`) for STHs, so that frequent polling becomes cheap.
+- Whether a receipt SHOULD also be obtainable after the fact (a `GET` by entry ID) for a submitter
+  who lost the one handed out at submission time — today the only copy is the one returned inline
+  by `POST /owm/v1/entries` ([OWM-2 §12](owm-2-log.md#12-receipts)).
