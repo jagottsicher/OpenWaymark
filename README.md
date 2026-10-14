@@ -417,7 +417,7 @@ have German names, and identifiers from the real world (for instance the organic
 ### Workflow
 
 1. Open an issue before starting larger work — especially for protocol changes.
-2. Branch from `main`, one topic per branch.
+2. Branch from `develop`, one topic per branch.
 3. Commit subject as a short declarative sentence, the *why* in the body, not the *what* (that is
    in the diff).
 4. Merge/pull request with a green pipeline.
