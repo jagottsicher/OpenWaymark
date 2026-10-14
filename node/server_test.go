@@ -262,6 +262,25 @@ func TestSupplyChainEndToEnd(t *testing.T) {
 		}
 	}
 
+	// Pagination: the total always reflects all three entries, regardless
+	// of how small a page is requested or whether the requested page lies
+	// past the end entirely.
+	var page historyResponse
+	a.mustGet("/owm/v1/subjects/"+tank.String()+"?limit=1&offset=1", &page)
+	if page.Total != 3 {
+		t.Fatalf("paginated total = %d, expected 3", page.Total)
+	}
+	if len(page.Entries) != 1 || page.Entries[0].EntryID != history.Entries[1].EntryID {
+		t.Fatalf("limit=1&offset=1 returned %d entries, expected the second one", len(page.Entries))
+	}
+	a.mustGet("/owm/v1/subjects/"+tank.String()+"?offset=10", &page)
+	if page.Total != 3 {
+		t.Fatalf("paginated total past the end = %d, expected 3", page.Total)
+	}
+	if len(page.Entries) != 0 {
+		t.Fatalf("offset past the end returned %d entries, expected none", len(page.Entries))
+	}
+
 	// One entry with payload, decoded view and status.
 	var view leafView
 	a.mustGet("/owm/v1/entries/"+production.EntryID.String(), &view)

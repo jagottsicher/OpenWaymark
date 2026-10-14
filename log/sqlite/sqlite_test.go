@@ -299,6 +299,27 @@ func TestLookupsAndNotFound(t *testing.T) {
 			t.Errorf("history not ascending")
 		}
 	}
+
+	page, total, err := e.store.LeavesBySubjectPage(ctx, subject, 1, 1)
+	if err != nil {
+		t.Fatalf("subject page: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("page total = %d, expected 3", total)
+	}
+	if len(page) != 1 || page[0].Seq != history[1].Seq {
+		t.Fatalf("offset=1&limit=1 returned %v, expected just %v", page, history[1])
+	}
+	page, total, err = e.store.LeavesBySubjectPage(ctx, subject, 10, 5)
+	if err != nil {
+		t.Fatalf("subject page past the end: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("page total past the end = %d, expected 3", total)
+	}
+	if len(page) != 0 {
+		t.Fatalf("offset past the end returned %d leaves, expected none", len(page))
+	}
 	for _, id := range ids {
 		rec, err := e.store.LeafByEntryID(ctx, id)
 		if err != nil {
@@ -323,6 +344,17 @@ func TestLookupsAndNotFound(t *testing.T) {
 	}
 	if status, err := e.store.Status(ctx, core.Digest{0xff}); err != nil || status != owmlog.BlobAbsent {
 		t.Errorf("status = %s, %v; expected absent", status, err)
+	}
+
+	statuses, err := e.store.StatusBatch(ctx, []core.Digest{ids[0], {0xff}})
+	if err != nil {
+		t.Fatalf("status batch: %v", err)
+	}
+	if statuses[ids[0]] != owmlog.BlobPresent {
+		t.Errorf("status batch for a stored payload = %s, expected present", statuses[ids[0]])
+	}
+	if statuses[core.Digest{0xff}] != owmlog.BlobAbsent {
+		t.Errorf("status batch for an unknown entry = %s, expected absent", statuses[core.Digest{0xff}])
 	}
 }
 

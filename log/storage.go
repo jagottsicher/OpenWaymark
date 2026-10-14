@@ -75,6 +75,15 @@ type Storage interface {
 	// This is the basis of the product history.
 	LeavesBySubject(ctx context.Context, subject core.SubjectID) ([]LeafRecord, error)
 
+	// LeavesBySubjectPage returns one page of a subject's leaves, ascending
+	// by position, together with the total number of leaves for that
+	// subject — the basis of a paginated product history. Unlike
+	// LeavesBySubject, the implementation MUST do the limiting itself
+	// rather than load everything and slice: a subject's full history can
+	// run into the thousands, and a paginated caller asked for a page
+	// precisely to avoid paying for the rest.
+	LeavesBySubjectPage(ctx context.Context, subject core.SubjectID, offset, limit uint64) ([]LeafRecord, uint64, error)
+
 	// Nodes returns the hashes of the given nodes in the same order. A missing
 	// one is ErrNotFound.
 	Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest, error)
@@ -139,4 +148,12 @@ type BlobStore interface {
 
 	// Status reports the state without reading the data.
 	Status(ctx context.Context, entryID core.Digest) (BlobStatus, error)
+
+	// StatusBatch reports the state of every one of entryIDs without
+	// reading the data, in one round trip rather than one per entry — a
+	// subject history page can easily name a hundred entries, and a
+	// product listing is exactly the case that must not cost a query per
+	// row. An identifier absent from the result is BlobAbsent, the same
+	// default Status itself returns for one it has never seen.
+	StatusBatch(ctx context.Context, entryIDs []core.Digest) (map[core.Digest]BlobStatus, error)
 }

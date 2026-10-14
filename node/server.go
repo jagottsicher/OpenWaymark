@@ -145,6 +145,19 @@ type leafView struct {
 }
 
 func (n *Node) viewLeaf(ctx context.Context, leaf *owmlog.Leaf) (leafView, error) {
+	status, err := n.log.BlobStatus(ctx, leaf.EntryID())
+	if err != nil {
+		return leafView{}, err
+	}
+	return viewLeafWithStatus(leaf, status)
+}
+
+// viewLeafWithStatus builds the view from a status the caller already
+// has, rather than fetching it itself — the form a page of leaves needs,
+// one BlobStatusBatch call for the whole page instead of one BlobStatus
+// call per leaf (viewLeaf's own fetch-then-build would otherwise turn
+// straight back into the N+1 pattern this exists to avoid).
+func viewLeafWithStatus(leaf *owmlog.Leaf, status owmlog.BlobStatus) (leafView, error) {
 	encoded, err := leaf.Encode()
 	if err != nil {
 		return leafView{}, err
@@ -157,16 +170,11 @@ func (n *Node) viewLeaf(ctx context.Context, leaf *owmlog.Leaf) (leafView, error
 	if err != nil {
 		return leafView{}, err
 	}
-	entryID := leaf.EntryID()
-	status, err := n.log.BlobStatus(ctx, entryID)
-	if err != nil {
-		return leafView{}, err
-	}
 	return leafView{
 		Log:      leaf.Log,
 		Seq:      leaf.Seq,
 		LoggedAt: leaf.LoggedAt,
-		EntryID:  entryID,
+		EntryID:  leaf.EntryID(),
 		Leaf:     encoded,
 		Entry:    leaf.Entry,
 		Payload:  status.String(),
@@ -397,20 +405,31 @@ func (n *Node) handleSubject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	leaves, err := n.log.History(ctx, core.SubjectID(id))
+	leaves, total, err := n.log.HistoryPage(ctx, core.SubjectID(id), offset, limit)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
+
+	entryIDs := make([]core.Digest, len(leaves))
+	for i, leaf := range leaves {
+		entryIDs[i] = leaf.EntryID()
+	}
+	statuses, err := n.log.BlobStatusBatch(ctx, entryIDs)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
 	out := historyResponse{
 		Subject: core.SubjectID(id),
 		Log:     n.log.ID(),
-		Total:   len(leaves),
+		Total:   int(total),
 		Offset:  offset,
-		Entries: []leafView{},
+		Entries: make([]leafView, 0, len(leaves)),
 	}
-	for i := offset; i < uint64(len(leaves)) && uint64(len(out.Entries)) < limit; i++ {
-		view, err := n.viewLeaf(ctx, leaves[i])
+	for _, leaf := range leaves {
+		view, err := viewLeafWithStatus(leaf, statuses[leaf.EntryID()])
 		if err != nil {
 			writeError(w, err)
 			return
