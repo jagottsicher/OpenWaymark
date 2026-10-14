@@ -32,6 +32,7 @@ package profiles
 import (
 	"bytes"
 	"crypto/sha256"
+	"embed"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -191,6 +192,45 @@ func Load(opt Options) (*Profile, error) {
 		rule:       opt.Rule,
 		crossCheck: opt.CrossCheck,
 	}, nil
+}
+
+// LoadEmbedded loads a profile whose entry-type rule is the common one
+// nearly every profile needs: an entry whose payload names sensorEvent
+// must be submitted as a sensor_reading — device-signed evidence, not a
+// self-declaration a submitter could otherwise pass off as sensor data —
+// and every other event is an ordinary assertion. The JSON schema cannot
+// express this on its own because it never sees the entry, only the
+// payload.
+//
+// This is a convenience over Load/Options for the common case, not a
+// replacement for it: crossCheck covers a profile with its own cross-check
+// (food.v1 passes crossCheckColdChain here); a profile whose entry-type
+// rule is not this one shape still calls Load directly. schemaFS's root
+// schema is expected at "schema/event.json", as every profile built so far
+// lays it out.
+func LoadEmbedded(id, title string, schemaFS embed.FS, sensorEvent string, crossCheck CrossCheckFunc) (*Profile, error) {
+	sub, err := fs.Sub(schemaFS, "schema")
+	if err != nil {
+		return nil, fmt.Errorf("owm/profiles: %s: embedded schemas: %w", id, err)
+	}
+	rule := func(e *core.Entry, payload []byte) error {
+		var head struct {
+			Event string `json:"event"`
+		}
+		if err := json.Unmarshal(payload, &head); err != nil {
+			return fmt.Errorf("no readable event type: %w", err)
+		}
+		want := core.EntryTypeAssertion
+		if head.Event == sensorEvent {
+			want = core.EntryTypeSensorReading
+		}
+		if e.Type != want {
+			return fmt.Errorf("event %q requires entry type %s, but %s was submitted",
+				head.Event, want, e.Type)
+		}
+		return nil
+	}
+	return Load(Options{ID: id, Title: title, FS: sub, Root: "event.json", Rule: rule, CrossCheck: crossCheck})
 }
 
 // ID returns the profile identifier as it appears in the entry.
