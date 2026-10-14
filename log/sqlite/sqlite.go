@@ -278,6 +278,43 @@ func (s *Store) LeavesBySubject(ctx context.Context, subject core.SubjectID) ([]
 	return out, nil
 }
 
+// LeavesBySubjectPage returns one page of leaves for a subject together
+// with the total count. Two queries, not one: a COUNT(*) OVER() window
+// alongside LIMIT/OFFSET would report 0 whenever the requested page lies
+// past the end (a stale pagination link after entries were erased from the
+// count some other way) instead of the real total — correctness here
+// matters more than collapsing one small, indexed count query into the
+// page query itself.
+func (s *Store) LeavesBySubjectPage(ctx context.Context, subject core.SubjectID, offset, limit uint64) ([]owmlog.LeafRecord, uint64, error) {
+	var total int64
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM leaves WHERE subject = ?`, subject[:],
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("owm/log/sqlite: subject count: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+leafColumns+` FROM leaves WHERE subject = ? ORDER BY seq LIMIT ? OFFSET ?`,
+		subject[:], int64(limit), int64(offset))
+	if err != nil {
+		return nil, 0, fmt.Errorf("owm/log/sqlite: subject page lookup: %w", err)
+	}
+	defer rows.Close()
+
+	out := []owmlog.LeafRecord{}
+	for rows.Next() {
+		rec, err := scanLeaf(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("owm/log/sqlite: subject page lookup: %w", err)
+	}
+	return out, uint64(total), nil
+}
+
 func (s *Store) Nodes(ctx context.Context, ids []compact.NodeID) ([]core.Digest, error) {
 	out := make([]core.Digest, len(ids))
 	if len(ids) == 0 {
@@ -472,4 +509,55 @@ func (s *Store) Status(ctx context.Context, entryID core.Digest) (owmlog.BlobSta
 		return owmlog.BlobErased, nil
 	}
 	return owmlog.BlobPresent, nil
+}
+
+// StatusBatch reports the state of every one of entryIDs in one query —
+// the batch equivalent of Status, built for exactly the case a subject
+// history page needs: the status of every entry on the page in one round
+// trip instead of one per row.
+func (s *Store) StatusBatch(ctx context.Context, entryIDs []core.Digest) (map[core.Digest]owmlog.BlobStatus, error) {
+	out := make(map[core.Digest]owmlog.BlobStatus, len(entryIDs))
+	if len(entryIDs) == 0 {
+		return out, nil
+	}
+	placeholders := strings.Repeat("?,", len(entryIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(entryIDs))
+	for i, id := range entryIDs {
+		args[i] = id[:]
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT entry_id, erased FROM blobs WHERE entry_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("owm/log/sqlite: status batch: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var raw []byte
+		var erased int64
+		if err := rows.Scan(&raw, &erased); err != nil {
+			return nil, fmt.Errorf("owm/log/sqlite: status batch: %w", err)
+		}
+		id, err := core.DigestFromBytes(raw)
+		if err != nil {
+			return nil, fmt.Errorf("owm/log/sqlite: status batch: entry ID: %w", err)
+		}
+		if erased != 0 {
+			out[id] = owmlog.BlobErased
+		} else {
+			out[id] = owmlog.BlobPresent
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("owm/log/sqlite: status batch: %w", err)
+	}
+	// Every identifier not found in the blobs table defaults to BlobAbsent —
+	// the same meaning Status gives a row that was never stored.
+	for _, id := range entryIDs {
+		if _, ok := out[id]; !ok {
+			out[id] = owmlog.BlobAbsent
+		}
+	}
+	return out, nil
 }

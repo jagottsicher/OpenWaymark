@@ -95,6 +95,26 @@ func (m *MemStorage) LeavesBySubject(_ context.Context, subject core.SubjectID) 
 	return out, nil
 }
 
+func (m *MemStorage) LeavesBySubjectPage(_ context.Context, subject core.SubjectID, offset, limit uint64) ([]LeafRecord, uint64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var matched []LeafRecord
+	for i := range m.leaves {
+		if m.leaves[i].Subject == subject {
+			matched = append(matched, *copyRecord(&m.leaves[i]))
+		}
+	}
+	total := uint64(len(matched))
+	if offset >= total {
+		return []LeafRecord{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return matched[offset:end], total, nil
+}
+
 func (m *MemStorage) Nodes(_ context.Context, ids []compact.NodeID) ([]core.Digest, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -233,4 +253,22 @@ func (m *MemBlobStore) Status(_ context.Context, entryID core.Digest) (BlobStatu
 		return BlobErased, nil
 	}
 	return BlobPresent, nil
+}
+
+func (m *MemBlobStore) StatusBatch(_ context.Context, entryIDs []core.Digest) (map[core.Digest]BlobStatus, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make(map[core.Digest]BlobStatus, len(entryIDs))
+	for _, id := range entryIDs {
+		b, ok := m.blobs[id]
+		switch {
+		case !ok:
+			out[id] = BlobAbsent
+		case b.erased:
+			out[id] = BlobErased
+		default:
+			out[id] = BlobPresent
+		}
+	}
+	return out, nil
 }
