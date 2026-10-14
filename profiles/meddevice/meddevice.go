@@ -28,11 +28,7 @@ package meddevice
 
 import (
 	"embed"
-	"encoding/json"
-	"fmt"
-	"io/fs"
 
-	"openwaymark.org/owm/core"
 	"openwaymark.org/owm/profiles"
 )
 
@@ -58,18 +54,16 @@ const (
 )
 
 // New loads the profile.
+//
+// A measurement comes from a device, is signed by a device key and therefore
+// has to be submitted as sensor_reading — otherwise a hand-written reading
+// could later be passed off as sensor evidence. Every other event, including
+// release, maintenance and decommission, is an ordinary self-declaration by
+// whoever issues it (spec Sec.4, Sec.7; profiles.LoadEmbedded).
 func New() (*profiles.Profile, error) {
-	sub, err := fs.Sub(schemaFS, "schema")
-	if err != nil {
-		return nil, fmt.Errorf("owm/profiles/meddevice: embedded schemas: %w", err)
-	}
-	return profiles.Load(profiles.Options{
-		ID:    ID,
-		Title: "Medical devices - production, aggregation, transport, installation, maintenance, measurement, release, decommission",
-		FS:    sub,
-		Root:  "event.json",
-		Rule:  checkEntryType,
-	})
+	return profiles.LoadEmbedded(ID,
+		"Medical devices - production, aggregation, transport, installation, maintenance, measurement, release, decommission",
+		schemaFS, EventMeasurement, nil)
 }
 
 // MustNew loads the profile and aborts on error.
@@ -82,30 +76,4 @@ func MustNew() *profiles.Profile {
 		panic(err)
 	}
 	return p
-}
-
-// checkEntryType binds the event type to the entry type.
-//
-// A measurement comes from a device, is signed by a device key and therefore
-// has to be submitted as sensor_reading — otherwise a hand-written reading
-// could later be passed off as sensor evidence. The JSON schema cannot check
-// this because it does not see the entry. Every other event, including
-// release, maintenance and decommission, is an ordinary self-declaration by
-// whoever issues it (spec Sec.4, Sec.7).
-func checkEntryType(e *core.Entry, payload []byte) error {
-	var head struct {
-		Event string `json:"event"`
-	}
-	if err := json.Unmarshal(payload, &head); err != nil {
-		return fmt.Errorf("no readable event type: %w", err)
-	}
-	want := core.EntryTypeAssertion
-	if head.Event == EventMeasurement {
-		want = core.EntryTypeSensorReading
-	}
-	if e.Type != want {
-		return fmt.Errorf("event %q requires entry type %s, but %s was submitted",
-			head.Event, want, e.Type)
-	}
-	return nil
 }
