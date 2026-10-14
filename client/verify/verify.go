@@ -435,17 +435,28 @@ type client struct {
 	keys map[core.KeyID]*core.PublicKey
 }
 
+// fetchJSON fetches path from the node and decodes it as T. label names the
+// response for the decode error, so a caller that only ever sees a wrapped
+// error can still tell a malformed STH from a malformed trust response.
+func fetchJSON[T any](ctx context.Context, c *client, path, label string) (T, error) {
+	var v T
+	b, err := c.f.Fetch(ctx, c.base+path)
+	if err != nil {
+		return v, err
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return v, fmt.Errorf("decode %s: %w", label, err)
+	}
+	return v, nil
+}
+
 func (c *client) key(ctx context.Context, id core.KeyID) (*core.PublicKey, error) {
 	if pub, ok := c.keys[id]; ok {
 		return pub, nil
 	}
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/keys/"+id.String())
+	v, err := fetchJSON[publicKeyView](ctx, c, "/owm/v1/keys/"+id.String(), "key")
 	if err != nil {
 		return nil, err
-	}
-	var v publicKeyView
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, fmt.Errorf("decode key: %w", err)
 	}
 	alg, err := core.ParseSigAlg(v.Alg)
 	if err != nil {
@@ -465,13 +476,9 @@ func (c *client) key(ctx context.Context, id core.KeyID) (*core.PublicKey, error
 }
 
 func (c *client) fetchSTH(ctx context.Context) (*owmlog.SignedSTH, error) {
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/sth")
+	v, err := fetchJSON[sthResponse](ctx, c, "/owm/v1/sth", "STH")
 	if err != nil {
 		return nil, err
-	}
-	var v sthResponse
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, fmt.Errorf("decode STH: %w", err)
 	}
 	if v.Signed == nil {
 		return nil, errors.New("no signed STH in response")
@@ -480,25 +487,17 @@ func (c *client) fetchSTH(ctx context.Context) (*owmlog.SignedSTH, error) {
 }
 
 func (c *client) fetchHistory(ctx context.Context, subject core.SubjectID) (*historyResponse, error) {
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/subjects/"+subject.String())
+	v, err := fetchJSON[historyResponse](ctx, c, "/owm/v1/subjects/"+subject.String(), "history")
 	if err != nil {
 		return nil, err
-	}
-	var v historyResponse
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, fmt.Errorf("decode history: %w", err)
 	}
 	return &v, nil
 }
 
 func (c *client) fetchPayload(ctx context.Context, entryID core.Digest) (core.Salt, []byte, error) {
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/entries/"+entryID.String()+"/payload")
+	v, err := fetchJSON[payloadResponse](ctx, c, "/owm/v1/entries/"+entryID.String()+"/payload", "payload")
 	if err != nil {
 		return core.Salt{}, nil, err
-	}
-	var v payloadResponse
-	if err := json.Unmarshal(b, &v); err != nil {
-		return core.Salt{}, nil, fmt.Errorf("decode payload: %w", err)
 	}
 	if len(v.Salt) != core.SaltSize {
 		return core.Salt{}, nil, fmt.Errorf("salt: expected %d bytes, got %d", core.SaltSize, len(v.Salt))
@@ -510,38 +509,26 @@ func (c *client) fetchPayload(ctx context.Context, entryID core.Digest) (core.Sa
 
 func (c *client) fetchInclusion(ctx context.Context, entryID core.Digest, size uint64) (*owmlog.InclusionProof, error) {
 	q := url.Values{"entry": {entryID.String()}, "size": {strconv.FormatUint(size, 10)}}
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/proof/inclusion?"+q.Encode())
+	p, err := fetchJSON[owmlog.InclusionProof](ctx, c, "/owm/v1/proof/inclusion?"+q.Encode(), "inclusion proof")
 	if err != nil {
 		return nil, err
-	}
-	var p owmlog.InclusionProof
-	if err := json.Unmarshal(b, &p); err != nil {
-		return nil, fmt.Errorf("decode inclusion proof: %w", err)
 	}
 	return &p, nil
 }
 
 func (c *client) fetchConsistency(ctx context.Context, oldSize, newSize uint64) (*owmlog.ConsistencyProof, error) {
 	q := url.Values{"old": {strconv.FormatUint(oldSize, 10)}, "new": {strconv.FormatUint(newSize, 10)}}
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/proof/consistency?"+q.Encode())
+	p, err := fetchJSON[owmlog.ConsistencyProof](ctx, c, "/owm/v1/proof/consistency?"+q.Encode(), "consistency proof")
 	if err != nil {
 		return nil, err
-	}
-	var p owmlog.ConsistencyProof
-	if err := json.Unmarshal(b, &p); err != nil {
-		return nil, fmt.Errorf("decode consistency proof: %w", err)
 	}
 	return &p, nil
 }
 
 func (c *client) fetchTrust(ctx context.Context, id core.KeyID) (trust.Level, error) {
-	b, err := c.f.Fetch(ctx, c.base+"/owm/v1/keys/"+id.String()+"/trust")
+	v, err := fetchJSON[trustResponse](ctx, c, "/owm/v1/keys/"+id.String()+"/trust", "trust")
 	if err != nil {
 		return 0, err
-	}
-	var v trustResponse
-	if err := json.Unmarshal(b, &v); err != nil {
-		return 0, fmt.Errorf("decode trust: %w", err)
 	}
 	return trust.Level(v.Level), nil
 }
