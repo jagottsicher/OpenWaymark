@@ -98,6 +98,34 @@ run only once the payload conforms to the schema.
 
 The food profile uses exactly one such rule (§8).
 
+### 4.5 Client-side cross-checking against sensor readings
+
+A profile MAY additionally define a cross-check: a function comparing a claim's payload against a
+linked `sensor_reading` entry's payload and reporting a contradiction when the device data
+disagrees with the self-declaration — the "found by machine" mitigation
+[OWM-9 A4](owm-9-threat-model.md#a4--lying-at-first-capture--the-oracle-problem) names for the
+oracle problem.
+
+Unlike §4.4's rule, this never runs at the node: a claim and its later sensor reading typically do
+not both exist yet at submission time. It runs **client-side**, once a subject's full history is
+available (`profiles.Profile.CrossCheck`, [OWM-8](owm-8-client.md)). The relationship between claim
+and reading is the ordinary parent reference (§10): a `sensor_reading` entry naming a claim entry
+among its parents, in the same log, both under the same profile.
+
+A caller supplies the profile registry to check against (`client/verify.Options.Profiles`);
+without one, no cross-checking happens at all — the same "caller decides" convention
+`Options.Roots` already follows for accreditation roots (OWM-6 §6). The interface `client/verify`
+actually depends on is narrower than `*profiles.Registry` itself, deliberately: this package's own
+dependency on the profile mechanism, and transitively on its JSON Schema library, would otherwise
+be paid by every caller, size-sensitive callers such as the WASM verifier above all, whether or not
+they ever cross-check anything.
+
+`food.v1` implements one instance: a `transport` event's promised `conditions.temperature_c` range
+against a linked `measurement` event's `readings`, generalising the example this project has used
+since its own demonstration. No other profile defines one yet — this is a capability, not a
+requirement, and a profile without a cross-check function behaves exactly as before this section
+existed.
+
 ## 5. What the check achieves — and what it does not
 
 It is an **intake filter, not a statement about truth**. A schema-conformant entry can be a
@@ -112,6 +140,11 @@ The division of labour, which must not be confused:
 | Does the payload belong to exactly this entry? | commitment (OWM-0 §5) |
 | Who stands behind it? | signature |
 | Is it true? | nobody — see OWM-9, oracle problem |
+
+One narrow exception to the last row: a profile's cross-check (§4.5) lets a sensor reading
+contradict an earlier claim automatically. That is not a confirmation of truth, only a detectable
+disagreement between two signed statements — the same self-contradiction principle OWM-9 A1
+already applies to a node's own STHs, one level down, applied to a profile's own event pair.
 
 ## 6. Unknown profiles
 
@@ -384,3 +417,4 @@ The hard rule from OWM-0 §2 applies here too, and the profile is cut to fit it:
 | Event type in the field `prof` | reveals after erasure what happened | one identifier for all events (§8) |
 | Self-declaration looks like a certificate | pretence of checked provenance | separation of claim and attestation (§11) |
 | Subject ID derived from the GTIN | lot structure and volumes enumerable | random subject ID where it does harm (§13, OWM-9 A10) |
+| Self-declared claim silently contradicted by later sensor data | contradiction goes unnoticed | client-side cross-check, opt-in (§4.5, OWM-9 A4) |

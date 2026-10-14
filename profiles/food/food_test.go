@@ -168,6 +168,66 @@ func TestEntryTypeRule(t *testing.T) {
 	}
 }
 
+// TestCrossCheckColdChainWithinRange confirms the profile's own valid
+// transport/measurement pair — 2 to 8 C promised, readings at 4.2 and 4.6 —
+// reports nothing: agreement is silence, not a finding of its own.
+func TestCrossCheckColdChainWithinRange(t *testing.T) {
+	p := load(t)
+	if finding, ok := p.CrossCheck([]byte(valid["transport"]), []byte(valid["measurement"])); ok {
+		t.Fatalf("false positive on a cold chain that held: %q", finding)
+	}
+}
+
+// TestCrossCheckColdChainBreach is OWM-9 A4's own concrete example, built
+// out: a temperature logger's readings automatically contradicting a false
+// cold-chain claim, found by machine rather than by a human comparing two
+// documents by eye.
+func TestCrossCheckColdChainBreach(t *testing.T) {
+	p := load(t)
+	msmt := `{
+		"event": "measurement",
+		"time": "2026-08-10T11:15:00+02:00",
+		"sensor": {"id": "cool-77", "model": "TempLog 3"},
+		"quantity_kind": "temperature",
+		"unit": "CEL",
+		"readings": [
+			{"t": "2026-08-10T11:15:00+02:00", "v": 4.2},
+			{"t": "2026-08-10T12:15:00+02:00", "v": 9.1},
+			{"t": "2026-08-10T13:15:00+02:00", "v": 9.6}
+		]
+	}`
+	finding, ok := p.CrossCheck([]byte(valid["transport"]), []byte(msmt))
+	if !ok {
+		t.Fatal("breach not detected")
+	}
+	if !strings.Contains(finding, "2 of 3") {
+		t.Errorf("finding %q does not name the breach count", finding)
+	}
+}
+
+// TestCrossCheckColdChainUnrelatedClaim confirms a claim that carries no
+// temperature range — production, which has nothing to promise a sensor
+// could contradict — is silently skipped rather than treated as a breach or
+// an error.
+func TestCrossCheckColdChainUnrelatedClaim(t *testing.T) {
+	p := load(t)
+	if finding, ok := p.CrossCheck([]byte(valid["production"]), []byte(valid["measurement"])); ok {
+		t.Fatalf("unrelated claim treated as a breach: %q", finding)
+	}
+}
+
+// TestCrossCheckColdChainMalformed confirms garbage input fails closed —
+// silently, not with a panic — on both sides.
+func TestCrossCheckColdChainMalformed(t *testing.T) {
+	p := load(t)
+	if _, ok := p.CrossCheck([]byte("not json"), []byte(valid["measurement"])); ok {
+		t.Error("malformed claim treated as a breach")
+	}
+	if _, ok := p.CrossCheck([]byte(valid["transport"]), []byte("not json")); ok {
+		t.Error("malformed measurement treated as a breach")
+	}
+}
+
 // The profile identifier has to satisfy the core's rules for the prof field —
 // otherwise the profile would load but no entry could be issued with it.
 func TestIDAcceptedByCore(t *testing.T) {

@@ -312,11 +312,39 @@ func (l *Log) LeafByEntryID(ctx context.Context, id core.Digest) (*Leaf, error) 
 }
 
 // History returns all leaves for a subject, ascending by position.
+//
+// Loads the whole history, unpaginated — exactly what trust.Compute's own
+// walk (node/attestation.go's logSource) needs: it has to see every
+// attestation and revocation naming a subject to resolve them correctly,
+// not a page of them. A caller serving a paginated view, such as the
+// public subjects API, wants HistoryPage instead.
 func (l *Log) History(ctx context.Context, subject core.SubjectID) ([]*Leaf, error) {
 	recs, err := l.st.LeavesBySubject(ctx, subject)
 	if err != nil {
 		return nil, err
 	}
+	return parseLeaves(recs)
+}
+
+// HistoryPage returns one page of a subject's leaves, ascending by
+// position, together with the total number of leaves for that subject.
+//
+// Unlike History, the store itself does the limiting — the point of this
+// method existing at all is that a page of a subject with thousands of
+// entries must not cost loading all of them first.
+func (l *Log) HistoryPage(ctx context.Context, subject core.SubjectID, offset, limit uint64) ([]*Leaf, uint64, error) {
+	recs, total, err := l.st.LeavesBySubjectPage(ctx, subject, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, err := parseLeaves(recs)
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func parseLeaves(recs []LeafRecord) ([]*Leaf, error) {
 	out := make([]*Leaf, 0, len(recs))
 	for i := range recs {
 		leaf, err := ParseLeaf(recs[i].Data)
@@ -547,4 +575,14 @@ func (l *Log) BlobStatus(ctx context.Context, entryID core.Digest) (BlobStatus, 
 		return BlobAbsent, ErrNoBlobStore
 	}
 	return l.blobs.Status(ctx, entryID)
+}
+
+// BlobStatusBatch reports the state of every one of entryIDs in one call —
+// the batch form a page of leaves needs, rather than one BlobStatus call
+// per leaf.
+func (l *Log) BlobStatusBatch(ctx context.Context, entryIDs []core.Digest) (map[core.Digest]BlobStatus, error) {
+	if l.blobs == nil {
+		return nil, ErrNoBlobStore
+	}
+	return l.blobs.StatusBatch(ctx, entryIDs)
 }

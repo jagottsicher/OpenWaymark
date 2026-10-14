@@ -59,11 +59,12 @@ func New() (*profiles.Profile, error) {
 		return nil, fmt.Errorf("owm/profiles/food: embedded schemas: %w", err)
 	}
 	return profiles.Load(profiles.Options{
-		ID:    ID,
-		Title: "Food - production, aggregation, transport, processing, handover, measurement",
-		FS:    sub,
-		Root:  "event.json",
-		Rule:  checkEntryType,
+		ID:         ID,
+		Title:      "Food - production, aggregation, transport, processing, handover, measurement",
+		FS:         sub,
+		Root:       "event.json",
+		Rule:       checkEntryType,
+		CrossCheck: crossCheckColdChain,
 	})
 }
 
@@ -101,4 +102,49 @@ func checkEntryType(e *core.Entry, payload []byte) error {
 			head.Event, want, e.Type)
 	}
 	return nil
+}
+
+// crossCheckColdChain compares a transport event's promised temperature
+// range against a linked measurement event's readings — the one concrete
+// example OWM-9 A4 names for its "found by machine" mitigation: a
+// temperature logger automatically contradicting a false cold-chain claim.
+// Runs client-side, not at the node (profiles.CrossCheckFunc).
+//
+// Silent (ok=false) whenever there is nothing to compare — claim carries no
+// temperature range, or msmt carries no readings — rather than treating an
+// unrelated pair of entries as a false positive.
+func crossCheckColdChain(claim, msmt []byte) (string, bool) {
+	var c struct {
+		Conditions struct {
+			TemperatureC *struct {
+				Min float64 `json:"min"`
+				Max float64 `json:"max"`
+			} `json:"temperature_c"`
+		} `json:"conditions"`
+	}
+	if err := json.Unmarshal(claim, &c); err != nil || c.Conditions.TemperatureC == nil {
+		return "", false
+	}
+	var m struct {
+		Readings []struct {
+			T string  `json:"t"`
+			V float64 `json:"v"`
+		} `json:"readings"`
+	}
+	if err := json.Unmarshal(msmt, &m); err != nil || len(m.Readings) == 0 {
+		return "", false
+	}
+
+	lo, hi := c.Conditions.TemperatureC.Min, c.Conditions.TemperatureC.Max
+	var breaches int
+	for _, r := range m.Readings {
+		if r.V < lo || r.V > hi {
+			breaches++
+		}
+	}
+	if breaches == 0 {
+		return "", false
+	}
+	return fmt.Sprintf("cold chain: %d of %d sensor readings outside the promised %.1f to %.1f C range",
+		breaches, len(m.Readings), lo, hi), true
 }
