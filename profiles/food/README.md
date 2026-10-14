@@ -38,9 +38,15 @@ The difference is at the heart of every real food chain:
 `measurement` must be submitted with entry type `sensor_reading`, everything else with
 `assertion`. That is not checked by the JSON schema but by a profile rule — the schema does not
 see the entry. Without that binding, a hand-written cold chain could later be passed off as a
-device record. The value of automatically captured readings lies precisely in their being able to
-**contradict** a human self-declaration; see the
-[threat model](../../spec/owm-9-threat-model.md).
+device record.
+
+The value of automatically captured readings lies precisely in their being able to **contradict**
+a human self-declaration — and this profile does exactly that, not just in principle: its
+cross-check (`profiles.Options.CrossCheck`) compares a `transport` event's promised
+`conditions.temperature_c` range against a linked `measurement` event's `readings`, client-side,
+once a caller opts in (`client/verify.Options.Profiles`). See
+[OWM-4 §4.5](../../spec/owm-4-profiles.md#45-client-side-cross-checking-against-sensor-readings)
+and [OWM-9 A4](../../spec/owm-9-threat-model.md#a4--lying-at-first-capture--the-oracle-problem).
 
 ## Personal data
 

@@ -787,6 +787,41 @@ func TestHistoryBySubject(t *testing.T) {
 			t.Errorf("history not ascending: %d before %d", leaves[i-1].Seq, leaves[i].Seq)
 		}
 	}
+
+	page, total, err := env.log.HistoryPage(ctx, subject, 1, 1)
+	if err != nil {
+		t.Fatalf("history page: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("history page total = %d, expected 3", total)
+	}
+	if len(page) != 1 || page[0].Seq != leaves[1].Seq {
+		t.Fatalf("offset=1&limit=1 returned %v, expected just %v", page, leaves[1])
+	}
+	page, total, err = env.log.HistoryPage(ctx, subject, 10, 5)
+	if err != nil {
+		t.Fatalf("history page past the end: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("history page total past the end = %d, expected 3", total)
+	}
+	if len(page) != 0 {
+		t.Fatalf("offset past the end returned %d leaves, expected none", len(page))
+	}
+
+	ids := make([]core.Digest, len(leaves))
+	for i, l := range leaves {
+		ids[i] = l.EntryID()
+	}
+	statuses, err := env.log.BlobStatusBatch(ctx, ids)
+	if err != nil {
+		t.Fatalf("blob status batch: %v", err)
+	}
+	for _, l := range leaves {
+		if statuses[l.EntryID()] != BlobPresent {
+			t.Errorf("blob status batch for %s = %s, expected present", l.EntryID(), statuses[l.EntryID()])
+		}
+	}
 }
 
 func TestLogIDFollowsGenesisKey(t *testing.T) {

@@ -67,7 +67,7 @@ iss  = KeyID of the attesting party
 cmt  = commitment over the payload
 ```
 
-The payload has three shapes, distinguished by `kind`:
+The payload has four shapes, distinguished by `kind`:
 
 **`kind: "entity"`** — an entity trust-level claim:
 
@@ -132,9 +132,36 @@ makes any self-attestation contribute nothing), so treating it like an unfamilia
 claim without a `level` already yields the one correct answer: no contribution, by construction,
 not by a special rule that has to be kept in sync with this one.
 
-A verifier MUST reject an attestation payload naming any `kind` other than `entity`, `sensor` or
-`concluded`, and MUST reject `kind: "entity"` without a valid `level`, `kind: "sensor"` carrying
-one, or `kind: "concluded"` with an invalid `reason` or a `successor` that does not match it.
+**`kind: "binding"`** — a physical-digital binding-level claim for a product, not an entity
+(§5, [OWM-9 A8](owm-9-threat-model.md#a8--physical-substitution-or-cloning)):
+
+```json
+{
+  "kind": "binding",
+  "binding_level": 2,
+  "evidence_url": "https://example.org/nfc-spec"
+}
+```
+
+- `binding_level` MUST be an integer 0–3 (§5: Low, Medium, High, Very high). A verifier MUST reject
+  any other value.
+- `evidence_url` MAY point at supporting material off-chain, the same informational-only convention
+  as `kind: "entity"`'s own field.
+- `subj` here is the **product's** subject identifier, not a `KeyID` — the one shape in this section
+  where that is true. Nothing in the wire format distinguishes a product subject from a
+  key-derived one; a verifier does not need to, since the claim is checked the same way regardless
+  (§6, §7).
+- Unlike `kind: "entity"`, a binding claim is never walked to an accreditation root: there is no
+  governance procedure in this project for "who may assert a binding method" the way §8 defines one
+  for entity accreditation. Its entire credibility rests on the issuer's own *entity* trust level,
+  recomputed independently and reported alongside the claim, never folded into it — the same
+  "never collapsed into one number" rule §7 already states for the two dimensions generally, one
+  level down: a claim and the trust in its claimant stay two separate, displayed facts.
+
+A verifier MUST reject an attestation payload naming any `kind` other than `entity`, `sensor`,
+`concluded` or `binding`, and MUST reject `kind: "entity"` without a valid `level`, `kind: "sensor"`
+carrying one, `kind: "concluded"` with an invalid `reason` or a `successor` that does not match it,
+or `kind: "binding"` without a valid `binding_level`.
 
 **Why not a schema profile.** Attestation entries carry `Profile == ""` (the empty string) and
 their payload is validated against the fixed shape above directly, not through the profile
@@ -175,12 +202,18 @@ Four levels, increasing forgery resistance:
 | High | NFC/RFID chip with challenge-response signature | Practically unclonable |
 | Very high | Physical Unclonable Function (PUF) + chip signature | Physically unclonable |
 
-Unlike the entity trust level, this document does not define a wire mechanism for asserting a
-binding level — it fixes the vocabulary (this table) and leaves attaching it to a physical item to
-whichever schema profile declares it. No profile does yet: `food.v1` is immutable once shipped
-(OWM-4 §3), so wiring this in is `food.v2` or later, out of scope here. A client MUST display
-whichever binding level a profile does supply rather than defaulting silently to a stronger one
-than what was actually used ([OWM-9 A8](owm-9-threat-model.md#a8--physical-substitution-or-cloning)).
+Asserting a binding level uses the same core attestation mechanism as an entity trust claim, not a
+schema profile: `kind: "binding"` (§3), naming the product's own subject identifier rather than a
+`KeyID`. That keeps it cross-industry protocol infrastructure — the same category `kind: "entity"`
+and `kind: "sensor"` already occupy — rather than something each profile has to invent for itself,
+and it sidesteps a real constraint a profile-level design would have hit: `food.v1` is immutable
+once shipped (OWM-4 §3), so attaching a new field there would have meant waiting for `food.v2` or
+later. `client/verify.VerifySubject` (OWM-8) recomputes any binding claim in a subject's own
+history the same way it recomputes everything else — no dedicated node endpoint, no opt-in flag. A
+client MUST display whichever binding level it finds, together with the issuer's own recomputed
+entity trust level, rather than defaulting silently to a stronger claim than what the evidence
+actually supports
+([OWM-9 A8](owm-9-threat-model.md#a8--physical-substitution-or-cloning)).
 
 ## 6. Computing a level
 
@@ -223,6 +256,14 @@ issuer's own participation ending is not a trust claim of any kind to begin with
 dedicated step in this algorithm to exclude: being self-issued (`subj == iss`, enforced at
 submission), its own recursive lookup in step 3 immediately hits the same-key-already-being-resolved
 case in the cycles rule above, which already yields "no contribution."
+
+**Kind `binding`.** Also never contributes to an *entity* level, and for the same structural
+reason as `concluded`: it carries no `level` field at all (`binding_level` is a separate field this
+algorithm never reads), so step 2's collection of `kind: "entity"` attestations already excludes it
+without a dedicated case. A binding claim is resolved separately, by a verifier reading it directly
+out of the product's own history rather than walking anything (§5) — its issuer's *entity* level is
+still computed by this same algorithm, just as an ordinary, independent lookup, not as part of
+resolving the product's own (nonexistent) entity level.
 
 **Implementation.** Package `trust` (Apache-2.0) implements this algorithm as a pure function over
 caller-supplied data — no I/O, no state of its own (OWM-9 A11's trusted-local-data split). A node
@@ -269,3 +310,4 @@ actively decides otherwise.
 | Forged root in a verifier's local list | arbitrary trust level, entirely local to that verifier | root list is operator/user-controlled, not protocol-distributed; compromise is a local configuration failure, not a protocol one |
 | Revocation from an unrelated issuer misread as defeating an attestation | trust level wrongly lowered or unaffected | revocation only defeats an attestation from the *same* issuer (§6) |
 | Sensor attested past its operator's own level | inflated sensor trust | sensor level is capped by, never exceeds, the issuer's own computed level (§4, §6) |
+| Binding-level claim from an unverified or self-interested issuer | false confidence in a physical binding that is actually weak | credibility rests entirely on the issuer's own recomputed entity level, displayed alongside the claim, never assumed or folded into it (§3, §5) |

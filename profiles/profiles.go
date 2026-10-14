@@ -86,6 +86,19 @@ const labelSchemaDigest = "OWM/1 profile-schema"
 // payload already conforms to the schema when the rule runs.
 type Rule func(e *core.Entry, payload []byte) error
 
+// CrossCheckFunc compares a claim entry's payload against a linked
+// sensor_reading entry's payload and reports a human-readable contradiction
+// when the device data disagrees with the self-declaration — the "found by
+// machine" mitigation OWM-9 A4 names for the oracle problem. ok is false
+// when there is nothing to report, whether because the two payloads carry no
+// relevant fields or because the sensor data agrees with the claim.
+//
+// Unlike Rule, this never runs at the node: a claim and its later sensor
+// reading typically do not both exist yet at submission time. It runs
+// client-side, once a subject's full history is available
+// (client/verify.Options.Profiles).
+type CrossCheckFunc func(claim, msmt []byte) (finding string, ok bool)
+
 // File is one schema file of a profile, as it is shipped.
 type File struct {
 	Name string
@@ -94,12 +107,13 @@ type File struct {
 
 // Profile is a loaded schema profile.
 type Profile struct {
-	id     string
-	title  string
-	root   *jsonschema.Schema
-	files  []File
-	digest core.Digest
-	rule   Rule
+	id         string
+	title      string
+	root       *jsonschema.Schema
+	files      []File
+	digest     core.Digest
+	rule       Rule
+	crossCheck CrossCheckFunc
 }
 
 // Options describes a profile to be loaded.
@@ -114,6 +128,9 @@ type Options struct {
 	Root string
 	// Rule is optional and checks the entry against the payload.
 	Rule Rule
+	// CrossCheck is optional and compares a claim against a linked sensor
+	// reading, client-side (OWM-9 A4). Most profiles have none.
+	CrossCheck CrossCheckFunc
 }
 
 // Load compiles the schema files and builds a profile from them.
@@ -166,12 +183,13 @@ func Load(opt Options) (*Profile, error) {
 	}
 
 	return &Profile{
-		id:     opt.ID,
-		title:  opt.Title,
-		root:   sch,
-		files:  files,
-		digest: schemaDigest(opt.ID, files),
-		rule:   opt.Rule,
+		id:         opt.ID,
+		title:      opt.Title,
+		root:       sch,
+		files:      files,
+		digest:     schemaDigest(opt.ID, files),
+		rule:       opt.Rule,
+		crossCheck: opt.CrossCheck,
 	}, nil
 }
 
@@ -222,6 +240,16 @@ func (p *Profile) Check(e *core.Entry, payload []byte) error {
 	return nil
 }
 
+// CrossCheck compares a claim against a linked sensor reading, both already
+// known to be schema-valid. Reports ok=false when the profile defines no
+// cross-check at all, or when the defined one finds nothing to report.
+func (p *Profile) CrossCheck(claim, msmt []byte) (finding string, ok bool) {
+	if p.crossCheck == nil {
+		return "", false
+	}
+	return p.crossCheck(claim, msmt)
+}
+
 // Registry maps profile identifiers to their profiles.
 //
 // A node accepts only entries with a profile it has loaded. Turning away a
@@ -258,6 +286,18 @@ func (r *Registry) Get(id string) (*Profile, bool) {
 	defer r.mu.RUnlock()
 	p, ok := r.by[id]
 	return p, ok
+}
+
+// CrossCheck looks up profileID and runs its cross-check, if it has one,
+// against claim and msmt. It exists so that *Registry satisfies
+// client/verify's ProfileLookup interface without either package importing
+// the other — client/verify only ever calls this through that interface.
+func (r *Registry) CrossCheck(profileID string, claim, msmt []byte) (finding string, ok bool) {
+	p, ok := r.Get(profileID)
+	if !ok {
+		return "", false
+	}
+	return p.CrossCheck(claim, msmt)
 }
 
 // Check validates entry and payload against the profile named in the entry.
