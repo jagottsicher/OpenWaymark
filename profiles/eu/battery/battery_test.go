@@ -4,25 +4,14 @@
 package battery_test
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
-	"openwaymark.org/owm/core"
-	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/eu/battery"
+	"openwaymark.org/owm/profiles/profiletest"
 )
 
-const subjectHex = "5c8f4a3b2e1d0c9b8a7f6e5d4c3b2a190807060504030201f0e1d2c3b4a59687"
-
-func load(t *testing.T) *profiles.Profile {
-	t.Helper()
-	p, err := battery.New()
-	if err != nil {
-		t.Fatalf("load profile: %v", err)
-	}
-	return p
-}
+const subjectHex = profiletest.SubjectHex
 
 // A complete set of valid events, following one EV battery pack from
 // manufacture through a second life — at the same time the examples a
@@ -88,122 +77,33 @@ var valid = map[string]string{
 	}`,
 }
 
-func TestValidEvents(t *testing.T) {
-	p := load(t)
-	for name, payload := range valid {
-		t.Run(name, func(t *testing.T) {
-			if err := p.Validate([]byte(payload)); err != nil {
-				t.Fatalf("valid event rejected: %v", err)
-			}
-		})
-	}
-	if len(valid) != 8 {
-		t.Fatalf("the profile has eight events, %d are checked", len(valid))
-	}
-}
-
-func TestInvalidEvents(t *testing.T) {
-	p := load(t)
-	cases := []struct {
-		name    string
-		payload string
-	}{
-		{"unknown event", `{"event":"teleportation","time":"2026-08-10T06:30:00Z"}`},
-		{"event missing", `{"time":"2026-08-10T06:30:00Z"}`},
-		{"time missing", `{"event":"production","product":{"category":"ev"}}`},
-		{"production without a product", `{"event":"production","time":"2026-08-10T06:30:00Z"}`},
-		{"unknown field", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev"},"price":9.9}`},
-		{"unknown category", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"toy"}}`},
-		{"negative carbon footprint", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev","carbon_footprint_kg_co2e_per_kwh":-1}}`},
-		{"recycled content over 100", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev","recycled_content":{"cobalt_pct":150}}}`},
-		{"aggregation without components", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[]}`},
-		{"aggregation with the wrong action", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"install","children":[{"subject":"` + subjectHex + `"}]}`},
-		{"subject in upper case", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"` + strings.ToUpper(subjectHex) + `"}]}`},
-		{"transport without a step", `{"event":"transport","time":"2026-08-10T06:30:00Z","carrier":{"name":"x"}}`},
-		{"processing without an output", `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"shredding","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`},
-		{"handover without a recipient", `{"event":"handover","time":"2026-08-10T06:30:00Z","from":{"name":"x"}}`},
-		{"measurement without a unit", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"state_of_health","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
-		{"release without a certified flag", `{"event":"release","time":"2026-08-10T06:30:00Z","standard":"carbon-footprint-verification"}`},
-		{"decommission without a reason", `{"event":"decommission","time":"2026-08-10T06:30:00Z"}`},
-		{"decommission with an unknown reason", `{"event":"decommission","time":"2026-08-10T06:30:00Z","reason":"lost"}`},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if err := p.Validate([]byte(c.payload)); err == nil {
-				t.Fatal("invalid event accepted")
-			}
-		})
-	}
-}
-
-// A measurement has to be submitted as sensor_reading, everything else —
-// including release and decommission — as assertion.
-func TestEntryTypeRule(t *testing.T) {
-	p := load(t)
-	cases := []struct {
-		event string
-		typ   core.EntryType
-		ok    bool
-	}{
-		{"production", core.EntryTypeAssertion, true},
-		{"production", core.EntryTypeSensorReading, false},
-		{"measurement", core.EntryTypeSensorReading, true},
-		{"measurement", core.EntryTypeAssertion, false},
-		{"release", core.EntryTypeAssertion, true},
-		{"release", core.EntryTypeAttestation, false},
-		{"decommission", core.EntryTypeAssertion, true},
-	}
-	for _, c := range cases {
-		t.Run(c.event+"/"+c.typ.String(), func(t *testing.T) {
-			e := &core.Entry{Type: c.typ, Profile: battery.ID}
-			err := p.Check(e, []byte(valid[c.event]))
-			if c.ok && err != nil {
-				t.Fatalf("unexpectedly rejected: %v", err)
-			}
-			if !c.ok {
-				if err == nil {
-					t.Fatal("unexpectedly accepted")
-				}
-				if !errors.Is(err, profiles.ErrEntry) {
-					t.Fatalf("expected ErrEntry, got %v", err)
-				}
-			}
-		})
-	}
-}
-
-func TestIDAcceptedByCore(t *testing.T) {
-	if err := profiles.CheckID(battery.ID); err != nil {
-		t.Fatalf("identifier %q: %v", battery.ID, err)
-	}
-	e := &core.Entry{
-		Version:  core.FormatVersion,
-		Type:     core.EntryTypeAssertion,
-		Profile:  battery.ID,
-		Subject:  core.SubjectID{1},
-		IssuedAt: 1754800000000,
-		Issuer:   core.KeyID{2},
-	}
-	e.Commitment = core.Commit(core.Salt{}, []byte("x"))
-	if err := e.Validate(); err != nil {
-		t.Fatalf("core rejects entry with profile %q: %v", battery.ID, err)
-	}
-}
-
-func TestSchemaDigestIsFixed(t *testing.T) {
-	a, b := load(t), load(t)
-	if a.SchemaDigest() != b.SchemaDigest() {
-		t.Fatal("two loads produce different digests")
-	}
-	// defs, event and eight event schemas.
-	if len(a.Files()) != 10 {
-		t.Fatalf("expected 10 schema files, got %d", len(a.Files()))
-	}
-	t.Logf("eu/battery.v1 schema digest: %s", a.SchemaDigest())
-}
-
-func TestMustNew(t *testing.T) {
-	if p := battery.MustNew(); p.ID() != battery.ID {
-		t.Fatalf("unexpected identifier %q", p.ID())
-	}
+func TestProfile(t *testing.T) {
+	profiletest.Run(t, profiletest.Suite{
+		ID:          battery.ID,
+		New:         battery.New,
+		MustNew:     battery.MustNew,
+		Valid:       valid,
+		Events:      8,
+		SensorEvent: battery.EventMeasurement,
+		Invalid: map[string]string{
+			"unknown event":                       `{"event":"teleportation","time":"2026-08-10T06:30:00Z"}`,
+			"event missing":                       `{"time":"2026-08-10T06:30:00Z"}`,
+			"time missing":                        `{"event":"production","product":{"category":"ev"}}`,
+			"production without a product":        `{"event":"production","time":"2026-08-10T06:30:00Z"}`,
+			"unknown field":                       `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev"},"price":9.9}`,
+			"unknown category":                    `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"toy"}}`,
+			"negative carbon footprint":           `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev","carbon_footprint_kg_co2e_per_kwh":-1}}`,
+			"recycled content over 100":           `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"category":"ev","recycled_content":{"cobalt_pct":150}}}`,
+			"aggregation without components":      `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[]}`,
+			"aggregation with the wrong action":   `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"install","children":[{"subject":"` + subjectHex + `"}]}`,
+			"subject in upper case":               `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"` + strings.ToUpper(subjectHex) + `"}]}`,
+			"transport without a step":            `{"event":"transport","time":"2026-08-10T06:30:00Z","carrier":{"name":"x"}}`,
+			"processing without an output":        `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"shredding","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`,
+			"handover without a recipient":        `{"event":"handover","time":"2026-08-10T06:30:00Z","from":{"name":"x"}}`,
+			"measurement without a unit":          `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"state_of_health","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`,
+			"release without a certified flag":    `{"event":"release","time":"2026-08-10T06:30:00Z","standard":"carbon-footprint-verification"}`,
+			"decommission without a reason":       `{"event":"decommission","time":"2026-08-10T06:30:00Z"}`,
+			"decommission with an unknown reason": `{"event":"decommission","time":"2026-08-10T06:30:00Z","reason":"lost"}`,
+		},
+	})
 }
