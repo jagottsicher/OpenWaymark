@@ -393,6 +393,10 @@ go test ./core/ -run '^$' -fuzz FuzzParseEntry -fuzztime 5m
 - **Never put personal data in the leaf in the clear.** Everything personal lives in the off-chain
   blob. That rule is in the specification, not just in the code.
 - **Profile versions are immutable.** Changes to `food.v1` are not changes but `food.v2`.
+- **A new profile brings fixtures, not a test file.** The checks every profile has to pass live in
+  [`profiles/profiletest`](profiles/profiletest/); a profile's own `_test.go` hands them its valid
+  events, its invalid ones and its sensor event, and adds only what is genuinely its own. Copying
+  another profile's test file is how the eleven copies drifted apart in the first place.
 - **An SPDX header in every new file**, matching the area (see [License](#license)). The
   repository follows the [REUSE specification](https://reuse.software/); `REUSE.toml` covers the
   exceptions.
