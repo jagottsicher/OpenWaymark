@@ -692,3 +692,55 @@ func TestRunStopsWithContext(t *testing.T) {
 		t.Fatal("Run does not terminate")
 	}
 }
+
+// proofSize answers with the size of the latest STH, not the current tree
+// size: a proof against a size no signature covers cannot be checked against
+// anything. Only before the first STH is the tree size the only answer there
+// is.
+func TestProofSizeFollowsTheLatestSTH(t *testing.T) {
+	n := newTestNode(t)
+	ctx := context.Background()
+
+	size, err := n.proofSize(ctx)
+	if err != nil {
+		t.Fatalf("proofSize without an STH: %v", err)
+	}
+	if size != 0 {
+		t.Fatalf("expected size 0 on an empty log, got %d", size)
+	}
+
+	p := newParticipant(t, n, core.SigAlgMLDSA44, "Producer")
+	append1 := func() {
+		t.Helper()
+		se, salt, payload := p.sign(t, core.EntryTypeAssertion, newSubject(t), productionPayload)
+		if _, err := n.Submit(ctx, se, salt, payload); err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+	}
+
+	append1()
+	if _, err := n.IssueSTH(ctx); err != nil {
+		t.Fatalf("issue STH: %v", err)
+	}
+	witnessed, err := n.proofSize(ctx)
+	if err != nil {
+		t.Fatalf("proofSize: %v", err)
+	}
+
+	// A second entry grows the tree without being witnessed by an STH.
+	append1()
+	treeSize, err := n.log.Size(ctx)
+	if err != nil {
+		t.Fatalf("tree size: %v", err)
+	}
+	if treeSize <= witnessed {
+		t.Fatalf("tree did not grow past the witnessed size %d", witnessed)
+	}
+	again, err := n.proofSize(ctx)
+	if err != nil {
+		t.Fatalf("proofSize after an unwitnessed append: %v", err)
+	}
+	if again != witnessed {
+		t.Fatalf("proofSize followed the tree to %d instead of staying at the witnessed %d", again, witnessed)
+	}
+}

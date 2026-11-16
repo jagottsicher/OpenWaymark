@@ -213,24 +213,7 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 	}
 
 	if opts.PreviousSTH != nil && res.STH != nil {
-		if opts.PreviousSTH.Size == res.STH.Size {
-			if opts.PreviousSTH.Root != res.STH.Root {
-				res.Findings = append(res.Findings, fmt.Sprintf(
-					"split view: two STHs for tree size %d with different roots — %s",
-					res.STH.Size, owmlog.ErrSplitView))
-			}
-		} else if opts.PreviousSTH.Size < res.STH.Size {
-			cp, err := c.fetchConsistency(ctx, opts.PreviousSTH.Size, res.STH.Size)
-			if err != nil {
-				res.Findings = append(res.Findings, fmt.Sprintf("fetch consistency proof: %v", err))
-			} else if err := cp.Verify(opts.PreviousSTH, res.STH); err != nil {
-				res.Findings = append(res.Findings, fmt.Sprintf("consistency proof failed: %v", err))
-			}
-		} else {
-			res.Findings = append(res.Findings, fmt.Sprintf(
-				"tree shrank: previously seen size %d, node now reports %d",
-				opts.PreviousSTH.Size, res.STH.Size))
-		}
+		res.Findings = append(res.Findings, c.checkAgainstPrevious(ctx, opts.PreviousSTH, res.STH)...)
 	}
 
 	hist, err := c.fetchHistory(ctx, subject)
@@ -252,14 +235,54 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 	}
 	res.Findings = append(res.Findings, crossCheckFindings(opts.Profiles, sth.Log, checked)...)
 
-	// trust.Compute is well-defined (LevelNone, nil error) even over an
-	// empty root set — "no evidence" is an ordinary result, not something
-	// to special-case around here.
+	c.trustLevels(ctx, res, opts.Roots, issuers)
+	res.Bindings = bindingClaims(checked, res.TrustLevel)
+
+	return res, nil
+}
+
+// checkAgainstPrevious compares a freshly fetched STH with one the caller has
+// seen before. The three cases are distinct accusations, not degrees of one:
+// an equal size with a different root is a split view the node signed itself,
+// a larger size has to be reachable from the smaller by a consistency proof,
+// and a smaller size is a tree that shrank, which an append-only log cannot do.
+func (c *client) checkAgainstPrevious(ctx context.Context, prev, cur *owmlog.STH) []string {
+	switch {
+	case prev.Size == cur.Size:
+		if prev.Root != cur.Root {
+			return []string{fmt.Sprintf(
+				"split view: two STHs for tree size %d with different roots — %s",
+				cur.Size, owmlog.ErrSplitView)}
+		}
+	case prev.Size < cur.Size:
+		cp, err := c.fetchConsistency(ctx, prev.Size, cur.Size)
+		if err != nil {
+			return []string{fmt.Sprintf("fetch consistency proof: %v", err)}
+		}
+		if err := cp.Verify(prev, cur); err != nil {
+			return []string{fmt.Sprintf("consistency proof failed: %v", err)}
+		}
+	default:
+		return []string{fmt.Sprintf(
+			"tree shrank: previously seen size %d, node now reports %d",
+			prev.Size, cur.Size)}
+	}
+	return nil
+}
+
+// trustLevels recomputes every issuer's entity trust level from the
+// accreditation roots the caller configured, and compares the result with what
+// the node itself claims where it offers the optional convenience endpoint.
+//
+// trust.Compute is well-defined (LevelNone, nil error) even over an empty root
+// set — "no evidence" is an ordinary result, not something to special-case
+// around here.
+func (c *client) trustLevels(ctx context.Context, res *Result, roots trust.RootSet, issuers map[core.KeyID]bool) {
 	src := &httpTrustSource{c: c}
 	res.TrustLevel = map[core.KeyID]trust.Level{}
 	res.ServerTrustLevel = map[core.KeyID]trust.Level{}
 	for issuer := range issuers {
-		lvl, _, err := trust.Compute(ctx, src, opts.Roots, issuer)
+		lvl, _, err := trust.Compute(ctx, src, roots, issuer)
 		if err != nil {
 			res.Findings = append(res.Findings, fmt.Sprintf("trust level of %s: %v", issuer, err))
 			continue
@@ -277,12 +300,15 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 				issuer, lvl, serverLvl))
 		}
 	}
+}
 
-	// Binding claims (OWM-9 A8): a kind:"binding" attestation is an
-	// ordinary attestation entry, already checked like any other above —
-	// this only picks the ones with that shape out of what was already
-	// verified. res.TrustLevel[issuer] degrades to LevelNone when absent,
-	// the same convention its own doc comment already establishes.
+// bindingClaims picks the physical-digital binding claims (OWM-9 A8) out of
+// the entries already checked: a kind:"binding" attestation is an ordinary
+// attestation entry, verified like any other, and this only recognises the
+// shape. levels[issuer] degrades to LevelNone when absent, the same convention
+// Result.TrustLevel's own doc comment establishes.
+func bindingClaims(checked map[core.Digest]checkedEntry, levels map[core.KeyID]trust.Level) []BindingClaim {
+	var out []BindingClaim
 	for _, ce := range checked {
 		if ce.result.Status != StatusOK || ce.result.Type != core.EntryTypeAttestation {
 			continue
@@ -291,15 +317,14 @@ func VerifySubject(ctx context.Context, f Fetcher, nodeBaseURL string, subject c
 		if err != nil || p.Kind != trust.KindBinding {
 			continue
 		}
-		res.Bindings = append(res.Bindings, BindingClaim{
+		out = append(out, BindingClaim{
 			Level:       p.BindingLevel,
 			Issuer:      ce.result.Issuer,
-			IssuerLevel: res.TrustLevel[ce.result.Issuer],
+			IssuerLevel: levels[ce.result.Issuer],
 			EvidenceURL: p.EvidenceURL,
 		})
 	}
-
-	return res, nil
+	return out
 }
 
 // checkEntry verifies one entry from a subject's history: leaf signature and

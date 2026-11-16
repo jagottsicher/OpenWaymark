@@ -291,16 +291,20 @@ func (n *Node) handleSTH(w http.ResponseWriter, r *http.Request) {
 // that is precisely what it should not have to do.
 func (n *Node) proofSize(ctx context.Context) (uint64, error) {
 	signed, err := n.log.LatestSTH(ctx)
-	if err == nil {
-		sth, err := signed.STH()
-		if err == nil {
-			return sth.Size, nil
-		}
-	}
-	if err != nil && !errors.Is(err, owmlog.ErrNotFound) {
+	switch {
+	case errors.Is(err, owmlog.ErrNotFound):
+		// Nothing has been witnessed yet. The current tree size is all there
+		// is to issue a proof against, and a client has no STH to check it
+		// against either way.
+		return n.log.Size(ctx)
+	case err != nil:
 		return 0, err
 	}
-	return n.log.Size(ctx)
+	sth, err := signed.STH()
+	if err != nil {
+		return 0, err
+	}
+	return sth.Size, nil
 }
 
 func (n *Node) handleInclusion(w http.ResponseWriter, r *http.Request) {
