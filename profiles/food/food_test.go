@@ -4,16 +4,15 @@
 package food_test
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
-	"openwaymark.org/owm/core"
 	"openwaymark.org/owm/profiles"
 	"openwaymark.org/owm/profiles/food"
+	"openwaymark.org/owm/profiles/profiletest"
 )
 
-const subjectHex = "5c8f4a3b2e1d0c9b8a7f6e5d4c3b2a190807060504030201f0e1d2c3b4a59687"
+const subjectHex = profiletest.SubjectHex
 
 func load(t *testing.T) *profiles.Profile {
 	t.Helper()
@@ -81,93 +80,6 @@ var valid = map[string]string{
 	}`,
 }
 
-func TestValidEvents(t *testing.T) {
-	p := load(t)
-	for name, payload := range valid {
-		t.Run(name, func(t *testing.T) {
-			if err := p.Validate([]byte(payload)); err != nil {
-				t.Fatalf("valid event rejected: %v", err)
-			}
-		})
-	}
-	if len(valid) != 6 {
-		t.Fatalf("the profile has six events, %d are checked", len(valid))
-	}
-}
-
-func TestInvalidEvents(t *testing.T) {
-	p := load(t)
-	cases := []struct {
-		name    string
-		payload string
-	}{
-		{"unknown event", `{"event":"teleportation","time":"2026-08-10T06:30:00Z"}`},
-		{"event missing", `{"time":"2026-08-10T06:30:00Z"}`},
-		{"time missing", `{"event":"production","product":{"name":"x"}}`},
-		{"time without a time zone", `{"event":"production","time":"2026-08-10 06:30","product":{"name":"x"}}`},
-		{"production without goods", `{"event":"production","time":"2026-08-10T06:30:00Z"}`},
-		{"empty goods", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{}}`},
-		{"unknown field", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"price":9.9}`},
-		{"field of the wrong event", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"step":"departure"}`},
-		{"aggregation without components", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[]}`},
-		{"aggregation with the wrong action", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"merge","children":[{"subject":"` + subjectHex + `"}]}`},
-		{"subject in upper case", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"` + strings.ToUpper(subjectHex) + `"}]}`},
-		{"subject too short", `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"abcd"}]}`},
-		{"transport without a step", `{"event":"transport","time":"2026-08-10T06:30:00Z","carrier":{"name":"x"}}`},
-		{"processing without an output", `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"grinding","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`},
-		{"handover without a recipient", `{"event":"handover","time":"2026-08-10T06:30:00Z","from":{"name":"x"}}`},
-		{"empty party", `{"event":"handover","time":"2026-08-10T06:30:00Z","to":{}}`},
-		{"measurement without a unit", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
-		{"measured value as text", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":"cold"}]}`},
-		{"unknown quantity", `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"mood","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`},
-		{"coordinate out of range", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"geo":{"lat":91,"lon":0}}}`},
-		{"country code in lower case", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"country":"de"}}`},
-		{"negative quantity", `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"quantity":{"value":-1,"unit":"KGM"}}`},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if err := p.Validate([]byte(c.payload)); err == nil {
-				t.Fatal("invalid event accepted")
-			}
-		})
-	}
-}
-
-// A measurement has to be submitted as sensor_reading, everything else as
-// assertion. Otherwise a hand-written cold chain could later be passed off as
-// device evidence.
-func TestEntryTypeRule(t *testing.T) {
-	p := load(t)
-	cases := []struct {
-		event string
-		typ   core.EntryType
-		ok    bool
-	}{
-		{"production", core.EntryTypeAssertion, true},
-		{"production", core.EntryTypeSensorReading, false},
-		{"measurement", core.EntryTypeSensorReading, true},
-		{"measurement", core.EntryTypeAssertion, false},
-		{"handover", core.EntryTypeAttestation, false},
-	}
-	for _, c := range cases {
-		t.Run(c.event+"/"+c.typ.String(), func(t *testing.T) {
-			e := &core.Entry{Type: c.typ, Profile: food.ID}
-			err := p.Check(e, []byte(valid[c.event]))
-			if c.ok && err != nil {
-				t.Fatalf("unexpectedly rejected: %v", err)
-			}
-			if !c.ok {
-				if err == nil {
-					t.Fatal("unexpectedly accepted")
-				}
-				if !errors.Is(err, profiles.ErrEntry) {
-					t.Fatalf("expected ErrEntry, got %v", err)
-				}
-			}
-		})
-	}
-}
-
 // TestCrossCheckColdChainWithinRange confirms the profile's own valid
 // transport/measurement pair — 2 to 8 C promised, readings at 4.2 and 4.6 —
 // reports nothing: agreement is silence, not a finding of its own.
@@ -228,40 +140,37 @@ func TestCrossCheckColdChainMalformed(t *testing.T) {
 	}
 }
 
-// The profile identifier has to satisfy the core's rules for the prof field —
-// otherwise the profile would load but no entry could be issued with it.
-func TestIDAcceptedByCore(t *testing.T) {
-	if err := profiles.CheckID(food.ID); err != nil {
-		t.Fatalf("identifier %q: %v", food.ID, err)
-	}
-	e := &core.Entry{
-		Version:  core.FormatVersion,
-		Type:     core.EntryTypeAssertion,
-		Profile:  food.ID,
-		Subject:  core.SubjectID{1},
-		IssuedAt: 1754800000000,
-		Issuer:   core.KeyID{2},
-	}
-	e.Commitment = core.Commit(core.Salt{}, []byte("x"))
-	if err := e.Validate(); err != nil {
-		t.Fatalf("core rejects entry with profile %q: %v", food.ID, err)
-	}
-}
-
-func TestSchemaDigestIsFixed(t *testing.T) {
-	a, b := load(t), load(t)
-	if a.SchemaDigest() != b.SchemaDigest() {
-		t.Fatal("two loads produce different digests")
-	}
-	// defs, event and six event schemas.
-	if len(a.Files()) != 8 {
-		t.Fatalf("expected 8 schema files, got %d", len(a.Files()))
-	}
-	t.Logf("food.v1 schema digest: %s", a.SchemaDigest())
-}
-
-func TestMustNew(t *testing.T) {
-	if p := food.MustNew(); p.ID() != food.ID {
-		t.Fatalf("unexpected identifier %q", p.ID())
-	}
+func TestProfile(t *testing.T) {
+	profiletest.Run(t, profiletest.Suite{
+		ID:          food.ID,
+		New:         food.New,
+		MustNew:     food.MustNew,
+		Valid:       valid,
+		Events:      6,
+		SensorEvent: food.EventMeasurement,
+		Invalid: map[string]string{
+			"unknown event":                     `{"event":"teleportation","time":"2026-08-10T06:30:00Z"}`,
+			"event missing":                     `{"time":"2026-08-10T06:30:00Z"}`,
+			"time missing":                      `{"event":"production","product":{"name":"x"}}`,
+			"time without a time zone":          `{"event":"production","time":"2026-08-10 06:30","product":{"name":"x"}}`,
+			"production without goods":          `{"event":"production","time":"2026-08-10T06:30:00Z"}`,
+			"empty goods":                       `{"event":"production","time":"2026-08-10T06:30:00Z","product":{}}`,
+			"unknown field":                     `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"price":9.9}`,
+			"field of the wrong event":          `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"step":"departure"}`,
+			"aggregation without components":    `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[]}`,
+			"aggregation with the wrong action": `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"merge","children":[{"subject":"` + subjectHex + `"}]}`,
+			"subject in upper case":             `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"` + strings.ToUpper(subjectHex) + `"}]}`,
+			"subject too short":                 `{"event":"aggregation","time":"2026-08-10T06:30:00Z","action":"add","children":[{"subject":"abcd"}]}`,
+			"transport without a step":          `{"event":"transport","time":"2026-08-10T06:30:00Z","carrier":{"name":"x"}}`,
+			"processing without an output":      `{"event":"processing","time":"2026-08-10T06:30:00Z","process":"grinding","inputs":[{"subject":"` + subjectHex + `"}],"outputs":[]}`,
+			"handover without a recipient":      `{"event":"handover","time":"2026-08-10T06:30:00Z","from":{"name":"x"}}`,
+			"empty party":                       `{"event":"handover","time":"2026-08-10T06:30:00Z","to":{}}`,
+			"measurement without a unit":        `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`,
+			"measured value as text":            `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"temperature","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":"cold"}]}`,
+			"unknown quantity":                  `{"event":"measurement","time":"2026-08-10T06:30:00Z","sensor":{"id":"a"},"quantity_kind":"mood","unit":"CEL","readings":[{"t":"2026-08-10T06:30:00Z","v":1}]}`,
+			"coordinate out of range":           `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"geo":{"lat":91,"lon":0}}}`,
+			"country code in lower case":        `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"location":{"country":"de"}}`,
+			"negative quantity":                 `{"event":"production","time":"2026-08-10T06:30:00Z","product":{"name":"x"},"quantity":{"value":-1,"unit":"KGM"}}`,
+		},
+	})
 }
